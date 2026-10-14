@@ -3,6 +3,7 @@ import { translate } from "../../i18n/translate.ts";
 import type { SessionActivity } from "@plume/core/activity";
 
 import { BreatheLoader } from "../../ui/motion/loaders.tsx";
+import { GitFork } from "../../ui/icons/index.ts";
 
 /** Keys, looked up when the row is drawn — this table is built at import time. */
 const LABEL: Record<SessionActivity, MessageKey> = {
@@ -24,13 +25,23 @@ const LABEL: Record<SessionActivity, MessageKey> = {
  * Idle keeps its place rather than collapsing. Every row reserves the same width whatever its
  * state, so titles line up as a column and a mark appearing does not shove one sideways; the
  * faint ring standing in for "nothing" is quiet enough to read as part of the rule.
+ *
+ * A conversation in a worktree of its own (`worktree`, its branch) says so in that idle place, with
+ * the fork the composer's toggle uses — the one thing about it a title cannot. What it is doing, and
+ * an unread mark, still come first.
  */
-export function SessionStatus({ activity, unread = false }: { activity: SessionActivity | null; unread?: boolean }) {
+export function SessionStatus({ activity, unread = false, worktree }: { activity: SessionActivity | null; unread?: boolean; worktree?: string }) {
 	/*
 	 * 手动标的未读只占空闲那一档。在跑、在等批准说的是接下来要发生的事，比「回头再看」要紧；
 	 * `done`/`failed` 本身就是未读，不用再叠一层。
 	 */
-	const label = activity ? translate(LABEL[activity]) : unread ? translate("sessionStatus.unread") : undefined;
+	const label = activity
+		? translate(LABEL[activity])
+		: unread
+			? translate("sessionStatus.unread")
+			: worktree
+				? translate("sidebar.inWorktree", { branch: worktree })
+				: undefined;
 	return (
 		<span
 			className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-visible"
@@ -53,6 +64,8 @@ export function SessionStatus({ activity, unread = false }: { activity: SessionA
 				<span data-ly-status-mark="running">
 					<BreatheLoader size={12} />
 				</span>
+			) : !activity && !unread && worktree ? (
+				<GitFork data-ly-status-mark="worktree" size={11} strokeWidth={2.1} className="text-ink-faint" aria-hidden />
 			) : (
 				/*
 				 * One 7px disc, four paints. Switching a finished conversation in used to swap a

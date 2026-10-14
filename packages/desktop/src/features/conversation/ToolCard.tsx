@@ -1,6 +1,7 @@
 import type { DiffHunk, ImageContent, ToolResult } from "@plume/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
+	Archive,
 	ArrowUpRight,
 	Ban,
 	Cable,
@@ -16,6 +17,7 @@ import {
 	ListTodo,
 	Search,
 	Sparkles,
+	SquarePen,
 	Terminal,
 	Users,
 } from "../../ui/icons/index.ts";
@@ -51,6 +53,9 @@ const ICONS: Record<string, typeof FileText> = {
 	web_fetch: Globe,
 	image_generate: Image,
 	mcp_search: Search,
+	// The sidebar's own marks for a new chat and for archiving, so the row and the place it acts on agree.
+	spawn_session: SquarePen,
+	archive_session: Archive,
 };
 
 interface ToolCardProps {

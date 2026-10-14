@@ -26,6 +26,7 @@ import { askSide, openFilePane, openScopedPanel, sideChatFor } from "../dock/ind
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { PlanModeToggle } from "./PlanModeToggle.tsx";
+import { WorktreeToggle } from "../../ui/inputs/WorktreeToggle.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -138,6 +139,14 @@ export function Composer({ centered = false }: {
 
 	const savedDraft = useApp((s) => s.drafts[draftKey]);
 	const setDraft = useApp((s) => s.setDraft);
+	/*
+	 * Whether this new conversation gets a worktree of its own (`WorktreeToggle`), held against the
+	 * draft it was chosen for: another blank conversation, or this one moved to another project, starts
+	 * again from the setting.
+	 */
+	const offersWorktree = activeSessionId === null && Boolean(workspace?.isGitRepo);
+	const [worktreePick, setWorktreePick] = useState<{ draft: string; on: boolean } | null>(null);
+	const inWorktree = worktreePick?.draft === draftKey ? worktreePick.on : Boolean(settings?.worktrees?.autoCreateOnNewSession);
 
 	const [text, setText] = useState(() => savedDraft?.text ?? "");
 	const [sessionRefs, setSessionRefs] = useState<Array<{ id: string; title: string }>>(() => savedDraft?.sessionRefs ?? []);
@@ -562,6 +571,7 @@ export function Composer({ centered = false }: {
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
+			...(offersWorktree ? { worktree: inWorktree } : {}),
 			sessionId: activeSessionId,
 		});
 		if (!accepted) {
@@ -735,6 +745,7 @@ export function Composer({ centered = false }: {
 								active={branchMenu.open}
 							/>
 						)}
+						{offersWorktree && <WorktreeToggle on={inWorktree} onChange={(on) => setWorktreePick({ draft: draftKey, on })} />}
 						<div className="min-w-2 flex-1" />
 						<ChangeBar />
 					</div>

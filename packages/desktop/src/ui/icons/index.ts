@@ -138,6 +138,7 @@ export { GitBranchPlusIcon as GitBranchPlus } from "./animated/git-branch-plus.t
 export { GitCommitHorizontalIcon as GitCommitHorizontal } from "./animated/git-commit-horizontal.tsx";
 export { GitCommitVerticalIcon as GitCommitVertical } from "./animated/git-commit-vertical.tsx";
 export { GitCompareIcon as GitCompare } from "./animated/git-compare.tsx";
+export { GitForkIcon as GitFork } from "./animated/git-fork.tsx";
 export { GitMergeIcon as GitMerge } from "./animated/git-merge.tsx";
 export { GitPullRequestIcon as GitPullRequest } from "./animated/git-pull-request.tsx";
 export { GitPullRequestArrowIcon as GitPullRequestArrow } from "./animated/git-pull-request-arrow.tsx";

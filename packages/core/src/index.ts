@@ -251,6 +251,7 @@ export {
 	type SessionMeta,
 	type SessionRecord,
 } from "./session/store.ts";
+export type { SpawnedFrom } from "./session/types.ts";
 export {
 	INLINE_IMAGE_CHARS,
 	persistSessionImage,

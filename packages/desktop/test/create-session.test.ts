@@ -170,3 +170,52 @@ test("a new chat opened in plan mode starts its first turn in plan mode", async 
 		assert.throws(() => initialPrompt({ content: "x", planMode: "yes" }));
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
+
+/*
+ * 「这次用不用工作树」是这一个会话的事：设置只是它起步的默认值。
+ *
+ * 从前只有设置一个开关，开着就每个新会话都建、关着就一个都不建，想单独给某一个会话建都做不到。
+ */
+test("这一次的选择盖过全局开关：开着的设置可以不要，关着的设置可以要", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-choose-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const content = promptContent([{ type: "text", text: "这次怎么跑" }]);
+		const on = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: true } };
+		const off = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: false } };
+		assert.equal((await createStoredSession(store, off, root, "", { content, worktree: true })).meta.workspaceSetup, "worktree");
+		assert.equal((await createStoredSession(store, on, root, "", { content, worktree: false })).meta.workspaceSetup, undefined);
+		assert.equal((await createStoredSession(store, on, root, "", { content })).meta.workspaceSetup, "worktree");
+		assert.equal((await createStoredSession(store, off, root, "", { content })).meta.workspaceSetup, undefined);
+	} finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("工作树的选择穿过首条消息的白名单；不是布尔就拒", () => {
+	const content = [{ type: "text", text: "x" }];
+	assert.equal(initialPrompt({ content, worktree: true })?.worktree, true);
+	assert.equal(initialPrompt({ content, worktree: false })?.worktree, false);
+	assert.equal(Object.hasOwn(initialPrompt({ content }) ?? {}, "worktree"), false, "absent stays absent, so the setting decides");
+	assert.throws(() => initialPrompt({ content, worktree: "yes" }), /worktree/);
+});
+
+/*
+ * 从建议卡片开出来的会话，用卡片的标题当名字。
+ *
+ * 首条消息是写给模型看的一段说明，截前六十个字放进侧栏，读起来像半句话。
+ */
+test("建会话时给了标题就用它：白名单收字符串、压空白、按六十字截；不是字符串就拒", async () => {
+	const content = [{ type: "text", text: "In src/auth.ts, legacyLogin has no callers left. Search the repository to confirm, then delete it and its tests." }];
+	assert.equal(initialPrompt({ content, title: "  删掉没人调用的\n legacyLogin  " })?.title, "删掉没人调用的 legacyLogin");
+	assert.equal(initialPrompt({ content, title: "长".repeat(80) })?.title?.length, 60);
+	assert.equal(Object.hasOwn(initialPrompt({ content, title: "   " }) ?? {}, "title"), false, "a blank title is no title");
+	assert.throws(() => initialPrompt({ content, title: 42 }), /title/);
+	const root = await mkdtemp(join(tmpdir(), "plume-titled-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content, title: "删掉没人调用的 legacyLogin" }));
+		assert.equal(saved.meta.title, "删掉没人调用的 legacyLogin");
+		assert.equal(saved.meta.titleSetByUser, true, "a taken name: the first turn must not rename it after the prompt");
+		const untitled = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content }));
+		assert.equal(untitled.meta.titleSetByUser, undefined, "a conversation nobody named is still named after its first message");
+	} finally { await rm(root, { recursive: true, force: true }); }
+});

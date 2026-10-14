@@ -88,12 +88,30 @@ export function initialPrompt(value: unknown): InitialPrompt | undefined {
 	if (!object(value)) throw new Error("initial must be an object");
 	if (value.synthetic !== undefined && typeof value.synthetic !== "boolean") throw new Error("synthetic must be boolean");
 	if (value.planMode !== undefined && typeof value.planMode !== "boolean") throw new Error("planMode must be boolean");
+	if (value.worktree !== undefined && typeof value.worktree !== "boolean") throw new Error("worktree must be boolean");
+	if (value.title !== undefined && typeof value.title !== "string") throw new Error("title must be a string");
 	return {
 		content: promptContent(value.content),
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
 		...(value.planMode ? { planMode: true } : {}),
+		// This conversation's own answer to "in a worktree?", from the switch beside the project. Absent follows the setting.
+		...(value.worktree === undefined ? {} : { worktree: value.worktree }),
+		...(value.spawnedFrom === undefined ? {} : { spawnedFrom: spawnedFrom(value.spawnedFrom) }),
+		// A name for the list, held to the length a title from the first message gets.
+		...(typeof value.title === "string" && value.title.trim() ? { title: value.title.replace(/\s+/g, " ").trim().slice(0, 60) } : {}),
 		...presentation(value),
 	};
+}
+
+/**
+ * Which suggestion card a new conversation was started from (`SessionMeta.spawnedFrom`).
+ *
+ * Two ids grant nothing — the worst a forged pair does is make some card read as started.
+ */
+function spawnedFrom(value: unknown): NonNullable<InitialPrompt["spawnedFrom"]> {
+	const id = (field: unknown) => typeof field === "string" && field.trim().length > 0 && field.length <= 200;
+	if (!object(value) || !id(value.sessionId) || !id(value.toolCallId)) throw new Error("Invalid spawnedFrom");
+	return { sessionId: value.sessionId as string, toolCallId: value.toolCallId as string };
 }
 
 export function promptOptions(

@@ -76,8 +76,9 @@ export interface ToolResult {
 	/**
 	 * End the agent turn after this tool, even if the model wanted to keep going.
 	 *
-	 * 给「做完这件事本身就等于这一轮做完了」的工具用，目前只有 `yield`：结果已经交进 `state`，
-	 * 派生的调用方读的是那个对象，此后再问模型一句话，没有任何人会读到答案。
+	 * 给「做完这件事本身就等于这一轮做完了」的工具用：`yield` 的结果已经交进 `state`，派生的调用方
+	 * 读的是那个对象，此后再问模型一句话，没有任何人会读到答案；桌面端的 `archive_session` 要等这一轮
+	 * 结束才归档，之后说的话会跟着对话一起被收起来，没人读。
 	 *
 	 * 读它的是 `agent/loop.ts`，那里也写着这根线断着的时候会发生什么。出错的结果上写这个不作数，
 	 * 见 `agent/tool-run.ts`。

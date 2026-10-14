@@ -19,6 +19,8 @@ import { pause } from "./record.ts";
 export interface Scene {
 	cue: string;
 	call: string;
+	/** The tool the scene calls; absent is a drawing (`image_generate`). */
+	tool?: string;
 	args: Record<string, unknown>;
 	reply: string;
 }
@@ -120,7 +122,7 @@ export async function startFakeImageRelay(options: {
 		const scene = options.scenes.find((each) => words.text.includes(each.cue)) ?? options.scenes[0];
 		if (messages.slice(words.index + 1).some((message) => message.role === "tool")) return text(scene.reply);
 		await pause(400);
-		send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: scene.call, type: "function", function: { name: "image_generate", arguments: "" } }] }, finish_reason: null }] });
+		send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: scene.call, type: "function", function: { name: scene.tool ?? "image_generate", arguments: "" } }] }, finish_reason: null }] });
 		const args = JSON.stringify(scene.args);
 		for (let at = 0; at < args.length; at += 24) {
 			send({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: args.slice(at, at + 24) } }] }, finish_reason: null }] });

@@ -27,6 +27,7 @@ import { noteTranscriptFiles } from "./attachment-reads.ts";
 import { eachAppWindow } from "./window.ts";
 import { createPeerRouter } from "./session-peers.ts";
 import { createPeerTools } from "./peer-tools.ts";
+import { archiveAfterTurn, createSessionOpsTools } from "./session-ops.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -72,6 +73,18 @@ const peers = createPeerRouter({
 /** 每个会话都有的那三件工具；状态全在 `peers` 里，所以一份就够。 */
 const peerTools = createPeerTools(peers);
 
+/** 要求归档自己的会话，在那一轮结束后归档——见 `session-ops.ts`。 */
+const archives = archiveAfterTurn({
+	archive: async (id) => {
+		await deps.store().setArchived(id, true);
+	},
+	busy: (id) => sessions.get(id)?.running ?? false,
+	archived: async (id) => (await deps.store().listSessions()).some((one) => one.id === id && one.archived === true),
+	dispose: (id) => disposeSession(id, "archived"),
+});
+/** 和 `peerTools` 一样每个会话共用一份：工具本身不带状态，是谁调的看 `ctx.sessionId`。 */
+const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
+
 export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
 	// 「不在项目中工作」 arrives as the shared `general`; each conversation runs in a directory of its own.
 	const saved = await createStoredSession(deps.store(), deps.settings(), await ownWorkspace(cwd), modelId, initialPrompt(initial));
@@ -93,7 +106,7 @@ function stageSession(saved: SessionSnapshot, parent?: AgentSession): AgentSessi
 	}
 	const browser = createBrowserTools();
 	const session = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta,
-		extraTools: [...browser.tools, ...peerTools], emit: (event) => broadcast(saved.meta.id, event), compactWhenIdle: true });
+		extraTools: [...browser.tools, ...peerTools, ...sessionOps], emit: (event) => broadcast(saved.meta.id, event), compactWhenIdle: true });
 	session.restore(saved.messages);
 	sessions.set(saved.meta.id, session);
 	browsers.set(saved.meta.id, browser.dispose);
@@ -243,6 +256,8 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
 	const meta = sessions.get(sessionId)?.meta;
 	if (!side) notifyAgentEvent(sessionId, event, meta?.title);
+	// After the windows have the event: they hear the turn end before they hear it was archived.
+	archives.observe(sessionId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {
@@ -254,10 +269,14 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	const appSettings = deps.settings();
 	// Generate a temporary session id prefix for potential worktree naming
 	const tempId = Math.random().toString(36).slice(2, 10);
-	const worktreeResult = await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({
-		cwd,
-		worktreeCreated: false,
-	}));
+	/*
+	 * A scheduled run has no composer to choose in, so the setting decides. Asked here rather than in
+	 * `autoCreateSessionWorktree`, which only makes what it is asked for: a conversation's own choice
+	 * reaches it through `workspaceSetup`, and must not be overruled by the setting on the way.
+	 */
+	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string } = appSettings.worktrees?.autoCreateOnNewSession
+		? await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({ cwd, worktreeCreated: false }))
+		: { cwd, worktreeCreated: false };
 	const sessionCwd = worktreeResult.cwd;
 
 	const browser = createBrowserTools();
@@ -267,12 +286,16 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		cwd: sessionCwd,
 		settings: appSettings,
 		store: deps.store(),
-		extraTools: [...browser.tools, ...peerTools],
+		extraTools: [...browser.tools, ...peerTools, ...sessionOps],
 		emit: (event: AgentEvent) => broadcast(session.meta.id, event),
 		// 一轮收尾、缓存还热时先压掉越线的历史；侧边聊天和命令行不开，见 `AgentSessionOptions.compactWhenIdle`。
 		compactWhenIdle: true,
 	});
 	await session.initialize();
+	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`).
+	if (worktreeResult.worktreeCreated && worktreeResult.branch) {
+		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch } } });
+	}
 	sessions.set(session.meta.id, session);
 	ready.add(session.meta.id);
 	browsers.set(session.meta.id, browser.dispose);
@@ -385,10 +408,22 @@ async function startStoredSession(sessionId: string): Promise<AgentSession | nul
 	try {
 		await ensureSessionWorkspace(session.cwd);
 		if (session.meta.workspaceSetup === "worktree") {
-			const prepared = await autoCreateSessionWorktree(session.cwd, deps.settings(), sessionId);
+			const project = session.cwd;
+			const prepared = await autoCreateSessionWorktree(project, deps.settings(), sessionId);
 			session.cwd = prepared.cwd;
 			// Execution may move; project identity and all metadata edits remain on the same log.
-			await session.log.append({ type: "meta", meta: { ...session.meta, cwd: prepared.cwd, workspaceSetup: undefined } });
+			await session.log.append({ type: "meta", meta: {
+				...session.meta,
+				cwd: prepared.cwd,
+				workspaceSetup: undefined,
+				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch } } : {}),
+			} });
+			/*
+			 * Said in the conversation, because it asked for a copy and is about to change the original.
+			 * This used to fall back without a word: the person who chose a separate worktree found out
+			 * from `git status` in their own checkout.
+			 */
+			if (!prepared.worktreeCreated) broadcast(sessionId, { type: "notice", level: "warn", message: nativeText("worktree.notCreated", { reason: prepared.error ?? "" }) });
 		}
 		if (retiring.has(sessionId)) return null;
 		await session.initialize();

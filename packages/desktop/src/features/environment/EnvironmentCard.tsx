@@ -1,11 +1,11 @@
 /**
- * 环境卡片：这个会话「周边」的东西收在一处——用什么打开、跑着的后台任务、派出去的子 Agent、当前分支的 PR、
+ * 环境卡片：这个会话「周边」的东西收在一处——用什么打开、跑着的后台任务、派出去的子 Agent、建议另开的会话、当前分支的 PR、
  * 侧边聊天、摘要、引用。每一行都只是入口，点了去已有的面板、弹窗或那一页。
  *
  * 照 Synara 的 Environment 面板做。项目、分支、改了多少、提交，Synara 也放在里面，这里没有：它们
  * 已经常驻在输入框上方那条栏里，再放一遍就是同一件事说两遍。
  *
- * 只在有内容时出现的节（后台任务、子 Agent、PR、侧边聊天、摘要、引用）空着就不画；节与节之间那条线由这里
+ * 只在有内容时出现的节（后台任务、子 Agent、建议的新会话、PR、侧边聊天、摘要、引用）空着就不画；节与节之间那条线由这里
  * 统一画在「后一节的上沿」，于是哪一节缺席都不会留下两条挨着的线。右上角那颗按钮逐节开关。
  */
 
@@ -22,12 +22,14 @@ import { PullRequestSection } from "./PullRequestSection.tsx";
 import { ReferencesSection } from "./ReferencesSection.tsx";
 import { SideChatsSection } from "./SideChatsSection.tsx";
 import { SubAgentsSection } from "./SubAgentsSection.tsx";
+import { SuggestionsSection } from "./SuggestionsSection.tsx";
 import { SummarySection } from "./SummarySection.tsx";
 
 const SECTION_LABEL: Record<EnvironmentSection, MessageKey> = {
 	openIn: "environment.sectionOpenIn",
 	jobs: "services.title",
 	subAgents: "subAgent.title",
+	suggestions: "sessionOps.suggested",
 	pullRequest: "environment.sectionPullRequest",
 	sideChats: "dock.sideChat",
 	summary: "environment.summary",
@@ -55,6 +57,7 @@ export function EnvironmentCard() {
 				{shown("openIn") && <OpenInSection />}
 				{sessionId && shown("jobs") && <JobsSection sessionId={sessionId} />}
 				{shown("subAgents") && <SubAgentsSection />}
+				{sessionId && shown("suggestions") && <SuggestionsSection sessionId={sessionId} />}
 				{shown("pullRequest") && workspace?.isGitRepo && <PullRequestSection path={workspace.path} branch={workspace.branch ?? null} />}
 				{sessionId && shown("sideChats") && <SideChatsSection sessionId={sessionId} />}
 				{sessionId && shown("summary") && <SummarySection sessionId={sessionId} />}

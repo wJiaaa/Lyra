@@ -12,9 +12,9 @@ import { create } from "zustand";
  * 的行为，主进程用不着知道。
  */
 
-export type EnvironmentSection = "openIn" | "jobs" | "subAgents" | "pullRequest" | "sideChats" | "summary" | "references";
+export type EnvironmentSection = "openIn" | "jobs" | "subAgents" | "suggestions" | "pullRequest" | "sideChats" | "summary" | "references";
 
-export const ENVIRONMENT_SECTIONS: EnvironmentSection[] = ["openIn", "jobs", "subAgents", "pullRequest", "sideChats", "summary", "references"];
+export const ENVIRONMENT_SECTIONS: EnvironmentSection[] = ["openIn", "jobs", "subAgents", "suggestions", "pullRequest", "sideChats", "summary", "references"];
 
 const STORAGE_KEY = "plume:environment-card";
 
@@ -58,6 +58,11 @@ function update(patch: Partial<Stored>): void {
 
 export function toggleEnvironmentCard(): void {
 	update({ open: !useEnvironmentCard.getState().open });
+}
+
+/** 打开，并把那一节放出来：从对话里那行建议点过来的人要看的就是它，被关掉的节也不例外。 */
+export function revealEnvironmentSection(section: EnvironmentSection): void {
+	update({ open: true, hidden: useEnvironmentCard.getState().hidden.filter((entry) => entry !== section) });
 }
 
 export function setEnvironmentSectionShown(section: EnvironmentSection, shown: boolean): void {

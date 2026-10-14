@@ -28,6 +28,7 @@ import { bridge } from "../../services/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
+import { sessionHome } from "../../lib/session-home.ts";
 
 export function SessionMenu({
 	anchor,
@@ -149,7 +150,7 @@ export function SessionMenu({
 					</MenuItem>
 					<MenuSeparator />
 					{projects.map((p) => {
-						const isCurrent = session.cwd === p.path;
+						const isCurrent = sessionHome(session) === p.path;
 						return (
 							<MenuItem
 								key={p.path}

@@ -51,6 +51,16 @@ export interface SessionMeta {
 	/** Desktop workspace preparation is deferred until execution, never transcript reading. */
 	workspaceSetup?: "worktree";
 	/**
+	 * The git worktree this conversation was given, once it has one: `cwd` is then the worktree, and
+	 * `project` the checkout it was made from.
+	 *
+	 * Kept because nothing else says so. Every list groups by `cwd`, and a worktree's path belongs to
+	 * no registered project — so each conversation run in one opened a group of its own, under the
+	 * project's name again, and moved there the moment its worktree was made. Whatever asks which
+	 * project a conversation is in asks this first (`sessionHome` on the desktop).
+	 */
+	worktree?: { project: string; branch: string };
+	/**
 	 * How many messages were already written when the model was last changed mid-conversation.
 	 *
 	 * Everything before this index was produced by a different model, and carries that provider's
@@ -99,6 +109,14 @@ export interface SessionMeta {
 	 */
 	titleSetByUser?: boolean;
 	/**
+	 * The suggestion this conversation was started from: a `spawn_session` call in another one.
+	 *
+	 * The card that made the suggestion finds out it was taken by looking for the conversation that
+	 * names it here — the one fact that survives a restart and reaches every window and phone with
+	 * the session list, without a second record kept beside the card. See ADR-0049.
+	 */
+	spawnedFrom?: SpawnedFrom;
+	/**
 	 * 这是哪个会话的侧边聊天。
 	 *
 	 * 侧边聊天是一个完整的会话——同样的循环、工具、审批和记录——只是挂在另一个会话旁边：不进
@@ -113,6 +131,13 @@ export interface SessionMeta {
 	sideId?: string;
 	/** Highest sequence number written. Readers compare against this. */
 	seq: number;
+}
+
+export interface SpawnedFrom {
+	/** The conversation the suggestion was made in. */
+	sessionId: string;
+	/** The `spawn_session` call that made it. */
+	toolCallId: string;
 }
 
 export type SessionRecord =

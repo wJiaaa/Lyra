@@ -234,6 +234,26 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/live-calls.test.ts"]],
 	},
 	{
+		id: "WORKTREE-choice",
+		what: "开新会话没法这一次选要不要工作树、选了也被设置推翻；工作树会话在侧栏多出一个同名项目、项目名变成工作树文件夹名、从它开新会话套出第二层工作树；建不出来时悄悄在主工作区里改",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/git-worktrees.test.ts", "packages/desktop/test/create-session.test.ts", "packages/desktop/test/sidebar-grouping.test.ts"]],
+	},
+	{
+		id: "WORKTREE-choice-ui",
+		what: "同上，界面那一半：输入框上的开关、打开工作树会话时的项目名、从它开的新会话回到原项目",
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/worktree-toggle.test.ts", "test/ui/worktree-conversation.test.ts"]],
+	},
+	{
+		id: "SESSION-spawn-ui",
+		what: "建议的新会话：环境卡片里点「开始」切走当前对话、开进工作树、spawnedFrom 没带下去；开始 → 已开始 → 切过去；别的对话同一个调用 id 不算；收起只收起；对话里那一行点了打开环境卡片；标题栏圆点",
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/session-suggestions.test.ts"]],
+	},
+	{
+		id: "SESSION-ops",
+		what: "建议新会话的参数不合格画出空卡、子代理拿到会话级工具；归档自己时在工具里当场归档把正在说话的那一轮砍掉（aborted、最后一条结果落不进去）、收尾和排着的话还在跑就放掉会话、停下或出错也照样归档；spawnedFrom 被建会话的白名单吃掉、重开后没了",
+		run: ["node", ["--experimental-strip-types", "--test", "--import", "./packages/desktop/test/setup.ts", "packages/desktop/test/session-ops.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

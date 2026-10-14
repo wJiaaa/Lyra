@@ -33,6 +33,7 @@ import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
+import { sessionHome } from "../../lib/session-home.ts";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -196,11 +197,11 @@ export function SessionRow({
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
-					reorder.registerTarget("session", session.id, rect, event.clientY, session.cwd);
+					reorder.registerTarget("session", session.id, rect, event.clientY, sessionHome(session));
 				}
 			}}
 			onPointerUp={(event) => {
-				reorder?.registerTarget("session", session.id, event.currentTarget.getBoundingClientRect(), event.clientY, session.cwd);
+				reorder?.registerTarget("session", session.id, event.currentTarget.getBoundingClientRect(), event.clientY, sessionHome(session));
 			}}
 			onPointerLeave={() => {
 				if (reorder) {
@@ -247,7 +248,7 @@ export function SessionRow({
 					 */
 					offerSessionDrag({ id: session.id, title: sessionTitle(session.title) }, event);
 					reorder?.startDrag(
-						{ kind: "session", id: session.id, title: sessionTitle(session.title), projectPath: session.cwd },
+						{ kind: "session", id: session.id, title: sessionTitle(session.title), projectPath: sessionHome(session) },
 						event,
 					);
 				}}
@@ -270,7 +271,7 @@ export function SessionRow({
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
-				<SessionStatus activity={rowActivity(activity, sideRunning, active)} unread={isUnread} />
+				<SessionStatus activity={rowActivity(activity, sideRunning, active)} unread={isUnread} worktree={session.worktree?.branch} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
 				{/*
 				 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。
