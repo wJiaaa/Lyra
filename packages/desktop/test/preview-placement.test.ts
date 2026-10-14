@@ -1,7 +1,7 @@
 /**
  * 一轮里 agent 放出来给人看的页面，站在哪。
  *
- * 页面是这一轮的结果，不是过程：它出现在它被放出来的地方，永远不跟着过程一起收起来。规则在
+ * 页面是这一轮的结果，不是过程：它出现在它被放出来的地方，永远不跟着锚一起收起来。规则在
  * `grouping.ts`，判错了不报错，只是页面看不见。
  */
 
@@ -32,11 +32,15 @@ const result = (call: Message, index: number, isError = false): Message =>
 	}) as Message;
 const answer = (text: string): Message => ({ role: "assistant", content: [{ type: "text", text }], stopReason: "stop", timestamp: clock++ }) as Message;
 
-/** One line per row: what the reader sees, in order, with `process[…]` for what a process line folds. */
+/** One line per row: what the reader sees, in order. `~` folds with the turn; `work(…)` is one line of calls. */
 function describe(blocks: TurnBlock[]): string[] {
 	const name = (run: Run) =>
 		run.kind === "tools" ? `${run.shown ? "page" : "work"}(${run.calls.map((c) => c.block.name).join(",")})` : run.kind === "message" ? run.message.role : run.kind;
-	return blocks.map((block) => (block.kind === "process" ? `process[${block.runs.map(name).join(" ")}]` : block.runs.map(name).join(" ")));
+	return blocks.flatMap((block) =>
+		block.kind === "work"
+			? block.items.map((item) => (item.kind === "step" ? `~work(${item.step.calls.map((c) => c.block.name).join(",")})` : `${item.fold ? "~" : ""}${name(item.run)}`))
+			: block.runs.map(name),
+	);
 }
 
 test("页面自成一行，不和前后的工具调用并成一组", () => {
@@ -53,30 +57,29 @@ test("页面站在它被放出来的地方，不收进前后的过程", () => {
 	const draw = calls("preview");
 	const more = calls("read");
 	const messages = [user("画个图"), look, result(look, 0), result(look, 1), draw, result(draw, 0), more, result(more, 0), answer("图里的峰值在三月。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[work(read,glob)]", "page(preview)", "process[work(read)]", "assistant"]);
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(read,glob)", "page(preview)", "~work(read)", "assistant"]);
 });
 
 test("跑着的时候，页面也不在过程里", () => {
 	const look = calls("read");
 	const draw = calls("preview");
 	const blocks = turnBlocks(runs([user("画个图"), look, result(look, 0), draw]));
-	assert.deepEqual(describe(blocks), ["user", "process[work(read)]", "page(preview)"]);
-	assert.equal(blocks[2].kind, "plain", "页面不是过程，跑着时也不收");
+	assert.deepEqual(describe(blocks), ["user", "~work(read)", "page(preview)"], "页面不是过程，跑着时也不收");
 });
 
 test("没展示出来的预览（页面抛异常被拒）是普通的活，跟着过程收起来", () => {
 	const broken = calls("preview");
 	const fixed = calls("preview");
 	const messages = [user("画个图"), broken, result(broken, 0, true), fixed, result(fixed, 0), answer("好了。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[work(preview)]", "page(preview)", "assistant"]);
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "page(preview)", "assistant"]);
 });
 
 test("模型先检查页面再发布：检查是过程，跟着收起来；只有发布的那次是页面", () => {
 	const check = calls("preview?");
 	const publish = calls("preview");
 	const messages = [user("画个图"), check, result(check, 0), publish, result(publish, 0), answer("好了。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[work(preview)]", "page(preview)", "assistant"]);
-	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check]))), ["user", "process[work(preview)]"], "检查跑着的时候也不占一行页面");
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "page(preview)", "assistant"]);
+	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check]))), ["user", "~work(preview)"], "检查跑着的时候也不占一行页面");
 });
 
 test("经 mcp_call 叫的 MCP 工具按真正那个工具排：名字和参数都是它自己的", () => {
@@ -114,23 +117,23 @@ const mixed = (...blocks: string[]): Message =>
 test("调用 preview 之后同一条回复里接着想：页面仍然自成一行，不在过程里", () => {
 	const reply = mixed("think:先想想", "preview", "think:再看看", "read");
 	const messages = [user("画一只小狗"), reply, result(reply, 1), result(reply, 3), answer("画好了。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[assistant]", "page(preview)", "process[assistant work(read)]", "assistant"]);
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~assistant", "page(preview)", "~work(read)", "assistant"]);
 });
 
 test("调用 preview 之后接着想、这条回复就此结束：页面也不收进过程", () => {
 	const reply = { ...mixed("think:先想想", "preview", "think:好了"), stopReason: "stop" } as Message;
 	const messages = [user("画一只小狗"), reply, result(reply, 1)];
 	const blocks = turnBlocks(runs(messages));
-	assert.deepEqual(describe(blocks), ["user", "process[assistant]", "page(preview)", "process[assistant]"]);
+	assert.deepEqual(describe(blocks), ["user", "~assistant", "page(preview)", "~assistant"]);
 	// 回复自己的那一行（时间、交付卡片挂在它下面）还是最后那一段，不是被拆到前面的推理。
-	const last = blocks.at(-1)!.runs[0];
+	const last = blocks.at(-1)!.runs.at(-1)!;
 	assert.ok(last.kind === "message" && !last.lead && last.from === 2 && last.upTo === 3);
 });
 
-test("页面前面说过的话照样在外面，不因为拆开而被当成过程收起", () => {
+test("页面前面说过的话还是一句话：跟着锚收，但不当成推理并进别的行", () => {
 	const reply = mixed("say:我先画一版。", "preview", "think:看看效果", "read");
 	const messages = [user("画一只小狗"), reply, result(reply, 1), result(reply, 3), answer("画好了。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "assistant", "page(preview)", "process[assistant work(read)]", "assistant"]);
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~assistant", "page(preview)", "~work(read)", "assistant"]);
 });
 
 test("回复里的页面接着写下去时，它那一行的身份不变，页面不会重新挂一遍", () => {

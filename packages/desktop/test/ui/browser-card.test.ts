@@ -193,6 +193,6 @@ test("one page reopened in new tabs through a turn is one card, the last one —
 
 test("what comes later is counted within the turn, and only from stretches that draw cards", () => {
 	const opens = (...ids: string[]) => [{ kind: "tools", calls: ids.map((id) => ({ block: { id, name: "browser_open" } })) }];
-	const block = (turn: number, kind: TurnBlock["kind"], ...ids: string[]) => ({ kind, turn, counts: { tools: ids.length, thinking: 0 }, runs: opens(...ids) }) as unknown as TurnBlock;
-	assert.deepEqual(laterPageOpens([block(1, "process", "a"), block(1, "plain", "b"), block(1, "process", "c"), block(2, "process", "d")]), [["c"], ["c"], [], []]);
+	const block = (turn: number, kind: TurnBlock["kind"], ...ids: string[]) => ({ kind, turn, items: [], runs: opens(...ids) }) as unknown as TurnBlock;
+	assert.deepEqual(laterPageOpens([block(1, "work", "a"), block(1, "plain", "b"), block(1, "work", "c"), block(2, "work", "d")]), [["c"], ["c"], [], []]);
 });

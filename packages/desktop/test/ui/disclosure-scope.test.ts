@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 import { SessionScope } from "../../src/app/session-scope.tsx";
-import { TurnProcess } from "../../src/features/conversation/TurnProcess.tsx";
+import { TurnWork } from "../../src/features/conversation/TurnWork.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
 import { useApp, type AppState } from "../../src/store/index.ts";
 import { click, mount, type Mounted } from "../helpers/mount.ts";
@@ -25,7 +25,7 @@ function screens(): Promise<Mounted> {
 				h(
 					SessionScope.Provider,
 					{ key: id, value: id },
-					h("section", { "data-screen": id }, h(TurnProcess, { counts: { tools: 1, thinking: 0 }, running: false, stateKey: `${id}:process:tools-${id}-call`, children: h("p", null, `${id} 的过程`) })),
+					h("section", { "data-screen": id }, h(TurnWork, { running: false, stateKey: `${id}:process:tools-${id}-call`, entries: [{ key: "p", fold: true, node: h("p", null, `${id} 的过程`) }] })),
 				),
 			),
 		}),
@@ -49,23 +49,23 @@ afterEach(async () => {
 	useApp.setState(previous, true);
 });
 
-test("blocks opened in either screen stay open when focus moves, and come back open after a remount", async () => {
+test("turns folded in either screen stay folded when focus moves, and come back folded after a remount", async () => {
 	view = await screens();
-	// Opened in the screen with focus, and in the one without it — the keyboard reaches both.
+	// 一轮跑完默认摊开；在有焦点的屏和没焦点的屏各收起一个——键盘两边都够得着。
 	await click(view.find('[data-screen="a"] button[aria-expanded]'));
 	await click(view.find('[data-screen="b"] button[aria-expanded]'));
-	assert.ok(shown(view, "a") && shown(view, "b"));
+	assert.ok(!shown(view, "a") && !shown(view, "b"));
 
 	await focus("b");
-	assert.ok(shown(view, "a"), "focus moved to the other screen and this one's open block folded");
-	assert.ok(shown(view, "b"), "opened while the other screen had focus, it folded the moment this one took it");
+	assert.ok(!shown(view, "a"), "focus moved to the other screen and this one's folded turn opened");
+	assert.ok(!shown(view, "b"), "folded while the other screen had focus, it opened the moment this one took it");
 
 	await focus("a");
-	assert.ok(shown(view, "a") && shown(view, "b"));
+	assert.ok(!shown(view, "a") && !shown(view, "b"));
 
-	// A screen's transcript is rebuilt when it comes back into view; what was open is read back for it.
+	// A screen's transcript is rebuilt when it comes back into view; what was folded is read back for it.
 	await view.unmount();
 	await focus("b");
 	view = await screens();
-	assert.ok(shown(view, "a") && shown(view, "b"), "remembered under a conversation other than the screen's own");
+	assert.ok(!shown(view, "a") && !shown(view, "b"), "remembered under a conversation other than the screen's own");
 });

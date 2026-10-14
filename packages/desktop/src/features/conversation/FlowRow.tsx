@@ -17,7 +17,8 @@
  */
 
 import { ChevronRight } from "../../ui/icons/index.ts";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { motionReduced } from "../../ui/motion/reduced.ts";
 
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 
@@ -26,6 +27,7 @@ export function FlowRow({
 	title,
 	summary,
 	trailing,
+	trailFrom,
 	running,
 	open,
 	onToggle,
@@ -41,6 +43,8 @@ export function FlowRow({
 	summary?: ReactNode;
 	/** 靠右的附注，比如改动行数。 */
 	trailing?: ReactNode;
+	/** 挂上时附注从这个宽度缓过来，见 `FlowTrail`。 */
+	trailFrom?: number;
 	running?: boolean;
 	/** 省略即为不可展开：不可展开的行不换 chevron，也没有指针手势。 */
 	open?: boolean;
@@ -74,7 +78,7 @@ export function FlowRow({
 					<ScrollText text={summary} textClassName={running ? "ly-glide" : ""} />
 				</span>
 			)}
-			{trailing && <span className="ly-flow-trail">{trailing}</span>}
+			<FlowTrail from={trailFrom}>{trailing}</FlowTrail>
 			{/*
 			 * The chevron is back, and it follows the words rather than sitting at the far edge. It was
 			 * dropped when the process rows were unified, and a row that opens then looked exactly like
@@ -107,5 +111,69 @@ export function FlowRow({
 		>
 			{body}
 		</button>
+	);
+}
+
+/**
+ * 行尾那一小块（+N -M、秒数、失败记号、子智能体的脸），宽度变的时候缓过去。
+ *
+ * 它后面还跟着展开箭头。一次改动跑完，「+1 -1」当帧冒出来，箭头一帧里往右跳 44px（量的是真窗口里的
+ * `e2e/tool-flow-demo.ts`）；命令跑着时秒数从无到有、从「9s」到「10s」也一样。字在换，行尾在跳。
+ *
+ * 量的是里面那层的宽度，动的是外面那层：外面那层在过渡，里面那层只在内容变了时才变，观察它就不会把
+ * 过渡的每一帧当成又一次变化。`ResizeObserver` 的回调在布局之后、绘制之前，所以新宽度从来不会先画出来
+ * 一帧。没有尾巴时外层宽 0、里层不留空，所以它可以一直挂着——从无到有也是缓过去的。
+ */
+export function FlowTrail({ children, from }: { children?: ReactNode; from?: number }) {
+	const outer = useRef<HTMLSpanElement>(null);
+	const inner = useRef<HTMLSpanElement>(null);
+	// 只在挂上时读一次：之后变了也不该重新起步。
+	const start = useRef(from);
+	useLayoutEffect(() => {
+		const box = outer.current;
+		const content = inner.current;
+		if (!box || !content || typeof ResizeObserver === "undefined") return;
+		let last: number | null = null;
+		/*
+		 * 接替原地另一行时从它的行尾宽度起步（见 `WorkStep`）。在这里就钉上，不等观察者第一次回调：那一次
+		 * 回调和这一帧的绘制谁先谁后说不准，晚了就有一帧画的是没钉住的全宽。
+		 */
+		if (start.current !== undefined && !motionReduced()) {
+			last = content.offsetWidth;
+			if (last !== start.current) {
+				box.style.width = `${start.current}px`;
+				void box.offsetWidth;
+				box.style.width = `${last}px`;
+			}
+		}
+		const observer = new ResizeObserver(([entry]) => {
+			const width = entry.borderBoxSize?.[0]?.inlineSize ?? content.offsetWidth;
+			if (last === null || last === width || motionReduced()) {
+				last = width;
+				return;
+			}
+			// 上一次还没缓完就又变了：从此刻画着的宽度接着走，不跳回上一个终点。
+			const from = box.style.width ? box.getBoundingClientRect().width : last;
+			last = width;
+			box.style.width = `${from}px`;
+			void box.offsetWidth;
+			box.style.width = `${width}px`;
+		});
+		observer.observe(content);
+		return () => observer.disconnect();
+	}, []);
+	const has = children !== undefined && children !== null && children !== false && children !== "";
+	return (
+		<span
+			ref={outer}
+			className="ly-flow-trail"
+			onTransitionEnd={(event) => {
+				if (event.target === event.currentTarget && event.propertyName === "width") event.currentTarget.style.width = "";
+			}}
+		>
+			<span ref={inner} className={has ? "ly-flow-trail-in" : undefined}>
+				{has ? children : null}
+			</span>
+		</span>
 	);
 }

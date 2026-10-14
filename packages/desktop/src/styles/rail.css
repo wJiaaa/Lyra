@@ -1,28 +1,3 @@
-/* Indeterminate progress rail shown on a running tool card. */
-.ly-rail {
-  position: relative;
-  overflow: hidden;
-}
-
-.ly-rail::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 1.5px;
-  /* Soft at both ends so it fades in and out of the card rather than arriving as an edge. */
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--color-accent) 45%, transparent) 35%,
-    var(--color-accent) 50%,
-    color-mix(in srgb, var(--color-accent) 45%, transparent) 65%,
-    transparent 100%
-  );
-  animation: ly-track 1.4s linear infinite;
-}
-
 /* Diff rows can be marked by colour (default) or by a leading +/- for colour-blind users. */
 :root[data-diff-markers="symbols"] .ly-diff-add::before {
   content: "+";

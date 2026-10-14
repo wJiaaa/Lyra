@@ -293,7 +293,7 @@ export async function openCommandPalette(page: Page): Promise<void> {
 }
 
 /**
- * 对话里最后一处收起的地方一层层点开（「使用工具」分组 → 工具行 → 卡片），直到 `ready` 成立。
+ * 对话里最后一处收起的地方一层层点开（一轮的锚 → 一段活 → 工具行 → 卡片），直到 `ready` 成立。
  *
  * 工具调用默认折在分组里，进度、结果图片在点开之前不在 DOM 上。只点调用链的行（`.ly-flow-row`）和
  * 工具卡片的头：输入框那一排的项目、模型菜单也是 `aria-expanded="false"`，而且排在 DOM 最后。
@@ -304,7 +304,7 @@ export async function expandLastTurn(page: Page, ready: string, budgetMs = 8000)
 		if (Date.now() > end) throw new Error(`expandLastTurn: ${ready}`);
 		const found = await page.evaluate<boolean>(`(()=>{
 			document.querySelectorAll('[data-e2e-expand]').forEach(e=>e.removeAttribute('data-e2e-expand'));
-			const last=[...document.querySelectorAll('main button.ly-flow-row[aria-expanded="false"], main [data-ly-tool] > button[aria-expanded="false"]')].filter(e=>e.checkVisibility()).at(-1);
+			const last=[...document.querySelectorAll('main button.ly-turn-anchor[aria-expanded="false"], main button.ly-flow-row[aria-expanded="false"], main [data-ly-tool] > button[aria-expanded="false"]')].filter(e=>e.checkVisibility()).at(-1);
 			last?.setAttribute('data-e2e-expand','');
 			return !!last;
 		})()`);

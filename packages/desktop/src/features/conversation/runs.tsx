@@ -10,16 +10,14 @@ import type { AssistantContent, AssistantMessage } from "@plume/core";
 import { PreviewCall, PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
 import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";
-import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
 import type { ToolRun as ToolRunState } from "../../store/index.ts";
 import { useScopedFromToolRuns, useScopedRunning } from "../../app/session-scope.tsx";
 import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
-import { baseName } from "../../lib/paths.ts";
-import { describeActivity } from "../../lib/tool-kinds.ts";
-import { useCallChain } from "./call-chain.ts";
+import { describeCalls, diffOf, subjectOf } from "./call-words.ts";
+import { describeCall } from "../../lib/tool-kinds.ts";
 
 /**
  * How much of a long transcript is mounted at once, and how much each "show more" adds — **in turns**.
@@ -33,7 +31,7 @@ import { useCallChain } from "./call-chain.ts";
  *
  * Twenty rather than sixty because a turn is worth several rows: its question, its answer, and the
  * one folded line standing in for everything in between. Collapsed turns cost nothing to keep
- * mounted (`TurnProcess` renders nothing while closed), so this number is about how much a person
+ * mounted (`TurnWork` renders nothing while closed), so this number is about how much a person
  * wants to take in at once, not about what the browser can hold.
  */
 export const WINDOW_TURNS = 20;
@@ -77,6 +75,8 @@ export function LiveToolCard({
   stopReason,
   runs,
   dispatch,
+  thinking,
+  extra,
 }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   stopReason: AssistantMessage["stopReason"];
@@ -91,6 +91,9 @@ export function LiveToolCard({
   runs?: Record<string, ToolRunState>;
   /** 这一张要是一次派发，整组对过号之后它是哪一个——见 `DelegationCard`。 */
   dispatch?: Dispatch;
+  /** 见 `ToolCard` 的同名属性：这次调用后面跟着的推理。 */
+  thinking?: React.ReactNode;
+  extra?: React.ReactNode;
 }) {
   /*
    * This screen's record of the call. The live slot's `toolRuns` are the focused conversation's, and
@@ -106,21 +109,23 @@ export function LiveToolCard({
    * 主会话此刻的状态，拿它去判子智能体的旧卡片，会让它们跟着主会话一起转圈。
    */
   const turnRunning = useScopedRunning();
-  if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} />;
-  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} />;
+  if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} thinking={thinking} extra={extra} />;
+  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} thinking={thinking} extra={extra} />;
 }
 
 /** 一次派发：它的脸、派给了谁、在排队还是在跑——见 `DelegationCard.tsx`。 */
-function DelegationCard(props: Parameters<typeof useDelegation>[0]) {
-  return <ToolCard {...useDelegation(props)} />;
+function DelegationCard({ thinking, extra, ...props }: Parameters<typeof useDelegation>[0] & { thinking?: React.ReactNode; extra?: React.ReactNode }) {
+  return <ToolCard {...useDelegation(props)} thinking={thinking} extra={extra} />;
 }
 
-function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
+function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, extra }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   run?: ToolRunState;
   stopReason: AssistantMessage["stopReason"];
   runs?: Record<string, ToolRunState>;
   turnRunning: boolean;
+  thinking?: React.ReactNode;
+  extra?: React.ReactNode;
 }) {
   const status = run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning);
   // `title`: a preview's, read from its arguments while they are still being written — see `PreviewCall`.
@@ -129,12 +134,14 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
       stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
-      // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeActivity`.
-      summary={describeActivity(run?.summary ?? title ?? block.name)}
+      // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeCall`.
+      summary={describeCall(block.name, run?.summary ?? title, subjectOf(block))}
       // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
       status={status}
       result={run?.result}
       startedAt={run?.startedAt}
+      thinking={thinking}
+      extra={extra}
     />
   );
   /*
@@ -167,7 +174,7 @@ const ToolRunGroup = function ToolRun({
   /** Whether this is the run being worked on right now — decided in `grouping.ts`, not here. */
   live?: boolean;
   /**
-   * Draw the calls as rows of their own, with no summary line over them — in the collapsed layout.
+   * Draw the calls as rows of their own, with no summary line over them.
    *
    * The main transcript's turn line already says what the whole turn did, so a second summary per
    * stretch of work was a fold inside a fold — open the turn and you still saw no calls. Panels that
@@ -213,8 +220,6 @@ const ToolRunGroup = function ToolRun({
    * events nobody witnessed was standing in for.
    */
   const summary = describeCalls(calls);
-  // The expanded layout (设置 › 外观 › 调用链) keeps the grouped line even where `flat` is asked for.
-  const chain = useCallChain();
   // Totals across the run, so a fold does not hide how much changed — counted from this screen's records.
   const added = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "added"), 0));
   const removed = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "removed"), 0));
@@ -229,7 +234,7 @@ const ToolRunGroup = function ToolRun({
 
   if (shown) return <>{cards}</>;
   // `contents`, so each call sits in the surrounding column's own gap; the attribute keeps the run findable.
-  if (flat && chain === "collapsed") return <div data-ly-run={live ? "running" : "done"} className="contents">{cards}</div>;
+  if (flat) return <div data-ly-run={live ? "running" : "done"} className="contents">{cards}</div>;
 
   return (
     <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
@@ -260,21 +265,3 @@ const ToolRunGroup = function ToolRun({
  * actually runs instead of a copy of it. See the note there.
  */
 export const ToolRun = memo(ToolRunGroup, sameRun);
-
-
-/** What a set of calls did, in words — the same sentence a run line and a turn line use. */
-export function describeCalls(calls: Call[]): string {
-  return describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
-}
-
-/** The file a call is about, when it is about one — the part worth naming in a summary. */
-function subjectOf(block: Extract<AssistantContent, { type: "toolCall" }>): string | undefined {
-  const path = (block.arguments as { path?: unknown } | undefined)?.path;
-  // Either separator: a Windows path split on "/" alone came back whole, drive letter and all.
-  return typeof path === "string" ? baseName(path) : undefined;
-}
-
-function diffOf(run: ToolRunState | undefined, key: "added" | "removed"): number {
-  const value = (run?.result?.details as Record<string, unknown> | undefined)?.[key];
-  return typeof value === "number" ? value : 0;
-}

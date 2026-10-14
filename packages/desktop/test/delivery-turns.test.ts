@@ -2,7 +2,7 @@
  * 后台结果送回来时，算不算新的一轮。
  *
  * 插在一轮中间的（`steered`）不算：主智能体一直在干活，它是这段工作里的一步。从前它一律被当成
- * 「开了一轮」，一段连续的工作被切成「思考 40 次」「后台命令完成」「思考 4 次」三行。把空闲的会话
+ * 「开了一轮」，一段连续的工作被切成两轮、两个锚。把空闲的会话
  * 叫醒的那一种照旧开一轮；人插的话也照旧开一轮。
  */
 
@@ -32,23 +32,25 @@ const shape = (messages: Message[]) => turnBlocks(runs(messages));
 test("插在一轮中间的送达收进这段工作里，不切开它，也不开新的一轮", () => {
 	const messages = [user("渲染一下"), calls("a"), result("a"), delivery(true), calls("b"), result("b"), answer];
 	const blocks = shape(messages);
-	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain"], "问题、一整段过程、回答");
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work"], "问题、一整轮");
 	assert.equal(new Set(blocks.map((b) => b.turn)).size, 1, "只有一轮");
-	assert.deepEqual(blocks[1].counts, { tools: 2, thinking: 2 }, "送达不算一次思考");
-	assert.ok(blocks[1].runs.some((run) => run.kind === "message" && run.message.role === "user"), "送达那一行还在，收在过程里");
+	assert.ok(
+		blocks[1].items.some((item) => item.kind === "run" && item.fold && item.run.kind === "message" && item.run.message.role === "user"),
+		"送达那一行还在，跟着过程收",
+	);
 	assert.equal(computeTurnStats(messages, messages.length - 1).startIndex, 0, "这一轮从人开口算起");
 });
 
 test("跑着的时候也一样：送达之后的工作还是同一段过程", () => {
 	const blocks = shape([user("渲染一下"), calls("a"), result("a"), delivery(true), calls("b")]);
-	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process"]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work"]);
 	assert.equal(new Set(blocks.map((b) => b.turn)).size, 1);
 });
 
 test("把空闲的会话叫醒的送达开新的一轮，画在外面", () => {
 	const messages = [user("渲染一下"), answer, delivery(false), calls("b"), result("b"), answer];
 	const blocks = shape(messages);
-	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "plain", "plain", "process", "plain"]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "plain", "plain", "work"]);
 	assert.equal(blocks[2].turn, blocks[0].turn + 1, "送达那一行开了第二轮");
 	assert.equal(computeTurnStats(messages, messages.length - 1).startIndex, 2, "第二轮的账从送达算起");
 });

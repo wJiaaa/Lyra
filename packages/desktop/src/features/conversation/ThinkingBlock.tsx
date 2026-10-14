@@ -1,14 +1,13 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { translate } from "../../i18n/translate.ts";
 import { Brain } from "../../ui/icons/index.ts";
-import { formatElapsed } from "@plume/client-runtime/running";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { thinkingTail } from "./thinking-ticker.ts";
+import { LiveThought } from "./LiveThought.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
 /**
@@ -70,109 +69,12 @@ export function ThinkingBlock({
 }
 
 /**
- * 运行中的词，按这一段已经想了多久往下走：`[从第几毫秒起, 词]`。
- *
- * 间隔越拉越长（8、12、20、30、40 秒）。短推理只会看到一两个词；长推理每一步都比上一步停得久，
- * 不会变成它曾经那种每隔几秒换一次字的吵。按时长选而不是随机，重绘、切会话回来重新挂载都是同一个词。
- */
-const LIVE_STEPS = [
-	[0, "thinking.live"],
-	[8_000, "thinking.live3"],
-	[20_000, "thinking.live2"],
-	[40_000, "thinking.live4"],
-	[70_000, "thinking.live5"],
-	[110_000, "thinking.live6"],
-] as const;
-
-/** 走完一遍以后，每隔这么久再换一个。停在最后一个词上几分钟不动，看上去和卡住了一样。 */
-const LIVE_CYCLE_MS = 20_000;
-
-function liveWord(elapsedMs: number): (typeof LIVE_STEPS)[number][1] {
-	const last = LIVE_STEPS.length - 1;
-	const lastAt = LIVE_STEPS[last][0];
-	if (elapsedMs >= lastAt) {
-		// 轮回时跳过开场的「正在思考」：想了两分钟以后再说一遍它，读着像刚开始。
-		const round = Math.floor((elapsedMs - lastAt) / LIVE_CYCLE_MS);
-		return LIVE_STEPS[1 + ((last - 1 + round) % last)][1];
-	}
-	let step = 0;
-	while (step < last && elapsedMs >= LIVE_STEPS[step + 1][0]) step++;
-	return LIVE_STEPS[step][1];
-}
-
-/**
- * 运行中那一行：「正在思考 · 5s」。
- *
- * 自己走钟，只重绘这一小块——放在 `ThinkingBlock` 里的话，每次走秒都把展开着的正文一起重绘一遍。
- * 四分之一秒一跳，和运行指示一样，秒位不会看上去跳过一格。
- *
- * 换词时新词从上方落进来（`ly-roll-in`），词框的宽度跟着平滑地变，后面的秒数被推过去而不是跳过去。
- * 秒数本身不滚：它是读数不是标签，每秒滚一次就成了眼角一直在动的东西（见 `RollingText`）。
- *
- * 说不出开始时刻时不报秒，词停在第一个。
- */
-function LiveThought({ startedAt }: { startedAt: number | undefined }) {
-	const [now, setNow] = useState(() => Date.now());
-	useEffect(() => {
-		if (startedAt === undefined) return;
-		const timer = setInterval(() => setNow(Date.now()), 250);
-		return () => clearInterval(timer);
-	}, [startedAt]);
-
-	const elapsed = startedAt === undefined ? 0 : now - startedAt;
-	const word = translate(liveWord(elapsed));
-	const rolls = useRolled(word);
-	const box = useRef<HTMLSpanElement>(null);
-	const width = useRef<number | null>(null);
-
-	/*
-	 * 宽度只在换词的那一下钉成像素：量出新宽，先钉回旧宽、再设新宽，过渡走完（`onTransitionEnd`）就放回
-	 * auto。一直钉着的话，网页字体晚到、改字号之后词框还是旧的宽度，字会被截掉。
-	 */
-	useLayoutEffect(() => {
-		const element = box.current;
-		if (!element) return;
-		element.style.width = "";
-		const to = element.offsetWidth;
-		const from = width.current;
-		width.current = to;
-		if (from === null || from === to) return;
-		element.style.width = `${from}px`;
-		void element.offsetWidth;
-		element.style.width = `${to}px`;
-	}, [word]);
-
-	return (
-		<span className="inline-flex items-center">
-			<span
-				ref={box}
-				className="ly-thought-word"
-				onTransitionEnd={(event) => {
-					if (event.target === event.currentTarget) event.currentTarget.style.width = "";
-				}}
-			>
-				<span key={word} className={`inline-block ${rolls ? "ly-thought-roll" : ""}`}>
-					<span className="ly-glide">{word}</span>
-				</span>
-			</span>
-			{startedAt !== undefined && (
-				<>
-					<span className="ly-flow-dot" aria-hidden />
-					<span className="tabular-nums">{formatElapsed(elapsed)}</span>
-				</>
-			)}
-		</span>
-	);
-}
-
-/**
  * 写完之后的「思考了 N 秒」。
  *
  * 秒向下取整，和它下面那行运行指示（`RunningIndicator` 的 `formatElapsed`）同一种取法——向上取整的话，
  * 推理明明比这一轮开始得晚，思考行却可能比运行指示多一秒。
  *
- * 不满一秒的不报数，和说不出时长的一样写「思考了一会儿」（与整轮摘要里只有思考的那一句
- * `turnProcess.thoughtOnly` 同一种说法）。真正一秒不到的推理很少；常见的是中转把整段推理一次吐出来，
+ * 不满一秒的不报数，和说不出时长的一样写「思考了一会儿」。真正一秒不到的推理很少；常见的是中转把整段推理一次吐出来，
  * 开始和结束几乎同时到，量到的几毫秒不是它想了多久——报一个「1 秒」是一个看着很真的错数。
  */
 function thoughtFor(durationMs: number | undefined): string {

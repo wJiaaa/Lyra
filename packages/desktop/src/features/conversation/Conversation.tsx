@@ -17,16 +17,17 @@ import { SessionSuggestionNotes } from "./SessionSuggestionNote.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
+import { computeTurnStats, isNudge, runs, runKey, turnBlocks, turnEnd, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
-import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
+import { LiveToolCard, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { HookTrustBanner } from "./HookTrustBanner.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { QuoteMenu } from "./QuoteMenu.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow, planMarkdown } from "./rows.tsx";
-import { TurnProcess } from "./TurnProcess.tsx";
+import { TurnWork } from "./TurnWork.tsx";
+import { WorkStep, type DrawCall } from "./WorkStep.tsx";
 import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
 import { flash, settleReveal, useDrawingReveal } from "./reveal.ts";
@@ -141,7 +142,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
    * 发言之间跑了 400 次工具调用），于是往那种轮次里翻页，60 个 Run 全落进一个已经收起的块，屏幕上
    * 只有「调用工具 N 个」那个数字在变。连点四次，转录一动不动。
    *
-   * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnProcess` 收起时不渲染
+   * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnWork` 收起时不渲染
    * 里面的东西），所以一次多带几轮也不再是负担。
    */
   const allBlocks = useMemo(() => turnBlocks(allRuns), [allRuns]);
@@ -478,7 +479,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
            *
            * 一轮读下来是「想 → 做 → 说」。前两步是过程——跑的时候你在看着它，跑完之后它挡在答案
            * 前面就只是噪音。`turnBlocks` 在 Run 那一层把这件事定下来（规则性的东西要能单独测），
-           * 这里只负责把过程那一块套进 `TurnProcess`。
+           * 这里只负责把有过程的一轮套进 `TurnWork`。
            */}
           <div className="flex flex-col gap-2.5" data-ly-transcript-rows>
           {blocks.map((block, at) => {
@@ -533,6 +534,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
               />
             );
             if (block.kind === "plain") return draw(block.runs[0]);
+            const drawCall: DrawCall = ({ block: call, stopReason }, line) => <LiveToolCard block={call} stopReason={stopReason} thinking={line?.thinking} extra={line?.extra} />;
             /*
              * 不再有 `as Exclude<Run, { kind: "compaction" }>`。
              *
@@ -542,38 +544,37 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
              */
             const key = `${activeSessionId}:process:${runKey(block.runs[0])}`;
             /*
-             * 这一段里 agent 打开过的网页，画在过程块外面。
+             * 这一轮里 agent 打开过的网页，画在锚下面那一列的最后。
              *
-             * 一轮跑完过程会收成一行，卡片要是长在里面就跟着收走了——而它是 agent 在后台开了网页这件事
-             * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。紧跟在这一段后面，跑的时候就
-             * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
+             * 有人把这一轮收起来时，卡片要是长在过程里就跟着收走了——而它是 agent 在后台开了网页这件事
+             * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。
              */
             const pages = pageOpens(block);
-            // 这一段里生成的图，同样画在过程块外面，见 `GeneratedImages`。
+            // 这一轮里生成的图，同样画在外面，见 `GeneratedImages`。
             const drawn = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call.id) : []));
-            // 建议另开的会话在这里留一行记录，折进过程块里就没人看见，也画在外面；开始在环境卡片里。
+            // 建议另开的会话在这里留一行记录，折进过程里就没人看见，也画在外面；开始在环境卡片里。
             const suggestions = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "spawn_session").map(({ block: call }) => call) : []));
-            // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
+            // 这一轮派出去的子智能体。收起之后锚的行尾还挂着它们的脸。
             const delegated = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "task").map(({ block: call }) => call) : []));
+            /*
+             * 按**回合**算，不是按块的位置算：正文一开始流式输出，过程就不再排在末尾。
+             */
+            const live = running && block.turn === blocks[blocks.length - 1].turn;
+            const tail = block.items[block.items.length - 1];
             return (
               <Fragment key={key}>
-                <TurnProcess
-                  counts={block.counts}
-                  work={describeCalls(block.runs.flatMap((run) => (run.kind === "tools" ? run.calls : [])))}
-                  /*
-                   * 按**回合**算，不是按块的位置算。
-                   *
-                   * 正文一开始流式输出，过程块就不再排在末尾——按位置判，折叠行会在回合中途冒出来
-                   * 并把正在进行的工作收起来，而那正是人盯着看的时候。录像里抓到过一次。
-                   */
-                  running={running && block.turn === blocks[blocks.length - 1].turn}
-                  // The stretch holding the run being worked on, by the same rule as that run's own highlight.
-                  live={running && block.runs.some((run) => run.kind === "tools" && Boolean(run.live))}
+                <TurnWork
+                  running={live}
+                  durationMs={live ? undefined : computeTurnStats(messages, turnEnd(allBlocks, range.start + at, messages.length)).durationMs}
                   stateKey={key}
                   trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
-                >
-                  {block.runs.map(draw)}
-                </TurnProcess>
+                  entries={block.items.map((item) => ({
+                    key: `${activeSessionId}:${item.key}`,
+                    fold: item.kind === "step" || item.fold,
+                    // 正在做的那一段是这一轮的最后一行：后面有了别的（下一段活、一句话），它就做完了。
+                    node: item.kind === "step" ? <WorkStep step={item.step} live={live && item === tail} draw={draw} drawCall={drawCall} /> : draw(item.run),
+                  }))}
+                />
                 {pages.length > 0 && <BrowserCards calls={pages} later={laterPages[range.start + at]} />}
                 {drawn.length > 0 && <GeneratedImages calls={drawn} />}
                 {suggestions.length > 0 && <SessionSuggestionNotes calls={suggestions} />}

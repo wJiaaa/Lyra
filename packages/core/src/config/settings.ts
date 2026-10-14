@@ -140,14 +140,6 @@ export interface AppearanceSettings {
 	 */
 	errorDetail: "full" | "compact";
 	/**
-	 * How a turn's tool calls are laid out in the transcript.
-	 *
-	 * `collapsed` gathers the whole turn under one line that is there from the start, with every call
-	 * on a row of its own beneath it. `expanded` is the earlier layout: no turn line while it runs,
-	 * calls grouped into summary lines of bordered cards, and the turn folding away once it ends.
-	 */
-	callChain: "expanded" | "collapsed";
-	/**
 	 * macOS 主窗口的毛玻璃：窗口底层和侧栏透出系统材质。
 	 *
 	 * 关掉时回到不透明的主题色——材质叠在桌面上，颜色跟着壁纸走，有人要的是一块颜色确定的底。
@@ -210,7 +202,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
-	callChain: "collapsed",
 	// 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
 	vibrancy: true,
@@ -777,6 +768,8 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 		const current = { ...parsed } as Record<string, unknown>;
 		delete current.allowedHosts;
 		delete current.denyCommandNetwork;
+		// 外观里删掉的「调用链」排法开关，同样不再带回内存。
+		const { callChain: _callChain, ...appearance } = (parsed.appearance ?? {}) as Partial<AppearanceSettings> & { callChain?: unknown };
 		// Merge against defaults so a field the file does not mention takes its default.
 		return {
 			...DEFAULT_SETTINGS,
@@ -786,7 +779,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },
-			appearance: { ...DEFAULT_APPEARANCE, ...parsed.appearance },
+			appearance: { ...DEFAULT_APPEARANCE, ...appearance },
 			hooks: normalizeHooksConfig(parsed.hooks),
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],

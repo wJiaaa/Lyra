@@ -803,7 +803,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
       **一个看不懂的仪表会让人把注意力放到错的地方。**
 
       **【回滚方案】**：
-      若界面文案调整引发多语言翻译缺失或测试快照失败，还原 `packages/desktop/src/features/conversation/TurnProcess.tsx` 等组件的原有展示格式。
+      若界面文案调整引发多语言翻译缺失或测试快照失败，还原 `packages/desktop/src/features/conversation/TurnWork.tsx` 等组件的原有展示格式。
 ### D 组 · 结构性改造 —— 先做实验，不要直接改
 
 - [ ] **D1. Ralph 模式（全新上下文迭代）值不值得**

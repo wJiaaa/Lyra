@@ -1,62 +1,20 @@
 import type { DiffHunk, ImageContent, ToolResult } from "@plume/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import {
-	Archive,
-	ArrowUpRight,
-	Ban,
-	Cable,
-	ChevronRight,
-	CircleCheck,
-	CircleX,
-	FileCode,
-	FilePlus,
-	FileText,
-	FolderTree,
-	Globe,
-	Image,
-	ListTodo,
-	Search,
-	Sparkles,
-	SquarePen,
-	Terminal,
-	Users,
-} from "../../ui/icons/index.ts";
+import { ArrowUpRight, Ban, CircleX } from "../../ui/icons/index.ts";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { FlowRow } from "./FlowRow.tsx";
-import { useCallChain } from "./call-chain.ts";
+import { ToolIcon } from "./tool-icons.tsx";
+import { RollWords } from "../../ui/motion/RollWords.tsx";
 import { CodeText } from "./detail/CodeText.tsx";
 import { Section } from "./detail/Section.tsx";
 import { DiffView } from "../git/index.ts";
-import type { McpMark } from "./mcp-marks.ts";
-import { safeColour } from "../settings/index.ts";
-import { useMcpMark } from "./useMcpMark.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 import { stoppedByUser } from "./tool-status.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
 import { openFromEvent } from "../image/index.ts";
 import { imageBlockSrc } from "./image-block.ts";
 
-const ICONS: Record<string, typeof FileText> = {
-	read: FileText,
-	write: FilePlus,
-	edit: FileCode,
-	ls: FolderTree,
-	glob: Search,
-	grep: Search,
-	bash: Terminal,
-	bash_output: Terminal,
-	todo_write: ListTodo,
-	task: Users,
-	skill: Sparkles,
-	web_fetch: Globe,
-	image_generate: Image,
-	mcp_search: Search,
-	// The sidebar's own marks for a new chat and for archiving, so the row and the place it acts on agree.
-	spawn_session: SquarePen,
-	archive_session: Archive,
-};
 
 interface ToolCardProps {
 	stateKey?: string;
@@ -86,22 +44,18 @@ interface ToolCardProps {
 	openLabel?: string;
 	/** 还在跑、但还没真正开始：不转圈、不计时，只说一句为什么。 */
 	pending?: string;
+	/**
+	 * 跟在这次调用后面、还在写的那段推理：接在句尾说「正在思考」，句子本身不动。见 `WorkStep`。
+	 */
+	thinking?: React.ReactNode;
+	/** 展开之后、调用详情下面的东西：跟在这次调用后面的推理。 */
+	extra?: React.ReactNode;
 }
 
-export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt, mark, aside, onOpen, openLabel, pending }: ToolCardProps) {
+export function ToolCard({ toolName, summary, args, status, result, stateKey, startedAt, mark, aside, onOpen, openLabel, pending, thinking, extra }: ToolCardProps) {
 	const { t } = useI18n();
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const [elapsed, setElapsed] = useState(0);
-	const mcpMark = useMcpMark()(toolName);
-	/*
-	 * `Cable` rather than `Globe` for a server with no icon of its own.
-	 *
-	 * The globe was already `web_fetch`'s, so an MCP call and a page fetch drew the same thing —
-	 * and a globe says "the network", which is true of a hosted server and false of the stdio ones
-	 * that are most of this catalogue. `Cable` is what 设置 › MCP and the plugins page already use
-	 * for this, so a row now agrees with the pages the server is managed on.
-	 */
-	const Icon = ICONS[toolName] ?? (mcpMark ? Cable : Terminal);
 	const details = result?.details as Record<string, unknown> | undefined;
 	const hasDiff = Array.isArray(details?.hunks) && (details.hunks as DiffHunk[]).length > 0;
 	const running = status === "running";
@@ -126,9 +80,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	const live = running && !pending;
 	// ly-pop 说的是「刚刚跑完」。挂载时就已结束的卡片（历史记录、第一次展开的分组）不弹，否则每次展开 +N -M 都跳一下。
 	const pop = useRef(running).current ? "ly-pop " : "";
-	const chain = useCallChain();
-
-	// What opens under the call, in either layout.
+	// What opens under the call.
 	const body = hasDiff ? (
 		<DiffView hunks={details?.hunks as DiffHunk[]} path={String(details?.path ?? "")} showPath />
 	) : (
@@ -181,70 +133,8 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 		</>
 	);
 
-	if (chain === "expanded") {
-		// The earlier layout (设置 › 外观 › 调用链 › 展开): a bordered card with a spinner and a tick.
-		return (
-			<div
-				data-ly-avatar-host={mark ? "" : undefined}
-				data-ly-tool={status}
-				className={`ly-enter overflow-hidden rounded-lg border transition-colors duration-[var(--ly-t-base)] ${
-					live ? "ly-rail border-accent/30 bg-card/60" : "border-line-soft bg-card/45"
-				}`}
-			>
-				<button
-					type="button"
-					aria-expanded={onOpen ? undefined : open}
-					aria-label={onOpen ? openLabel : undefined}
-					data-ly-tip={onOpen ? openLabel : undefined}
-					onClick={() => (onOpen ? onOpen() : setOpen((v) => !v))}
-					className="ly-scroll flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/50"
-				>
-					{mark ?? <ToolMark mark={mcpMark} Icon={Icon} running={running} size={14} />}
-					<span className={`min-w-0 flex-1 truncate text-label transition-colors duration-[var(--ly-t-base)] ${live ? "text-ink" : "text-ink-faint"}`}>
-						{summary}
-					</span>
-					{aside}
-
-					{running && pending && <span className="shrink-0 text-caption text-ink-faint">{pending}</span>}
-					{live && (
-						<span className="flex shrink-0 items-center gap-1.5 text-caption text-accent/80">
-							{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
-							<StatusSpinner size={12} />
-						</span>
-					)}
-					{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className={`${pop}shrink-0 text-ok/75`} />}
-					{failed && <CircleX size={13} strokeWidth={1.9} className={`${pop}shrink-0 text-danger/85`} />}
-					{stopped && (
-						<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className={`${pop}flex shrink-0 text-ink-faint`}>
-							<Ban size={13} strokeWidth={1.9} aria-hidden />
-						</span>
-					)}
-
-					{hasDiff && (
-						<span className={`${pop}shrink-0 font-mono text-caption`}>
-							<span className="text-ok">+{String(details?.added ?? 0)}</span>{" "}
-							<span className="text-danger">-{String(details?.removed ?? 0)}</span>
-						</span>
-					)}
-
-					{onOpen ? (
-						<ArrowUpRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" aria-hidden />
-					) : (
-						<ChevronRight
-							size={13}
-							strokeWidth={2}
-							className="shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)]"
-							style={open ? { transform: "rotate(90deg)" } : undefined}
-						/>
-					)}
-				</button>
-
-				{open && !onOpen && <div className="ly-enter border-t border-line-soft">{body}</div>}
-			</div>
-		);
-	}
-
 	const notes = [
+		thinking ? <Fragment key="thinking">{thinking}</Fragment> : null,
 		aside ? <Fragment key="aside">{aside}</Fragment> : null,
 		running && pending ? <span key="pending" className="text-caption text-ink-faint">{pending}</span> : null,
 		live && elapsed > 0 ? <span key="elapsed" className="tabular-nums text-caption">{elapsed}s</span> : null,
@@ -265,7 +155,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	/*
 	 * One call is one line, the same skeleton as the thinking and turn lines around it (`FlowRow`).
 	 *
-	 * The bordered card above, inside an open turn, made a stack of boxes between lines of prose.
+	 * A bordered card per call, inside an open turn, made a stack of boxes between lines of prose.
 	 * Running is said the way every other row says it — the glide on the words, plus the seconds —
 	 * and done is the quiet state; failure and stopping still carry their marks. The details open in
 	 * a framed box under the line.
@@ -273,9 +163,10 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	return (
 		<div data-ly-avatar-host={mark ? "" : undefined} data-ly-tool={status} className="ly-enter">
 			<FlowRow
-				icon={mark ?? <ToolMark mark={mcpMark} Icon={Icon} />}
-				summary={summary}
-				running={live}
+				icon={mark ?? <ToolIcon name={toolName} />}
+				// 参数流进来时字往后长（「修改文件」→「修改文件 one.ts」），宽度缓过去，行尾的箭头不跳。
+				// 光挂在字上而不是经 `running` 挂在外层，和一段活的那一行同一种写法。见 `RollWords`。
+				summary={<RollWords rollKey="call" text={summary} glide={live}>{summary}</RollWords>}
 				trailing={notes.length > 0 ? <span className="flex items-center gap-2">{notes}</span> : undefined}
 				open={onOpen ? undefined : open}
 				onToggle={() => (onOpen ? onOpen() : setOpen((v) => !v))}
@@ -284,52 +175,12 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 			/>
 
 			{!onOpen && (
-				<Collapse open={open} bodyClassName="pt-1.5 pl-[22px]">
+				<Collapse open={open} bodyClassName="flex flex-col gap-2.5 pt-1.5 pl-[22px]">
 					<div className="overflow-hidden rounded-lg border border-line-soft bg-card/45">{body}</div>
+					{extra}
 				</Collapse>
 			)}
 		</div>
-	);
-}
-
-/**
- * The mark at the start of a tool row.
- *
- * A glyph for everything built in, and for an MCP call the picture of the server that answered it —
- * because "which server was that" is the question a row of MCP calls has to answer, and the name is
- * already competing with the tool's own name for the same line of text.
- *
- * Drawn at the glyph's size and given no background. A row is 14px of ink beside a sentence; the
- * tile treatment the catalogue uses would make the busiest thing in a transcript the logo of
- * whatever the model happened to call.
- */
-function ToolMark({ mark, Icon, running, size = 13 }: { mark: McpMark | null; Icon: typeof FileText; running?: boolean; size?: number }) {
-	const tint = safeColour(mark?.brandColor);
-	// Only the bordered card passes `running`: it pulses the mark. A row says running with its glide.
-	const card = running !== undefined;
-
-	if (mark?.logo) {
-		return (
-			<img
-				src={mark.logo}
-				alt=""
-				width={size}
-				height={size}
-				className={`shrink-0 rounded-xs object-cover transition-opacity duration-[var(--ly-t-base)] ${running ? "ly-pulse" : "opacity-90"}`}
-			/>
-		);
-	}
-
-	return (
-		<Icon
-			size={size}
-			strokeWidth={1.8}
-			aria-label={mark ? translate("toolCard.mcpServer", { name: mark.name }) : undefined}
-			// A server that declared a colour and shipped no picture is still told apart from the next
-			// one. Only while idle: the running state is the app speaking, and it owns that colour.
-			style={tint && !running ? { color: tint } : undefined}
-			className={card ? `shrink-0 transition-colors duration-[var(--ly-t-base)] ${running ? "ly-pulse text-accent" : "text-ink-faint"}` : "shrink-0"}
-		/>
 	);
 }
 

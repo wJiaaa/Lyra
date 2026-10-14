@@ -82,12 +82,25 @@
   white-space: nowrap;
 }
 
-/* 尾部附注紧跟摘要，且和这一行的字垂直居中。 */
+/*
+ * 尾部附注紧跟摘要，且和这一行的字垂直居中。
+ *
+ * 外层的宽度由 `FlowTrail` 在内容变的时候缓过去；左边那 8px 在里层，没有尾巴时一起是 0。横向用
+ * `clip` 而不是 `hidden`：`hidden` 会把纵向一起裁掉，弹出来的记号和头像的描边会被削一截。
+ */
 .ly-flow-trail {
   display: inline-flex;
   flex: none;
   align-items: center;
-  margin-left: 8px;
+  overflow-x: clip;
+  white-space: nowrap;
+  transition: width var(--ly-t-slow) var(--ly-e-out);
+}
+
+.ly-flow-trail-in {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 8px;
 }
 
 /* The disclosure chevron: right after the words, turned 90° while open. */
@@ -102,70 +115,47 @@
   transform: rotate(90deg);
 }
 
-/* The expanded call-chain layout is the earlier look, which drew no chevrons. */
-:root[data-call-chain="expanded"] .ly-flow-chevron {
-  display: none;
-}
-
 /*
- * 一整轮的过程，是一块，所以行距只有一种。
+ * 一轮的锚：字在线上。
  *
- * 用 `gap`，不用 margin。这一条是量出来的：靠 margin 对齐，只要某一行的容器里还有别的东西
- * （一张交付卡片、一行操作），它的外边距一样而视觉间距就变了——上一版量的是容器的 margin，
- * 报「统一」而屏幕上是 4px 和 10px 参差着。`gap` 由构造保证，子元素的外边距动不了它。
+ * 线是这一轮过程的上沿，字是它的标题——放在线的开头（「—— 已工作 ——」）读着像分隔符，分开的是
+ * 上下两轮；放在线上面，读着是「下面这些是这一轮做的」。行高和流水行一样，下面再留 8px 才是线。
  *
- * 这里一度还想「让思考和它带出来的活贴得更紧」，只收窄配对内部，结果是 2px、10px 交替下来，
- * 比原来更不像一个整体：眼睛会把大间隔当成分组边界，而那些边界并不存在。节奏要么统一，要么对应
- * 真实结构；两个都不是的时候，统一永远是对的那个。
- *
- * 值从 4px 改成 6px（2026-09-11），再改成 10px（2026-09-16）。6px 把过程内部收齐了，但转录列表
- * 已经改成 `gap-2.5`（10px）——真窗口里量出来是 [6, 10]：折叠行到第一行过程 6px，思考到工具 10px。
- * 眼睛把那 4px 的差当成分组边界，而分组并不存在。过程行和回合行是同一条流，只留一个值。
+ * 过程里的行距仍然只有一种：每一行在 `TurnWork` 里各套一层折叠，10px 是折叠体里的上内边距，
+ * 和转录本身的 `gap-2.5` 一样。放在折叠体里，它才会跟着高度一起收；用外边距或 `gap`，收起之后
+ * 每一行还会各留下 10px。
  */
-[data-ly-turn-process] .ly-freeze > div {
+.ly-turn-anchor {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  width: 100%;
+  height: 33px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  transition: color var(--ly-t-quick) var(--ly-e-out);
 }
 
-/* 子元素自带的外边距会在 gap 之上再叠一层，得先清掉。 */
-[data-ly-turn-process] .ly-freeze > div > * {
-  margin-bottom: 0;
+.ly-turn-anchor[data-open] .ly-flow-chevron {
+  transform: rotate(90deg);
 }
 
 /*
- * 折叠行到它下面第一条过程行，用的是同一个 10px——否则展开时那一行贴在过程上。
+ * 流水行上换掉的那句话（`RollWords`）。
  *
- * 这 10px 是折叠体里的上内边距（见 `TurnProcess` 的 `pt-2.5`），不是折叠行的外边距。挂在
- * 折叠行上时它随 `data-ly-turn-open` 当帧切换，高度却还在动画：点收起，下面的答案先瞬间上提
- * 10px 再开始收。放进折叠体，它就和高度一起伸缩。
+ * 宽度由组件在换句时钉成像素再放开，这里只给它过渡；`overflow: hidden` 让变宽的那段时间里新句不压到
+ * 后面的东西上，也让落进来的字像是从一道缝里出来。不设 `max-width`：不换句的时候它就是字本身那么宽，
+ * 装不下时越出去的是外面的 `ScrollText`，那边的虚化和悬停自读照旧。
  */
-
-/*
- * 到答案的距离，展开和收起是同一个。
- *
- * 这里一度是收起时 2px、展开时 10px，理由是「收起后它只是一行字，不该占一整段的空隙」。听起来
- * 成立，看起来不成立：同一块东西，点一下开、点一下关，它和下面那段答案的距离就变了五倍，于是
- * 答案自己在原地跳。而且 2px 太近了——那行摘要黏在答案的第一行上，读起来像是答案的标题，可它
- * 说的是别的事。
- *
- * 一个位置一个值。展开与否是这一块内部的事，不该改变它和邻居之间的关系。
- */
-
-/*
- * 运行中思考行上的那个词（`ThinkingBlock` 的 `LiveThought`）。
- *
- * 宽度由组件在换词时钉成像素再放开，这里只给它过渡；`overflow: hidden` 让变宽的那段时间里新词不压到
- * 后面的点上，也让落进来的词像是从一道缝里出来。
- */
-.ly-thought-word {
+.ly-roll-words {
   display: inline-block;
   overflow: hidden;
+  vertical-align: top;
   white-space: nowrap;
   transition: width var(--ly-t-slow) var(--ly-e-out);
 }
 
-/* 和 `.ly-roll` 同一个落下的动作，慢一档：这一行是安静的，换词不该像按钮被点了一下。 */
-.ly-thought-roll {
+/* 和 `.ly-roll` 同一个落下的动作，慢一档：这些行是安静的，换句不该像按钮被点了一下。 */
+.ly-roll-soft {
   animation: ly-roll-in var(--ly-t-slow) var(--ly-e-out);
 }

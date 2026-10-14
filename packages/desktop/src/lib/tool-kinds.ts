@@ -28,9 +28,11 @@ export function describeRun(calls: { toolName: string; subject?: string }[]): st
 	}
 
 	const counts = new Map<string, number>();
+	const times = new Set<string>();
 	for (const call of calls) {
 		const kind = KIND[call.toolName] ? translate(KIND[call.toolName]) : translate("tools.using");
 		counts.set(kind, (counts.get(kind) ?? 0) + 1);
+		if (TIMES.has(KIND[call.toolName])) times.add(kind);
 	}
 
 	const parts: string[] = [];
@@ -40,7 +42,8 @@ export function describeRun(calls: { toolName: string; subject?: string }[]): st
 		if (count === 1 && subjects.length === 1) parts.push(`${kind} ${subjects[0]}`);
 		// One of a kind with nothing to name — "执行命令 1 个" counts to one, which is just noise.
 		else if (count === 1) parts.push(kind);
-		else parts.push(translate("tools.countOf", { kind, count }));
+		// 网页上的点击、输入是「次」不是「个」：「操作网页 4 个」读着像四张网页。
+		else parts.push(translate(times.has(kind) ? "tools.countTimes" : "tools.countOf", { kind, count }));
 	}
 	return formatList(parts);
 }
@@ -82,7 +85,19 @@ const KIND: Record<string, MessageKey> = {
 	// The desktop's session-level tools (`electron/session-ops.ts`): the card says the rest, the row says what happened.
 	spawn_session: "tools.spawnSession",
 	archive_session: "tools.archiveSession",
+	/*
+	 * 内置浏览器那几个（`electron/browser-tools.ts`）。它们没有 `summarize`，core 给的摘要就是工具名本身，
+	 * 不在表里时一行读作「browser_act」。
+	 */
+	browser_open: "tools.browserOpen",
+	browser_act: "tools.browserAct",
+	browser_tabs: "tools.browserTabs",
+	browser_viewport: "tools.browserViewport",
+	browser_screenshot: "tools.browserScreenshot",
 };
+
+/** 按「次」数、不按「个」数的那几种。 */
+const TIMES = new Set<MessageKey>(["tools.browserAct"]);
 
 /**
  * core 给的那句英文摘要（`Read src/a.ts`、`Search "x"`、`List .`），换成和转录里同一种说法。
@@ -108,6 +123,43 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 const FIXED: Record<string, MessageKey> = {
 	"Check job": "tools.output",
 	"Stop job": "tools.stopJob",
+};
+
+/**
+ * 一次调用在行上怎么说。
+ *
+ * 自己没写 `summarize` 的工具，core 交回来的摘要就是工具名（`tool-run.ts`）；表里认得它，就照一段活的
+ * 说法讲，连同参数里那个值得点名的东西（「打开网页 todo.html」）。其余交给 `describeActivity`。
+ */
+export function describeCall(toolName: string, summary: string | undefined, subject?: string): string {
+	if ((summary === undefined || summary === toolName) && KIND[toolName]) return describeRun([{ toolName, subject }]);
+	return describeActivity(summary ?? toolName);
+}
+
+/**
+ * 一段活按什么归类：同一类连着做的调用，在转录里合成一行（见 `grouping.ts` 的 `Step`）。
+ *
+ * 分的是「从外面看在干同一件事」：读、搜、列目录都是在看代码；写和改都是在动文件；浏览器那几个都是
+ * 在用同一个页面。表里没有的工具自成一类，连着调同一个工具才合在一起。
+ */
+export function toolCategory(toolName: string): string {
+	if (toolName.startsWith("browser_")) return "browser";
+	return CATEGORY[toolName] ?? toolName;
+}
+
+const CATEGORY: Record<string, string> = {
+	write: "files",
+	edit: "files",
+	read: "explore",
+	ls: "explore",
+	glob: "explore",
+	grep: "explore",
+	symbol: "explore",
+	lsp: "explore",
+	bash: "terminal",
+	bash_output: "terminal",
+	web_fetch: "web",
+	web_search: "web",
 };
 
 export function describeActivity(summary: string): string {

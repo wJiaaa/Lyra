@@ -94,6 +94,3 @@ export function ToolGroup({
 		</div>
 	);
 }
-
-/* 「这一段做了什么」的说法搬到了 `lib/tool-kinds.ts`：子智能体那几处读数也要用它。 */
-export { describeRun } from "../../lib/tool-kinds.ts";

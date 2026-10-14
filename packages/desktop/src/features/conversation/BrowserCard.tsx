@@ -101,8 +101,8 @@ export function laterPageOpens(blocks: TurnBlock[]): string[][] {
 	for (let i = blocks.length - 1; i >= 0; i--) {
 		if (blocks[i + 1]?.turn !== blocks[i]!.turn) tail = [];
 		later[i] = tail;
-		// 只有过程块画卡片（`Conversation`），别处的打开没有卡片可以接替前面那张。
-		if (blocks[i]!.kind === "process") tail = [...pageOpens(blocks[i]!), ...tail];
+		// 只有有过程的一轮画卡片（`Conversation`），别处的打开没有卡片可以接替前面那张。
+		if (blocks[i]!.kind === "work") tail = [...pageOpens(blocks[i]!), ...tail];
 	}
 	return later;
 }

@@ -17,6 +17,7 @@ import type { AssistantContent, AssistantMessage, CommandRun, Message, UserConte
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
+import { toolCategory } from "../../lib/tool-kinds.ts";
 
 type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 
@@ -701,33 +702,62 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 }
 
 /**
- * 一轮里的过程，和它说出口的话，分开。
+ * 一轮：开口的那句话之后，到下一句之前的全部。
  *
- * 一轮读下来是「想 → 做 → 说」：模型推理，调命令、读文件、跑技能，中间也会停下来说几句。推理和
- * 工具是过程——它值得看，但看过一次之后，翻回一段旧对话时四十行工具卡片挡在前面，就只是噪音了。
- * 所以过程可以收成一行，而说出口的话永远在外面。
+ * 读下来是「想 → 做 → 说」。过程值得看——跑的时候你就盯着它——看过之后，翻回一段旧对话时四十行
+ * 工具挡在答案前面就只是噪音。所以一轮有一行锚（「工作中」/「已工作 1 分 41 秒」），过程挂在它下面，
+ * 跑完收进去；最后一次过程之后的话是回答，永远在外面。
  *
- * 收的是**连续的一段**过程，不是一整轮。中间那些「已定位到两个原因……」是模型在向人汇报，把它们
- * 连同整轮一起收进去，收起之后就只剩最后一句，前面的汇报全看不到了。所以话把过程切成几段，
- * 每段各有自己的那一行。
+ * 中途说的话（「先打开页面验证一下」）算过程的一部分，跟着一起收。它们从前把过程切成几段、各自留在
+ * 外面，理由是那是在向人汇报；可一轮跑完以后，人要的是结论，汇报和那几段折叠行加起来比回答还长。
+ * 想回看的点开锚就是原样。
  *
  * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
  */
 export interface TurnBlock {
-	/** 一段连续的过程，收得起来。 */
-	kind: "process" | "plain";
+	/** `work`：有过程的一轮，带一行锚。`plain`：一行原样画的东西——开口的那句话，或者没有过程的一轮里的每一行。 */
+	kind: "work" | "plain";
 	runs: Run[];
-	/** 过程里有什么，用来写那一行摘要。 */
-	counts: { tools: number; thinking: number };
+	/** 一轮里按画出来的顺序排好的每一行；`plain` 时为空。 */
+	items: TurnItem[];
 	/**
 	 * 这一块属于第几轮。
 	 *
-	 * 「过程要不要收起来」问的是**这一轮跑完没有**，不是「这一块是不是最后一块」。模型一开始流式
-	 * 输出正文，过程块就不再排在末尾了——按位置判会让折叠行在回合中途冒出来，把正在进行的工作收
-	 * 起来，而那正是人盯着看的时候。
+	 * 「过程要不要收起来」问的是**这一轮跑完没有**，不是「这一块是不是最后一块」。按位置判，回答一开始
+	 * 流式输出就判错了。
 	 */
 	turn: number;
 }
+
+/**
+ * 锚下面的一行。
+ *
+ * `fold`：锚收起时它跟着收。回答不收；页面（`preview` 交给人看的那一页）也不收——它是这一轮的结果，
+ * 不是做法，哪怕夹在两段活中间。
+ */
+type TurnItem = { kind: "run"; key: string; run: Run; fold: boolean } | { kind: "step"; key: string; step: Step };
+
+/**
+ * 一段同一类的活，连同夹在中间、跟在后面的推理——画出来是一行。
+ *
+ * 同一类连着做（打开页面、点、输入、截图）合成一行，那一行从第一次调用起就说总的，跑着的时候新的
+ * 一次接在句尾。换了一类另起一行；说了话也另起一行。
+ *
+ * 推理落在哪一段就算哪一段，放下就不再挪：「想 → 点 → 想 → 输入」是一段浏览器的活，读作「思考 2 次 ·
+ * 打开网页、操作网页」。挂在一段活后面的推理就是那一段的，下一次调用换了一类也不跟过去——跟过去的话，
+ * 上一行的「思考 N 次」会少一次，数往回跳。前面还没有活的推理（一轮开头、说完一句话之后）等下一次调用，
+ * 跟着它开新的一段；一直没等到调用的自己是一行。
+ *
+ * `key` 是第一次调用的 id：一段活往后长，它不换。
+ */
+export interface Step {
+	key: string;
+	category: string;
+	calls: Call[];
+	members: StepMember[];
+}
+
+type StepMember = { kind: "call"; call: Call } | { kind: "thinking"; run: Extract<Run, { kind: "message" }> };
 
 /** 这一条 run 是不是「过程」——相对于说出口的话。 */
 function isProcess(run: Run): boolean {
@@ -735,16 +765,14 @@ function isProcess(run: Run): boolean {
 	if (run.kind === "compaction") return true;
 	/*
 	 * A dropped connection is process once it is over — recovered, or moved to another model — and
-	 * news while it is not. Waiting, it is the countdown to the retry, and under the default call chain
-	 * the process is folded even while the turn runs: folded in with it, the turn sat silent through
-	 * the whole wait, which is when a person gives up and sends the message again by hand. Given up,
-	 * it is the turn's last word and carries its 继续; folded, it was gone the moment the turn ended.
+	 * news while it is not. Waiting, it is the countdown to the retry; given up, it is the turn's last
+	 * word and carries its 继续. Either way it stays where it can be seen.
 	 */
 	if (run.kind === "hiccup") return run.hiccup.outcome !== "waiting" && run.hiccup.outcome !== "gave_up";
 	if (run.kind !== "message") return false;
 	/*
-	 * 插在一轮中间的送达是这段工作里的一步，和它前后的工具一起收。画在外面，它会把一段连续的过程
-	 * 切成两行。叫醒会话的那一种开了一轮（`opensTurn`），留在外面；另一个会话的来信有正文要读，也留在外面。
+	 * 插在一轮中间的送达是这段工作里的一步，和它前后的工具一起收。叫醒会话的那一种开了一轮
+	 * （`opensTurn`），留在外面；另一个会话的来信有正文要读，也留在外面。
 	 */
 	if (run.message.role === "user") return Boolean(run.message.delivery) && !run.message.peer && !opensTurn(run.message);
 	/*
@@ -758,8 +786,8 @@ function isProcess(run: Run): boolean {
  * A reply row that is nothing but reasoning — a reply that thought and then only called tools.
  *
  * It gets no `lead` (there is no prose row below it to lead into), so it used to count as an
- * answer: drawn outside the fold and missing from the turn line's tally of thoughts. Rows with no
- * reasoning in them stay out of this, above all the empty row that is a failure's only trace.
+ * answer: drawn outside the fold. Rows with no reasoning in them stay out of this, above all the
+ * empty row that is a failure's only trace.
  */
 function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
 	if (run.message.role !== "assistant") return false;
@@ -767,9 +795,9 @@ function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
 	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
-/** 过程里的一次推理。同在过程里的送达不是，它不进「思考 N 次」。 */
-function reasoning(run: Run): boolean {
-	return run.kind === "message" && run.message.role === "assistant";
+/** 过程里的一次推理。同在过程里的送达不是。 */
+function reasoning(run: Run): run is Extract<Run, { kind: "message" }> {
+	return run.kind === "message" && run.message.role === "assistant" && thinkingOnly(run);
 }
 
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
@@ -777,40 +805,99 @@ function opensBlock(run: Run): boolean {
 	return run.kind === "command" || (run.kind === "message" && opensTurn(run.message));
 }
 
+/**
+ * 一行推理是不是还在写：后面什么都还没有。
+ *
+ * 写着的推理落在一段活的末尾时，那一行说的是它（「正在思考 · 5s」），而不是上一步——见 `WorkStep`。
+ */
+export function thinkingLive(run: Extract<Run, { kind: "message" }>): boolean {
+	return run.message.role === "assistant" && run.message.stopReason === "pending" && run.upTo === run.message.content.length;
+}
+
 export function turnBlocks(list: Run[]): TurnBlock[] {
 	const out: TurnBlock[] = [];
 	let turn = 0;
-	const plain = (run: Run) => out.push({ kind: "plain", runs: [run], counts: { tools: 0, thinking: 0 }, turn });
+	const plain = (run: Run) => out.push({ kind: "plain", runs: [run], items: [], turn });
 
 	let at = 0;
 	while (at < list.length) {
-		const run = list[at];
-		if (opensBlock(run)) turn++;
-		if (!isProcess(run)) {
-			plain(run);
-			at++;
+		if (opensBlock(list[at])) {
+			turn++;
+			plain(list[at++]);
 			continue;
 		}
-		// 一段过程到下一句话（或下一次「人开的口」）为止。
 		let end = at;
-		while (end < list.length && isProcess(list[end])) end++;
-
-		/*
-		 * 只有重连、压缩这类标记、没有一次推理或工具的一段，不值得一行「思考了一会儿」——原样摊开。
-		 */
+		while (end < list.length && !opensBlock(list[end])) end++;
 		const body = list.slice(at, end);
-		if (body.some((item) => item.kind === "tools" || reasoning(item))) {
-			out.push({
-				kind: "process",
-				runs: body,
-				counts: {
-					tools: body.reduce((n, item) => n + (item.kind === "tools" ? item.calls.length : 0), 0),
-					thinking: body.filter(reasoning).length,
-				},
-				turn,
-			});
-		} else for (const item of body) plain(item);
+		/*
+		 * 只有重连、压缩这类标记、没有一次推理或工具的一轮，不值得一行「已工作」——原样摊开。
+		 */
+		if (body.some((run) => isProcess(run) && (run.kind === "tools" || reasoning(run)))) {
+			out.push({ kind: "work", runs: body, items: itemsOf(body), turn });
+		} else for (const run of body) plain(run);
 		at = end;
 	}
 	return out;
+}
+
+function itemsOf(body: Run[]): TurnItem[] {
+	// 最后一次过程之后的都是回答。
+	let last = -1;
+	body.forEach((run, index) => {
+		if (isProcess(run)) last = index;
+	});
+
+	const items: TurnItem[] = [];
+	let step: Step | null = null;
+	// 前面还没有活时想过的推理：等下一次调用来开一段。
+	let thoughts: { run: Extract<Run, { kind: "message" }>; index: number }[] = [];
+	const settle = () => {
+		for (const { run, index } of thoughts) items.push({ kind: "run", key: runKey(run), run, fold: index <= last });
+		thoughts = [];
+	};
+	body.forEach((run, index) => {
+		// 压缩标记画在运行指示上（见 `Conversation` 的 `draw`），在这里占一行只会多出一截空白。
+		if (run.kind === "compaction") return;
+		if (run.kind === "tools" && !run.shown) {
+			for (const call of run.calls) {
+				const category = toolCategory(call.block.name);
+				const before = thoughts.map(({ run: thought }) => ({ kind: "thinking" as const, run: thought }));
+				thoughts = [];
+				if (step?.category === category) {
+					step.calls.push(call);
+					step.members.push(...before, { kind: "call", call });
+					continue;
+				}
+				step = { key: `step-${call.block.id}`, category, calls: [call], members: [...before, { kind: "call", call }] };
+				items.push({ kind: "step", key: step.key, step });
+			}
+			return;
+		}
+		if (reasoning(run)) {
+			if (step) step.members.push({ kind: "thinking", run });
+			else thoughts.push({ run, index });
+			return;
+		}
+		settle();
+		step = null;
+		const shown = run.kind === "tools" && run.shown === true;
+		items.push({ kind: "run", key: runKey(run), run, fold: index <= last && !shown });
+	});
+	settle();
+	return items;
+}
+
+/**
+ * 第 `at` 块那一轮的最后一条消息：下一句人话之前那一条，没有下一句就是转录的末尾。
+ *
+ * 不拿这一轮最后一行的位置：一轮停在一次工具调用上时，最后一行是一段活，而那段活后面的工具结果
+ * 也是这一轮的时间。
+ */
+export function turnEnd(blocks: TurnBlock[], at: number, total: number): number {
+	for (let next = at + 1; next < blocks.length; next++) {
+		const run = blocks[next].runs[0];
+		if (run?.kind === "command") return run.command.at - 1;
+		if (run?.kind === "message" && opensTurn(run.message)) return run.index - 1;
+	}
+	return total - 1;
 }
