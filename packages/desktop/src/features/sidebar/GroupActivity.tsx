@@ -36,7 +36,7 @@ export function GroupActivity({ sessions, collapsed, count }: { sessions: readon
 			data-ly-group-running={running}
 			aria-label={translate("groupActivity.running", { n: running })}
 		>
-			<ActionSpinner size={14} />
+			<ActionSpinner size={14} className="text-accent" />
 		</span>
 	);
 }
