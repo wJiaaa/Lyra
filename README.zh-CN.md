@@ -28,7 +28,6 @@
 | macOS | Apple 芯片 | `Plume-<版本>-arm64.dmg` |
 | macOS | Intel | `Plume-<版本>-x64.dmg` |
 | Windows | x64 | `Plume-<版本>-x64.exe` |
-| Android | arm64 | `Plume-<版本>-arm64-v8a.apk`（手机 App，连桌面上的 Plume 用） |
 
 不知道自己是哪个架构：macOS 看「关于本机」的芯片一行。
 

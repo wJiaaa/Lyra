@@ -27,7 +27,6 @@ Installers live on [Releases](https://github.com/wJiaaa/Plume/releases/latest). 
 | macOS | Apple silicon | `Plume-<version>-arm64.dmg` |
 | macOS | Intel | `Plume-<version>-x64.dmg` |
 | Windows | x64 | `Plume-<version>-x64.exe` |
-| Android | arm64 | `Plume-<version>-arm64-v8a.apk` (the phone app, which connects to Plume on your computer) |
 
 If you are not sure which Mac you have, look at the chip line in About This Mac.
 

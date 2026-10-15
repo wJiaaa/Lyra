@@ -34,12 +34,12 @@ pnpm dev         # 桌面端
 
 `.github/workflows/package.yml` 做两件事：
 
-- **推 `v*` tag 时**（`pnpm release` 的最后一步）：Windows、macOS、Android 都打，再连同
+- **推 `v*` tag 时**（`pnpm release` 的最后一步）：Windows、macOS 都打，再连同
   `SHA256SUMS` 发布到本仓库 [`wJiaaa/Plume`](https://github.com/wJiaaa/Plume/releases) 的
   Release，正文取 CHANGELOG 里这个版本的说明。应用内更新从那里检查和下载。发布用 workflow
   自带的 `GITHUB_TOKEN`，不用另配 token。
 - **手动运行时**：在 **Actions** 页面选择 **安装包** → **Run workflow**，选分支和平台（`all`、
-  `windows`、`macos`、`android`），只打包、上传 Artifacts，不发布。只要一个平台时单独选它。
+  `windows`、`macos`），只打包、上传 Artifacts，不发布。只要一个平台时单独选它。
 
 手动运行的产物在该次运行页面的 **Artifacts** 下载，保留 1 天：
 
@@ -47,10 +47,9 @@ pnpm dev         # 桌面端
 | --- | --- |
 | `Plume-Windows-x64` | `Plume-<version>-x64.exe` |
 | `Plume-macOS` | arm64 与 x64 各一个 `.dmg` 和 `.zip`（zip 给应用内更新原地替换用） |
-| `Plume-Android` | `Plume-<version>-arm64-v8a.apk`，手机 App |
 
-桌面端在各自平台的 runner 上构建并核验原生模块架构；Android 先 `expo prebuild` 生成原生工程，
-再用 Gradle 打 release APK。签名的情况：
+桌面端在各自平台的 runner 上构建并核验原生模块架构。手机 App 不在这里打包，也不随版本发布。
+签名的情况：
 
 - Windows 安装包未做代码签名，安装时可能出现未知发布者或 SmartScreen 提示。
 - macOS 用自签证书 `Plume Code Signing` 签名（`packages/desktop/scripts/make-signing-cert.sh`
@@ -59,8 +58,6 @@ pnpm dev         # 桌面端
   打开仍会被拦下，需要到「系统设置 → 隐私与安全性」里点「仍要打开」。推 tag 发版时缺证书或
   签出来是 ad-hoc 会直接失败；手动打包缺证书只警告，打出 ad-hoc 包。**不要换证书**：换了之后
   每台机器的授权都要重来一遍。
-- Android APK 用 Expo 模板自带的公开调试密钥签名，可以侧载安装、新版本覆盖旧版本，但不能上架
-  应用商店；只含 arm64-v8a，32 位手机和 x86 模拟器装不上。手机 App 没有应用内更新。
 
 构建成功不代表已验证实际安装和运行。
 
@@ -123,7 +120,7 @@ pnpm test:e2e
 ```
 packages/core      Agent 运行时：循环、工具、技能、会话日志、插件内核。平台无关。
 packages/desktop   Electron 应用。electron/ 是主进程，src/ 是渲染进程。
-.github/           手动打包工作流（Windows、macOS、Android）、Issue 与 PR 模板、CODEOWNERS
+.github/           手动打包工作流（Windows、macOS）、Issue 与 PR 模板、CODEOWNERS
 ```
 
 core 不依赖桌面端，它是平台无关的运行时，桌面端驱动它的 `AgentSession`。
