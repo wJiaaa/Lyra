@@ -398,7 +398,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			<ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" aria-hidden />
 		</button>
 		{/* Keep the frame's layout and state while folding, including measurements when the column resizes. */}
-		<Collapse open={!collapsed} keepMounted bodyClassName="pt-1.5 pl-[22px]">
+		<Collapse open={!collapsed} keepMounted bodyClassName="pt-1.5">
 		<div
 			ref={host}
 			data-ly-preview={themed ? "themed" : "card"}
