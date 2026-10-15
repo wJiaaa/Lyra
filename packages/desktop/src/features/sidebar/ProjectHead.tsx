@@ -11,7 +11,8 @@
  * apart — one continuous grey slab with no hierarchy left in it. A project is a heading for the
  * sessions under it, not one of the things you pick between; it says it is open by the weight of
  * its name and the colour of its icon, and keeps the fill for hover, where it means "you are about
- * to press this".
+ * to press this". Pressing keeps that same fill: the session rows' darker press step flashed the
+ * heading on every fold.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -46,7 +47,7 @@ export function ProjectHead({
 		<HoverRow
 			data-ly-project={group.name}
 			controls={hoverSlot(2)}
-			className="group/project rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover active:bg-elevated"
+			className="group/project rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
