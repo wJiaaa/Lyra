@@ -157,6 +157,54 @@ export function groupSessions(
 	};
 }
 
+/** The sidebar's lists, with conversations started from a suggestion drawn under the one that suggested them. */
+export interface Nested extends Grouped {
+	/** Parent id → the conversations started from its suggestions, oldest first. Not in any list's own rows. */
+	spawned: Record<string, SessionMeta[]>;
+}
+
+/**
+ * Put each conversation started from a suggestion (`spawnedFrom`) under the conversation that made it.
+ *
+ * A follow-up handed off as a card is part of the work it came out of, not a peer of it: listed on
+ * its own it reads as unrelated, and the link back is lost. Only within one list, though — the parent
+ * pinned and the child not, or the parent archived, and the child stays a row of its own where it is
+ * rather than vanishing under something that is not there. Kept out of `groupSessions` because the
+ * archive and `listed-projects` group the same way and have no rows to hang children on.
+ */
+export function nestSpawned(grouped: Grouped): Nested {
+	const spawned: Record<string, SessionMeta[]> = {};
+	const nest = (list: SessionMeta[]) => {
+		const here = new Map(list.map((session) => [session.id, session]));
+		return list.filter((session) => {
+			const parent = here.get(session.spawnedFrom?.sessionId ?? "");
+			// A parent is always older; asking so also means two records naming each other cannot both disappear.
+			if (!parent || parent.createdAt >= session.createdAt) return true;
+			(spawned[parent.id] ??= []).push(session);
+			return false;
+		});
+	};
+	const out: Nested = {
+		pinnedSessions: nest(grouped.pinnedSessions),
+		projects: grouped.projects.map((group) => ({ ...group, sessions: nest(group.sessions) })),
+		loose: nest(grouped.loose),
+		spawned,
+	};
+	for (const children of Object.values(spawned)) children.sort((a, b) => a.createdAt - b.createdAt);
+	return out;
+}
+
+/** A list's rows and everything nested under them, depth first — what a folded section is summing up. */
+export function withSpawned(list: SessionMeta[], spawned: Record<string, SessionMeta[]>): SessionMeta[] {
+	const out: SessionMeta[] = [];
+	const visit = (session: SessionMeta) => {
+		out.push(session);
+		for (const child of spawned[session.id] ?? []) visit(child);
+	};
+	for (const session of list) visit(session);
+	return out;
+}
+
 /**
  * Projects whose conversations are all in the archive.
  *

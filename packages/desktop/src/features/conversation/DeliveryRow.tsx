@@ -10,10 +10,11 @@
  * 了、主智能体接着处理」，点一下面板翻到它那一页。
  *
  * 后台命令结束走的是同一条送达，画成和工具行同一个骨架的一行：它是命令，不是哪个智能体。
+ * 从建议卡片上开出来、要求交回的会话也一样：画成「来自新会话 · 标题」，点了去那个会话。
  */
 
 import type { DeliveredReport } from "@plume/core";
-import { ChevronRight, CircleAlert, Terminal } from "../../ui/icons/index.ts";
+import { ChevronRight, CircleAlert, SquarePen, Terminal } from "../../ui/icons/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
@@ -24,6 +25,7 @@ import { AvatarPile } from "../../ui/avatar/AvatarPile.tsx";
 import type { DispatchState } from "../../lib/dispatches.ts";
 import { FlowRow } from "./FlowRow.tsx";
 import { focusJob } from "../../store/job-focus.ts";
+import { jumpToSession } from "./jump-to-session.ts";
 
 /** 一份报告是什么表情：和派发卡片、输入框上方那条用同一套。 */
 function moodOf(report: DeliveredReport): DispatchState {
@@ -40,12 +42,43 @@ function outcome(report: DeliveredReport): string {
 
 export function DeliveryRow({ delivery }: { delivery: DeliveredReport[] }) {
 	const jobs = delivery.filter((report) => report.kind === "job");
-	const agents = delivery.filter((report) => report.kind !== "job");
+	const sessions = delivery.filter((report) => report.kind === "session");
+	const agents = delivery.filter((report) => report.kind === undefined);
 	return (
 		<>
 			{agents.length > 0 && <AgentDelivery delivery={agents} />}
 			{jobs.length > 0 && <JobDelivery jobs={jobs} />}
+			{sessions.map((report) => (
+				<SessionDelivery key={report.id} report={report} />
+			))}
 		</>
+	);
+}
+
+/**
+ * 建议另开的会话交回了第一轮的回复。和子智能体交回同一个题注骨架；回复本身在那个会话里，点了过去。
+ * 那个会话被删了就只是一句题注，点不动。
+ */
+function SessionDelivery({ report }: { report: DeliveredReport }) {
+	const { t } = useI18n();
+	const sessionId = useScopedSessionId();
+	const failed = report.status === "failed";
+	return (
+		<div className="-mb-1.5" data-delivery-row="" data-delivery-kind="session">
+			<FlowRow
+				icon={failed ? <CircleAlert size={13} strokeWidth={1.8} className="text-danger" /> : <SquarePen size={13} strokeWidth={1.8} />}
+				title={<span className="font-normal">{t("sessionReturn.from")}</span>}
+				summary={report.description}
+				trailing={
+					<>
+						{failed && <span className="text-danger">{t("sessionOps.failed")}</span>}
+						<ChevronRight size={12} strokeWidth={2} aria-hidden />
+					</>
+				}
+				onToggle={() => void jumpToSession(sessionId, report.id)}
+				label={report.description}
+			/>
+		</div>
 	);
 }
 

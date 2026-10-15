@@ -148,6 +148,15 @@ export interface SpawnedFrom {
 	sessionId: string;
 	/** The `spawn_session` call that made it. */
 	toolCallId: string;
+	/**
+	 * Hand this conversation's first reply back to the one that suggested it, the way a sub-agent's
+	 * report comes back. A one-off: the desktop host clears it when that first turn ends, so a
+	 * conversation the person keeps talking to afterwards does not report every turn. It can still be
+	 * switched on or off while that first turn runs.
+	 */
+	reportBack?: true;
+	/** The first turn has ended; whether to report back is no longer a question. */
+	settled?: true;
 }
 
 export type SessionRecord =

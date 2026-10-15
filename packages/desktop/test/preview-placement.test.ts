@@ -210,3 +210,18 @@ test("回复里的页面接着写下去时，它那一行的身份不变，页�
 	assert.equal(page(before).length, 1);
 	assert.deepEqual(page(after), page(before));
 });
+
+/*
+ * 建议另开的会话（`spawn_session`）也站在它被提出来的地方：那是一张等人点「开始」的卡片，折进过程就没人点了。
+ */
+test("建议新会话的卡片自成一行，不并进前后的过程；参数被退回的照常是活", () => {
+	const look = calls("read");
+	const suggest = calls("spawn_session");
+	const more = calls("read");
+	const messages = [user("修侧栏"), look, result(look, 0), suggest, result(suggest, 0), more, result(more, 0), answer("修好了。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "work(read)", "page(spawn_session)", "work(read)", "assistant"]);
+	const refused = calls("spawn_session");
+	const after = calls("read");
+	const failing = [user("修侧栏"), refused, result(refused, 0, true), after, result(after, 0), answer("好了。")];
+	assert.deepEqual(describe(turnBlocks(runs(failing))), ["user", "work(spawn_session)", "work(read)", "assistant"], "过程里的一行，不是卡片");
+});

@@ -37,6 +37,7 @@ import {
 	abortSession,
 	promptSession,
 	sessions,
+	setReportBack,
 	sideSessionsOf,
 	snapshot,
 	touchSession,
@@ -231,6 +232,11 @@ export function registerSessionsIpc({
 			return store.listSessions();
 		},
 	);
+
+	ipcMain.handle("sessions:reportBack", (_event, sessionId: string, on: boolean) => {
+		if (typeof sessionId !== "string" || typeof on !== "boolean") throw new Error("reportBack(sessionId, on)");
+		return setReportBack(sessionId, on);
+	});
 
 	ipcMain.handle("sessions:removeArchived", async () => {
 		const archived = (await store.listSessions()).filter((s) => s.archived);

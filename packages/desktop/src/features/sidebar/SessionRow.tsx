@@ -97,12 +97,18 @@ function showTrajectory(session: SessionMeta, open: () => void): void {
 export function SessionRow({
 	session,
 	project,
+	nested = false,
 	onRestore,
 	onDelete,
 	onOpen,
 	onArchive,
 }: {
 	session: SessionMeta;
+	/**
+	 * Started from a suggestion in the row above it (`nestSpawned`): drawn one step in, behind a branch
+	 * line. It moves with its parent, so it is not a reorder handle or target of its own.
+	 */
+	nested?: boolean;
 	/**
 	 * What this conversation belongs to, shown on hover rather than on the row.
 	 *
@@ -172,7 +178,8 @@ export function SessionRow({
 	const refreshSessionStats = useApp((s) => s.refreshSessionStats);
 	const card = useSessionCard(() => void refreshSessionStats(session.id));
 
-	const reorder = useSidebarReorderContext();
+	const reorderContext = useSidebarReorderContext();
+	const reorder = nested ? null : reorderContext;
 	const isDraggingThisSession = reorder?.dragging?.kind === "session" && reorder.dragging.id === session.id;
 	const isTargetThisSession = reorder?.dropTarget?.kind === "session" && reorder.dropTarget.id === session.id;
 	/** Only the archive can offer to delete, which makes it the answer to "which list is this". */
@@ -188,6 +195,7 @@ export function SessionRow({
 			 */
 			onMouseEnter={(event) => { if (event.buttons === 0 && event.currentTarget.contains(event.target as Node)) card.bind.onMouseEnter(event); }}
 			data-ly-row={session.id}
+			data-ly-row-nested={nested ? "" : undefined}
 			controls={hoverSlot(actionsCount === 2 ? 2 : 1)}
 			onContextMenu={(event) => {
 				event.preventDefault();
@@ -268,6 +276,15 @@ export function SessionRow({
 					compact ? "h-[34px]" : "h-[32px]"
 				}`}
 			>
+				{/*
+				 * A short 「└」 inside this row: enough to say it hangs off the row above. It stays within this
+				 * row's box — run up to the parent and it spills past the hover background.
+				 */}
+				{nested && (
+					<span aria-hidden data-ly-row-branch className="relative w-3.5 shrink-0 self-stretch">
+						<span className="absolute top-[5px] right-[-1px] bottom-1/2 left-[6px] rounded-bl-[4px] border-b border-l border-ink-faint" />
+					</span>
+				)}
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} unread={isUnread} worktree={session.worktree?.branch} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />

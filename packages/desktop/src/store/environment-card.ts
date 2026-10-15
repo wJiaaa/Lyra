@@ -60,11 +60,6 @@ export function toggleEnvironmentCard(): void {
 	update({ open: !useEnvironmentCard.getState().open });
 }
 
-/** 打开，并把那一节放出来：从对话里那行建议点过来的人要看的就是它，被关掉的节也不例外。 */
-export function revealEnvironmentSection(section: EnvironmentSection): void {
-	update({ open: true, hidden: useEnvironmentCard.getState().hidden.filter((entry) => entry !== section) });
-}
-
 export function setEnvironmentSectionShown(section: EnvironmentSection, shown: boolean): void {
 	const hidden = useEnvironmentCard.getState().hidden.filter((entry) => entry !== section);
 	update({ hidden: shown ? hidden : [...hidden, section] });

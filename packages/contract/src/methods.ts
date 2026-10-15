@@ -99,6 +99,7 @@ export const METHODS = {
 		forkBefore: { channel: "sessions:forkBefore" },
 		remove: { channel: "sessions:remove" },
 		setArchived: { channel: "sessions:setArchived" },
+		reportBack: { channel: "sessions:reportBack" },
 		move: { channel: "sessions:move" },
 		removeArchived: { channel: "sessions:removeArchived" },
 		capabilities: { channel: "sessions:capabilities" },

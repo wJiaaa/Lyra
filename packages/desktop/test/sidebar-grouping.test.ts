@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { emptiedProjects, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
+import { emptiedProjects, groupSessions, isScratch, listableSessions, nestSpawned, withSpawned } from "../src/lib/sidebar-grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
@@ -381,4 +381,45 @@ test("archiving a project's worktree conversations empties that project, not a f
 	const archived = [session({ id: "wt", archived: true, cwd: "/home/.plume/worktrees/a-1234abcd", worktree: { project: "/a", branch: "plume/session-1234abcd" } })];
 	assert.deepEqual([...emptiedProjects([], archived)], ["/a"]);
 	assert.deepEqual([...emptiedProjects([session({ id: "live", cwd: "/a" })], archived)], [], "a live conversation still in the project keeps it");
+});
+
+const from = (sessionId: string) => ({ spawnedFrom: { sessionId, toolCallId: "toolu_1" } });
+
+test("a conversation started from a suggestion sits under the one that suggested it, not beside it", () => {
+	const nested = nestSpawned(
+		groupSessions(
+			[
+				session({ id: "parent", createdAt: 1 }),
+				session({ id: "later", createdAt: 5, ...from("parent") }),
+				session({ id: "child", createdAt: 3, ...from("parent") }),
+				session({ id: "grandchild", createdAt: 4, ...from("child") }),
+				session({ id: "other", createdAt: 2 }),
+			],
+			projects,
+			"",
+		),
+	);
+	assert.deepEqual(nested.projects.find((group) => group.path === "/a")?.sessions.map((s) => s.id), ["parent", "other"]);
+	assert.deepEqual(nested.spawned.parent.map((s) => s.id), ["child", "later"], "oldest first");
+	assert.deepEqual(withSpawned(nested.projects[0].sessions, nested.spawned).map((s) => s.id), ["parent", "child", "grandchild", "later", "other"]);
+});
+
+test("a child whose parent is not in the same list keeps a row of its own", () => {
+	const nested = nestSpawned(
+		groupSessions(
+			[session({ id: "parent", createdAt: 1 }), session({ id: "pinned-child", createdAt: 2, ...from("parent") }), session({ id: "orphan", createdAt: 3, ...from("archived-parent") })],
+			projects,
+			"",
+			[],
+			["pinned-child"],
+		),
+	);
+	assert.deepEqual(nested.pinnedSessions.map((s) => s.id), ["pinned-child"]);
+	assert.deepEqual(nested.projects.find((group) => group.path === "/a")?.sessions.map((s) => s.id), ["parent", "orphan"]);
+	assert.deepEqual(nested.spawned, {});
+});
+
+test("two records naming each other cannot both vanish", () => {
+	const nested = nestSpawned(groupSessions([session({ id: "a", createdAt: 1, ...from("b") }), session({ id: "b", createdAt: 1, ...from("a") })], projects, ""));
+	assert.deepEqual(nested.projects.find((group) => group.path === "/a")?.sessions.map((s) => s.id).sort(), ["a", "b"]);
 });

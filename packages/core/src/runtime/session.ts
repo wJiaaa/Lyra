@@ -43,7 +43,7 @@ import { exitCutDelivery } from "./sub-agent/exit-cut.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agent/sub-agents.ts";
 import { describeSubAgentContext, SubAgentContexts } from "./sub-agent/sub-agent-context.ts";
-import { DelegationWaits } from "./sub-agent/delegation-waits.ts";
+import { DelegationWaits, type FinishedSession } from "./sub-agent/delegation-waits.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { SessionActivity, type CompactOutcome } from "./session-activity.ts";
 import { SessionDeliveries } from "./session-deliveries.ts";
@@ -360,6 +360,11 @@ export class AgentSession {
 	 */
 	receive(letter: PeerLetter, deliver: "steer" | "followUp" = "steer"): void {
 		this.deliveries.letter(letter, deliver);
+	}
+
+	/** 从这里的建议开出来的会话交回了第一轮的回复：和子代理的结果走同一条送达。宿主决定交不交。 */
+	receiveSessionReport(report: FinishedSession): void {
+		this.deliveries.sessionFinished(report);
 	}
 
 	/**

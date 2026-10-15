@@ -25,9 +25,10 @@ import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { noteTranscriptFiles } from "./attachment-reads.ts";
 import { eachAppWindow } from "./window.ts";
-import { createPeerRouter } from "./session-peers.ts";
+import { createPeerRouter, lastReply } from "./session-peers.ts";
 import { createPeerTools } from "./peer-tools.ts";
 import { archiveAfterTurn, createSessionOpsTools } from "./session-ops.ts";
+import { reportBackAfterFirstTurn } from "./session-report-back.ts";
 import { bringBackWorktree, reclaimWorktree } from "./worktree-lifecycle.ts";
 
 export interface HubDeps {
@@ -98,6 +99,29 @@ const summaries = summarizeAfterTurn({
 		}
 	},
 });
+/** 从建议卡片上开出来、要求交回的会话：第一轮结束时把回复送回提建议的那个——见 `session-report-back.ts`。 */
+const reportsBack = reportBackAfterFirstTurn({
+	meta: (id) => sessions.get(id)?.meta,
+	running: (id) => sessions.get(id)?.running ?? false,
+	reply: (id) => {
+		const session = sessions.get(id);
+		return session ? lastReply(session) : "";
+	},
+	write: async (id, spawnedFrom) => {
+		const session = sessions.get(id);
+		if (session) await session.log.append({ type: "meta", meta: { ...session.meta, spawnedFrom } });
+	},
+	deliver: async (parentId, report) => {
+		// 归档了的不叫醒：人把它收起来了，后台多跑一轮也没人看。
+		const parent = (await deps.store().listSessions()).find((one) => one.id === parentId);
+		if (!parent || parent.archived) return;
+		(await ensureLiveSession(parentId))?.receiveSessionReport(report);
+	},
+});
+/** 卡片开始以后改主意：第一轮还在跑时打开或关上交回。 */
+export function setReportBack(sessionId: string, on: boolean): Promise<boolean> {
+	return reportsBack.set(sessionId, on);
+}
 /** 和 `peerTools` 一样每个会话共用一份：工具本身不带状态，是谁调的看 `ctx.sessionId`。 */
 const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
 
@@ -277,6 +301,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	if (!side) notifyAgentEvent(sessionId, event, session?.meta.title, working);
 	// After the windows have the event: they hear the turn end before they hear it was archived.
 	archives.observe(sessionId, event);
+	reportsBack.observe(sessionId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {

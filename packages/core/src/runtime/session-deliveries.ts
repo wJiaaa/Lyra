@@ -1,16 +1,17 @@
 /**
  * Results that finish in the background, carried back into the conversation.
  *
- * Two sources: sub-agents the parent stopped waiting for (`delegation-waits.ts`), and background
- * commands that ended (`tools/background-jobs.ts`). Both are gathered for a moment and handed to the
- * session as one message — mid-turn it is spliced in, idle it starts a turn.
+ * Three sources: sub-agents the parent stopped waiting for (`delegation-waits.ts`), background
+ * commands that ended (`tools/background-jobs.ts`), and conversations started from this one's
+ * suggestion that were asked to report back (`FinishedSession`). All are gathered for a moment and
+ * handed to the session as one message — mid-turn it is spliced in, idle it starts a turn.
  *
  * Kept out of `AgentSession` because it needs four things from it and nothing else: a way to submit,
  * the roster to check a report against, the background-job registry, and the session's activity to
  * know whether a stop happened meanwhile.
  */
 
-import { deliveryMessage, type FinishedJob, type SettledDispatch } from "./sub-agent/delegation-waits.ts";
+import { deliveryMessage, type FinishedJob, type FinishedSession, type SettledDispatch } from "./sub-agent/delegation-waits.ts";
 import type { SessionActivity } from "./session-activity.ts";
 import type { SubAgentSummary } from "../types/sub-agent.ts";
 import type { BackgroundJob, BackgroundJobs } from "../tools/background-jobs.ts";
@@ -44,6 +45,7 @@ export interface DeliveryDeps {
 export class SessionDeliveries {
 	private reports: SettledDispatch[] = [];
 	private finishedJobs: BackgroundJob[] = [];
+	private finishedSessions: FinishedSession[] = [];
 	/** 其他会话发来的消息；和后台结果一起攒，一起送，见 `peer-letters.ts`。 */
 	private letters: PeerLetter[] = [];
 	/** 要排到收件方这一轮之后的那些：插进去会打断它手上的事，单独成一条、排队送。 */
@@ -71,6 +73,12 @@ export class SessionDeliveries {
 		this.schedule();
 	}
 
+	/** 从这里的建议开出来的会话跑完了第一轮，要交回来。 */
+	sessionFinished(session: FinishedSession): void {
+		this.finishedSessions.push(session);
+		this.schedule();
+	}
+
 	/** 另一个会话的消息到了；和同一时刻到的其他东西合成一条再送。 */
 	letter(letter: PeerLetter, deliver: "steer" | "followUp" = "steer"): void {
 		(deliver === "followUp" ? this.queuedLetters : this.letters).push(letter);
@@ -79,7 +87,7 @@ export class SessionDeliveries {
 
 	/** 没有攒着待送的东西。会话判断空闲时要看它：攒着的那一条四百毫秒后就会开一轮。 */
 	get empty(): boolean {
-		return this.timer === null && !this.flushing && this.reports.length === 0 && this.finishedJobs.length === 0 && this.letters.length === 0 && this.queuedLetters.length === 0;
+		return this.timer === null && !this.flushing && this.reports.length === 0 && this.finishedJobs.length === 0 && this.finishedSessions.length === 0 && this.letters.length === 0 && this.queuedLetters.length === 0;
 	}
 
 	/**
@@ -95,6 +103,7 @@ export class SessionDeliveries {
 	clear(): void {
 		this.reports.length = 0;
 		this.finishedJobs.length = 0;
+		this.finishedSessions.length = 0;
 		this.letters.length = 0;
 		this.queuedLetters.length = 0;
 		if (this.timer) clearTimeout(this.timer);
@@ -134,9 +143,10 @@ export class SessionDeliveries {
 			.map((report) => ({ report, summary: this.deps.detail(report.id) }))
 			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
 		const jobs = this.takeFinishedJobs();
+		const sessions = this.finishedSessions.splice(0, this.finishedSessions.length);
 		const letters = this.letters.splice(0, this.letters.length);
 		const queued = this.queuedLetters.splice(0, this.queuedLetters.length);
-		if (reports.length === 0 && jobs.length === 0 && letters.length === 0 && queued.length === 0) return;
+		if (reports.length === 0 && jobs.length === 0 && sessions.length === 0 && letters.length === 0 && queued.length === 0) return;
 		const { activity } = this.deps;
 		// A manual compaction is rewriting the history: wait until it has written the boundary
 		// before coming in, the same as a message from the person.
@@ -147,8 +157,9 @@ export class SessionDeliveries {
 		 * `clear` cannot reach them. Drop them for the same reason, rather than putting them back.
 		 */
 		if (activity.stoppedSince(mark)) return;
-		if (reports.length + jobs.length + letters.length > 0) {
-			await this.deps.submit(combined(reports.length + jobs.length > 0 ? deliveryMessage(reports, jobs, reports.length > 0 ? this.deps.outstanding() : []) : null, letters));
+		const background = reports.length + jobs.length + sessions.length;
+		if (background + letters.length > 0) {
+			await this.deps.submit(combined(background > 0 ? deliveryMessage(reports, jobs, reports.length > 0 ? this.deps.outstanding() : [], sessions) : null, letters));
 		}
 		// 会话闲着时这一条照样开一轮；忙着（或上面那条刚开了一轮）就排到那一轮之后。
 		if (queued.length > 0) await this.deps.submit(peerMessage(queued), "followUp");

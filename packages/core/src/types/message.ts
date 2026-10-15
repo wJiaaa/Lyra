@@ -353,7 +353,11 @@ export interface DeliveredReport {
 	 * 后台命令结束了，而不是子代理跑完了。这时 `agent` 为空，`description` 是模型起任务时写的那句
 	 * 说明（没写就是命令本身），`command` 是完整命令，`exitCode` 为 null 表示被信号终止。
 	 */
-	kind?: "job";
+	kind?: "job" | "session";
+	/*
+	 * `session`：一个从建议卡片上开出来的会话交回了第一轮的回复。`id` 是那个会话的 id，`description` 是它的
+	 * 标题，`agent` 为空。
+	 */
 	command?: string;
 	exitCode?: number | null;
 	agent: string;

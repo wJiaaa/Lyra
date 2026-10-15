@@ -14,4 +14,6 @@ export interface SessionSuggestionDetails {
 	title: string;
 	summary: string;
 	prompt: string;
+	/** The model asked for the new conversation's first reply to come back here; the card's switch starts from it. */
+	reportBack?: true;
 }

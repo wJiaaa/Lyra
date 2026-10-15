@@ -11,7 +11,7 @@ import type { SessionMeta } from "@plume/core";
 import { useMemo } from "react";
 import { useApp } from "../../store/index.ts";
 import { openInPane } from "../split/index.ts";
-import { emptiedProjects, groupSessions, listableSessions, type Grouped } from "../../lib/sidebar-grouping.ts";
+import { emptiedProjects, groupSessions, listableSessions, nestSpawned, type Nested } from "../../lib/sidebar-grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import type { RowActions } from "./SessionRow.tsx";
 
@@ -24,7 +24,7 @@ export function useSidebarLists({
 	/** Called after a conversation is opened, so a drawer can get out of its own way. */
 	onOpened: () => void;
 }): {
-	groups: Grouped;
+	groups: Nested;
 	actions: RowActions;
 } {
 	const sessions = useApp((s) => s.sessions);
@@ -46,7 +46,7 @@ export function useSidebarLists({
 
 	const groups = useMemo(
 		() =>
-			groupSessions(
+			nestSpawned(groupSessions(
 				pool,
 				settings?.projects ?? [],
 				"",
@@ -57,7 +57,7 @@ export function useSidebarLists({
 				emptied,
 				settings?.hideEmptiedProjects ?? false,
 				true,
-			),
+			)),
 		[pool, settings, scratchRoots, sort, emptied],
 	);
 

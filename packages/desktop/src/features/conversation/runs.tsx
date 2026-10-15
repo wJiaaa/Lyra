@@ -10,6 +10,7 @@ import type { AssistantContent, AssistantMessage } from "@plume/core";
 import { PreviewCall, PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
 import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";
+import { SessionSuggestionCard } from "./SessionSuggestionCard.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
 import type { ToolRun as ToolRunState } from "../../store/index.ts";
 import { useScopedFromToolRuns, useScopedRunning } from "../../app/session-scope.tsx";
@@ -113,7 +114,10 @@ export function LiveToolCard({
    */
   const turnRunning = useScopedRunning();
   if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} thinking={thinking} extra={extra} />;
-  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} thinking={thinking} extra={extra} page={page} />;
+  const plain = <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} thinking={thinking} extra={extra} page={page} />;
+  // 子智能体的转录里没有这件工具（`sessionOnly`），带着 `runs` 来的照旧是工具行。
+  if (block.name === "spawn_session" && !runs) return <SessionSuggestionCard block={block} run={run} stopReason={stopReason} turnRunning={turnRunning} fallback={plain} />;
+  return plain;
 }
 
 /** 一次派发：它的脸、派给了谁、在排队还是在跑——见 `DelegationCard.tsx`。 */

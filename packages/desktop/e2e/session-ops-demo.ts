@@ -3,12 +3,14 @@
  * The session-level operations in a real window, recorded while checked: a suggested conversation, and
  * a conversation archiving itself.
  *
- * The unit tests prove each link (`test/session-ops.test.ts`, `test/ui/session-suggestions.test.ts`).
- * This covers the chain they cannot reach: the model really calling the tools the desktop injects, the
- * line left outside the process block and the dot on the Environment button, that line opening the
- * card, a real mouse on Start making the main process create the session and send its prompt to the
- * model, the sidebar gaining a row while the window stays where it was, both places still "started"
- * after a restart; and the archiving turn ending normally, the session in the archive, the window off it.
+ * The unit tests prove each link (`test/session-ops.test.ts`, `test/session-report-back.test.ts`,
+ * `test/ui/session-suggestions.test.ts`). This covers the chain they cannot reach: the model really
+ * calling the tools the desktop injects, the card standing where the call was made with the dot on the
+ * Environment button, a real mouse on the card's Start making the main process create the session and
+ * send its prompt to the model, the sidebar gaining a row nested under the one that suggested it while
+ * the window stays where it was, the new session's first reply coming back to the suggesting one as a
+ * delivery it answers, everything still right after a restart; and the archiving turn ending normally,
+ * the session in the archive, the window off it.
  *
  * The model is fake: an Anthropic streaming server that picks its script by a marker in what the
  * person said.
@@ -24,7 +26,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume上游同步测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume建议新会话测试");
 const PORT = 9490;
 const MODEL_PORT = 9890;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -46,7 +48,7 @@ function check(what: string, ok: boolean, saw = ""): void {
 // ---------------------------------------------------------------------------
 
 /** Every agent request the fake model answered, by whose it was and whether a tool result came with it. */
-const asked: { who: string; answered: boolean; firstUser: string }[] = [];
+const asked: { who: string; answered: boolean; firstUser: string; lastText: string }[] = [];
 
 const write = (res: ServerResponse, events: [string, unknown][]) => {
 	for (const [type, data] of events) res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -99,16 +101,20 @@ function startModel(): Server {
 			const said = parts.filter((part) => part.type === "text").map((part) => part.text ?? "").join("\n");
 			const last = users.at(-1)?.content;
 			const answered = Array.isArray(last) && last.some((part) => part.type === "tool_result");
-			const who = said.includes("ARCHIVE-PROBE") ? "archive" : said.includes("CHILD-PROMPT") ? "child" : said.includes("SPAWN-PROBE") ? "spawn" : "other";
+			const lastText = Array.isArray(last) ? last.filter((part) => part.type === "text").map((part) => part.text ?? "").join("\n") : (last ?? "");
+			// The suggesting conversation woken by what the started one handed back.
+			const reported = lastText.includes("<session_result");
+			const who = said.includes("ARCHIVE-PROBE") ? "archive" : said.includes("CHILD-PROMPT") ? "child" : said.includes("SPAWN-PROBE") ? (reported ? "report" : "spawn") : "other";
 			const first = users[0]?.content;
 			const firstUser = typeof first === "string" ? first : (first ?? []).filter((part) => part.type === "text").map((part) => part.text ?? "").find((text) => !text.startsWith("<env>")) ?? "";
-			asked.push({ who, answered, firstUser });
+			asked.push({ who, answered, firstUser, lastText });
 			if (who === "spawn" && !answered) return reply(res, "先修登录按钮。顺手看到一处没人用的旧代码，单独建议一个会话去清理。", { name: "spawn_session", input: { title: TITLE, summary: SUMMARY, prompt: CHILD } });
 			if (who === "spawn") return reply(res, "SPAWN-DONE 登录按钮的点击区域修好了。");
+			if (who === "report") return reply(res, "REPORT-ACK 新会话确认 legacyLogin 没人调用、已经删掉，登录这边不用再动。");
 			if (who === "archive" && !answered) return reply(res, "错别字改好了，按你说的把这个对话归档。", { name: "archive_session", input: { reason: "README 错别字已改" } }, 2500);
 			if (who === "archive") return reply(res, "ARCHIVE-FOLLOW-UP 这句不该被要出来");
 			// Answered late, so the breathing mark of a running conversation is on screen long enough to be seen.
-			if (who === "child") return reply(res, "CHILD-OK 收到，先搜一遍确认没人调用。", undefined, 4000);
+			if (who === "child") return reply(res, "CHILD-OK 搜过了，legacyLogin 没有调用方，已删掉它和对应的测试。", undefined, 7000);
 			return reply(res, "好");
 		});
 	});
@@ -149,7 +155,8 @@ async function seed(home: string): Promise<string> {
 			disabledPlugins: [],
 			alwaysAllow: [],
 			sync: { enabled: false, port: 4523, token: null },
-			appearance: { theme: "dark" },
+			// 截图拍不出毛玻璃：侧栏会是一片灰，浅色的线和点在上面看不见。关掉它，截图里就是不透明时的真实颜色。
+			appearance: { theme: "dark", vibrancy: false },
 		}),
 	);
 	return project;
@@ -220,13 +227,15 @@ async function ask(text: string): Promise<void> {
 // Scoped to the rows: other navigation (the sidebar's tabs) also says `aria-current`, and matching it read as "no conversation open".
 const activeRow = () => app.evaluate<string | null>(`document.querySelector('[data-ly-row] [aria-current="page"]')?.closest("[data-ly-row]")?.getAttribute("data-ly-row") ?? null`);
 const transcript = () => app.evaluate<string>(`document.querySelector("main")?.innerText ?? ""`);
-type Meta = { id: string; title: string; projectId: string; archived?: boolean; spawnedFrom?: { sessionId: string; toolCallId: string } };
+type Meta = { id: string; title: string; projectId: string; archived?: boolean; spawnedFrom?: { sessionId: string; toolCallId: string; reportBack?: true } };
 const listed = () => app.evaluate<Meta[]>(`window.plume.sessions.list()`);
 
-async function shot(name: string, clip?: string): Promise<void> {
-	const box = clip
+/** `clip`: a selector, or several whose boxes are taken together (a parent row and the row nested under it). */
+async function shot(name: string, clip?: string | string[]): Promise<void> {
+	const selectors = clip === undefined ? [] : Array.isArray(clip) ? clip : [clip];
+	const box = selectors.length
 		? await app.evaluate<{ x: number; y: number; width: number; height: number } | null>(
-				`(() => { const r = document.querySelector(${JSON.stringify(clip)})?.getBoundingClientRect(); return r ? { x: Math.max(0, r.x - 16), y: Math.max(0, r.y - 16), width: r.width + 32, height: r.height + 32 } : null; })()`,
+				`(() => { const rs = ${JSON.stringify(selectors)}.map((one) => document.querySelector(one)?.getBoundingClientRect()).filter(Boolean); if (!rs.length) return null; const x = Math.min(...rs.map((r) => r.left)), y = Math.min(...rs.map((r) => r.top)), right = Math.max(...rs.map((r) => r.right)), bottom = Math.max(...rs.map((r) => r.bottom)); return { x: Math.max(0, x - 16), y: Math.max(0, y - 16), width: right - x + 32, height: bottom - y + 32 }; })()`,
 			)
 		: null;
 	const { data } = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png", ...(box ? { clip: { ...box, scale: 1 } } : {}) });
@@ -251,81 +260,118 @@ async function main(): Promise<void> {
 		await until(`document.querySelector("main textarea")`, "输入框");
 		await pause(1200);
 
-		console.log("【一】模型在做手头的事时，建议另开一个会话");
+		console.log("【一】模型在做手头的事时，建议另开一个会话：卡片就在它提出来的地方");
 		await ask(SPAWN_ASK);
-		const NOTE = "[data-ly-session-suggestion]";
+		const CARD = "[data-ly-session-suggestion]";
 		const ITEM = "[data-ly-environment-suggestion]";
-		const noted = await until(`document.querySelector("${NOTE}") && document.body.innerText.includes("SPAWN-DONE")`, "对话里那一行和这一轮的收尾");
-		check("这一轮跑完了，对话里留下一行记录", noted, (await transcript()).slice(-300));
+		const carded = await until(`document.querySelector('${CARD}[data-ly-session-suggestion="suggested"]') && document.body.innerText.includes("SPAWN-DONE")`, "卡片和这一轮的收尾");
+		check("这一轮跑完了，对话里有一张等人决定的卡片", carded, (await transcript()).slice(-300));
 		await pause(1200);
-		const note = await app.evaluate<{ state: string | null; text: string; folded: boolean; start: number }>(`(() => {
-			const line = document.querySelector("${NOTE}");
+		const card = await app.evaluate<{ title: string; summary: string; start: string; report: string | null; visible: boolean; order: number[] }>(`(() => {
+			const one = document.querySelector("${CARD}");
+			const text = document.querySelector("main")?.innerText ?? "";
 			return {
-				state: line?.getAttribute("data-ly-session-suggestion") ?? null,
-				text: line?.textContent ?? "",
-				folded: Boolean(line?.closest("[data-ly-turn-process], details")),
-				start: line?.querySelectorAll("[data-ly-suggestion-action]").length ?? -1,
+				title: one?.querySelector("[data-ly-suggestion-title]")?.textContent ?? "",
+				summary: one?.querySelector("[data-ly-suggestion-summary]")?.textContent ?? "",
+				start: one?.querySelector('[data-ly-suggestion-action="start"]')?.textContent ?? "",
+				report: one?.querySelector("[data-ly-suggestion-report]")?.getAttribute("aria-pressed") ?? null,
+				visible: Boolean(one?.checkVisibility()),
+				order: [text.indexOf("先修登录按钮"), text.indexOf(${JSON.stringify(TITLE)}), text.indexOf("SPAWN-DONE")],
 			};
 		})()`);
-		check("那一行：建议了新会话 · 标题 · 等你决定，开始不在这里", note.state === "suggested" && note.text.includes("建议了新会话") && note.text.includes(TITLE) && note.text.includes("等你决定") && note.start === 0, JSON.stringify(note));
-		check("那一行不在折叠起来的过程里", !note.folded, "在过程块里");
-		const dotted = await app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-environment-dot]"))`);
-		check("右上角环境按钮上挂了一个圆点", dotted, String(dotted));
-		const callId = await app.evaluate<string>(`document.querySelector("${NOTE}")?.getAttribute("data-ly-suggestion-call") ?? ""`);
+		check("卡片上是标题 / 说明 / 开始，没有折进过程", card.title === TITLE && card.summary === SUMMARY && card.start === "开始" && card.visible, JSON.stringify(card));
+		check("卡片站在调用的位置：提建议那句话之后、这一轮的回答之前", card.order[0] >= 0 && card.order[0] < card.order[1] && card.order[1] < card.order[2], JSON.stringify(card.order));
+		check("模型没要交回，卡片上的「交回这里」默认关着", card.report === "false", String(card.report));
+		check("右上角环境按钮上挂了一个圆点", await app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-environment-dot]"))`));
+		const callId = await app.evaluate<string>(`document.querySelector("${CARD}")?.getAttribute("data-ly-suggestion-call") ?? ""`);
 		const origin = await activeRow();
 		// Everything below compares against this; null would let "still on the same conversation" pass for nothing.
 		check("提建议的对话是侧栏里选中的那一行", Boolean(origin), String(origin));
 		const rowsBefore = await app.evaluate<number>(`document.querySelectorAll("[data-ly-row]").length`);
 		check("开始之前什么都没跑：模型只被问了这一个对话", asked.every((one) => one.who === "spawn"), JSON.stringify(asked.map((one) => one.who)));
-		await shot("01_对话里的一行和按钮上的圆点");
+		await shot("01_对话里的建议卡片");
+		await shot("01b_建议卡片特写", CARD);
 
-		console.log("\n【二】点那一行打开环境卡片，真鼠标点「开始」");
-		await press(NOTE, "对话里那一行");
-		const revealed = await until(`document.querySelector('${ITEM}[data-state="suggested"]')?.checkVisibility()`, "环境卡片里那一条");
-		const item = await app.evaluate<{ title: string; summary: string; action: string; dot: boolean }>(`(() => {
-			const one = document.querySelector("${ITEM}");
-			return {
-				title: one?.querySelector("[data-ly-suggestion-title]")?.textContent ?? "",
-				summary: one?.querySelector("[data-ly-suggestion-summary]")?.textContent ?? "",
-				action: one?.querySelector("[data-ly-suggestion-action]")?.textContent ?? "",
-				dot: Boolean(document.querySelector("[data-ly-environment-dot]")),
-			};
+		console.log("\n【二】真鼠标点卡片上的「开始」");
+		await press(`${CARD} [data-ly-suggestion-action="start"]`, "开始");
+		const started = await until(`document.querySelector('${CARD}[data-ly-session-suggestion="started"]')`, "卡片缩成已开始的一行");
+		const LATE = `${CARD}[data-ly-session-suggestion="started"] [data-ly-suggestion-report]`;
+		const gliding = await until(`document.querySelector("${CARD} .ly-glide") && document.querySelector('${LATE}')`, "那一行在扫光、挂着交回开关");
+		const row = await app.evaluate<{ marks: number; status: number; text: string; late: string | null }>(`(() => {
+			const one = document.querySelector("${CARD}");
+			return { marks: one?.querySelectorAll("[data-ly-status-mark]").length ?? -1, status: one?.querySelectorAll("[data-ly-suggestion-status]").length ?? -1, text: one?.textContent ?? "", late: document.querySelector('${LATE}')?.getAttribute("aria-pressed") ?? null };
 		})()`);
-		check("环境卡片打开，那一节里是标题 / 说明 / 开始；卡片开着就不挂圆点", revealed && item.title === TITLE && item.summary === SUMMARY && item.action === "开始" && !item.dot, JSON.stringify(item));
-		await pause(800);
-		await shot("02_环境卡片里的建议");
-		await shot("02b_环境卡片特写", "[data-ly-environment]");
-		await press(`${ITEM} [data-ly-suggestion-action="start"]`, "开始");
-		const started = await until(`document.querySelector('${ITEM}[data-state="started"]')`, "那一条翻成已开始");
-		const status = await app.evaluate<string>(`document.querySelector("${ITEM} [data-ly-suggestion-status]")?.textContent ?? ""`);
-		// It says what the conversation it started is doing: running at once, done once it has answered.
-		check("那一条缩成一行，说出那个会话在做什么", started && /^(进行中|已完成)$/.test(status), status);
-		const breathing = await until(`document.querySelector('${ITEM} [data-ly-status-mark="running"]')`, "环境卡片里的呼吸灯");
-		check("在跑时，环境卡片那一行的行首是呼吸灯，对话里那一行不挂", breathing && !(await app.evaluate<boolean>(`Boolean(document.querySelector("${NOTE} [data-ly-status-mark]"))`)), await app.evaluate<string>(`[...document.querySelectorAll("[data-ly-status-mark]")].map((one) => one.getAttribute("data-ly-status-mark")).join(" ")`));
-		await pause(600);
-		await shot("02c_在跑_呼吸灯");
-		await shot("02d_在跑_呼吸灯特写", "[data-ly-environment]");
+		check("卡片缩成一行：行首是新会话图标、不是状态点，行尾不写「进行中」「已开始」", started && gliding && row.marks === 0 && row.status === 0 && !/进行中|已开始|已完成/.test(row.text), JSON.stringify(row));
+		check("第一轮在跑，那一行后面挂着「交回这里」，默认关", row.late === "false", String(row.late));
+		await shot("02a_开始后那一行_交回关着", CARD);
+		console.log("\n【二b】开始以后改主意：真鼠标打开那一行上的「交回这里」");
+		await press(LATE, "交回这里");
+		const turnedOn = await until(`document.querySelector('${LATE}')?.getAttribute("aria-pressed") === "true"`, "交回开着");
 		const child = (await listed()).find((meta) => meta.spawnedFrom?.toolCallId === callId);
-		check("新会话记着它是从这条建议开出来的", Boolean(child) && child?.spawnedFrom?.sessionId === origin, JSON.stringify(child?.spawnedFrom ?? null));
+		check("新会话记着它是从这条建议开出来的，开始以后打开的交回也写进了 meta", turnedOn && Boolean(child) && child?.spawnedFrom?.sessionId === origin && child?.spawnedFrom?.reportBack === true, JSON.stringify(child?.spawnedFrom ?? null));
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+		await pause(500);
+		await shot("02a2_开始后那一行_交回打开", CARD);
 		const inSidebar = child ? await until(`document.querySelector('[data-ly-row="${child.id}"]')`, "侧栏里的新会话") : false;
 		const rowsAfter = await app.evaluate<number>(`document.querySelectorAll("[data-ly-row]").length`);
 		check("新会话出现在侧栏", inSidebar && rowsAfter === rowsBefore + 1, `${rowsBefore} → ${rowsAfter}`);
+		if (child && origin) {
+			const nest = await app.evaluate<{ nested: boolean; above: string | null; branchX: number; markX: number; indent: number; inside: boolean; line: { h: number; w: number; color: string; top: string } | null }>(`(() => {
+				const rows = [...document.querySelectorAll("[data-ly-row]")];
+				const row = document.querySelector('[data-ly-row="${child.id}"]');
+				const parent = document.querySelector('[data-ly-row="${origin}"]');
+				const lineEl = row?.querySelector("[data-ly-row-branch] > span");
+				const line = lineEl?.getBoundingClientRect();
+				const box = row?.getBoundingClientRect();
+				const mark = (el) => { const r = el?.querySelector("[data-ly-status-mark]")?.parentElement?.getBoundingClientRect(); return r ? r.left + r.width / 2 : -1; };
+				const title = (el) => el?.querySelector(".ly-fade-tail")?.getBoundingClientRect().left ?? -1;
+				return {
+					nested: row?.hasAttribute("data-ly-row-nested") ?? false,
+					above: rows[rows.indexOf(row) - 1]?.getAttribute("data-ly-row") ?? null,
+					branchX: line ? line.left : -1,
+					markX: mark(parent),
+					indent: title(row) - title(parent),
+					// 整条线落在这一行自己的框里：不往上伸去连父会话，也不越过这一行的悬停底色。
+					inside: Boolean(line && box && line.top >= box.top + 2 && line.bottom <= box.bottom),
+					// What is actually on top at the middle of the line's upright: the line, or something covering it.
+					line: line ? { h: line.height, w: line.width, color: getComputedStyle(lineEl).borderLeftColor, top: document.elementFromPoint(line.left + 0.5, line.top + line.height / 2)?.outerHTML.slice(0, 80) ?? "" } : null,
+				};
+			})()`);
+			check("侧栏里它挂在提建议的那一行下面，不是并排的一行", nest.nested && nest.above === origin, JSON.stringify(nest));
+			// 拐角对着父会话那枚状态点的竖线位置，子行缩进一格。
+			check("分支拐角对着父会话的状态点，子行缩进一格", Math.abs(nest.branchX - nest.markX) <= 1.5 && nest.indent >= 20 && nest.indent <= 24, JSON.stringify(nest));
+			console.log(`      分支线：${JSON.stringify(nest.line)}`);
+			check("分支线是这一行里的一小段「└」：不越过这一行的框、不往上连到父会话", nest.inside && Boolean(nest.line && nest.line.h >= 6 && nest.line.h <= 12 && nest.line.w >= 6 && nest.line.top.includes("rounded-bl")), JSON.stringify({ inside: nest.inside, line: nest.line }));
+		}
 		const childAnswered = await heard("child");
 		const childAsk = asked.find((one) => one.who === "child");
 		check("新会话自己在后台跑了：发给模型的第一条就是建议背后那段提示词", childAnswered && childAsk?.firstUser === CHILD, childAsk?.firstUser ?? "（新会话没有问过模型）");
-		await pause(1500);
-		const finished = await until(`document.querySelector("${ITEM} [data-ly-suggestion-status]")?.textContent === "已完成" && document.querySelector("${NOTE} [data-ly-suggestion-status]")?.textContent === "· 已完成 · 打开"`, "两处都说已完成");
-		check("它跑完以后，环境卡片和对话里那一行都说「已完成」，环境卡片的行首换成绿点", finished && (await app.evaluate<boolean>(`Boolean(document.querySelector('${ITEM} [data-ly-status-mark="done"]'))`)), await app.evaluate<string>(`document.querySelector("${NOTE}")?.textContent ?? ""`));
+		await pause(600);
+		await shot("02_点开始之后_侧栏挂在下面_在跑");
+		if (child && origin) await shot("02b_侧栏父子两行特写", [`[data-ly-row="${origin}"]`, `[data-ly-row="${child.id}"]`]);
+		await shot("02c_卡片在跑特写", CARD);
+
+		console.log("\n【三】它跑完第一轮，回复交回提建议的那个对话");
+		const delivered = await until(`document.querySelector('[data-delivery-kind="session"]') && document.body.innerText.includes("REPORT-ACK")`, "交回那一行和主会话接着说的话", 40_000);
+		const deliveryText = await app.evaluate<string>(`document.querySelector('[data-delivery-kind="session"]')?.textContent ?? ""`);
+		check("主会话里多了一行「来自新会话 · 标题」，接着就着它说了一段", delivered && deliveryText.includes("来自新会话") && deliveryText.includes(TITLE), deliveryText);
+		const report = asked.find((one) => one.who === "report");
+		check("交给主会话模型的是那个会话最后那段回复", Boolean(report?.lastText.includes("CHILD-OK")) && Boolean(report?.lastText.includes(`title="${TITLE}"`)), (report?.lastText ?? "（主会话没被叫醒）").slice(0, 300));
+		const finished = await until(`!document.querySelector("${CARD} .ly-glide") && !document.querySelector('${LATE}') && !document.querySelector("${CARD} [data-ly-suggestion-status]")`, "那一行停了扫光、交回开关走了");
+		check("第一轮结束：那一行停了扫光，交回开关跟着走了，行尾没有多一句「已完成」", finished, await app.evaluate<string>(`document.querySelector("${CARD}")?.outerHTML.slice(0, 300) ?? ""`));
 		check("当前视图没切走：打开的还是原来那个对话", (await activeRow()) === origin && (await transcript()).includes("SPAWN-DONE"), `${await activeRow()} vs ${origin}`);
 		if (child) {
 			const stored = await app.evaluate<{ role: string; text: string }[]>(`window.plume.sessions.transcript(${JSON.stringify(child.id)}).then((s) => (s?.messages ?? []).map((m) => ({ role: m.role, text: (Array.isArray(m.content) ? m.content : []).filter((c) => c.type === "text").map((c) => c.text).join("") })))`);
 			check("新会话的记录里，第一条是那段提示词，后面跟着它自己的回答", stored[0]?.role === "user" && stored[0]?.text === CHILD && stored.some((one) => one.role === "assistant" && one.text.includes("CHILD-OK")), JSON.stringify(stored).slice(0, 300));
 		}
-		await shot("03_点开始之后_已开始_仍在原对话");
-		await shot("03b_已开始特写", "[data-ly-environment]");
+		// 先把鼠标挪开：停在回复上会挂出时间的提示，盖住要拍的那一行。
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
+		await pause(800);
+		await shot("03_交回主会话");
+		await shot("03b_交回那一行特写", ['[data-delivery-kind="session"]', CARD]);
 		await pause(1200);
 
-		console.log("\n【三】重启：还是「已开始」");
+		console.log("\n【四】重启：卡片还是「已开始」，侧栏还挂着，交回只交过一次");
 		await stopRecording();
 		stopRecording = null;
 		await app.stop();
@@ -335,19 +381,27 @@ async function main(): Promise<void> {
 		await until(`document.querySelector("main textarea")`, "输入框");
 		await pause(1000);
 		if (origin) await press(`[data-ly-row="${origin}"]`, "原来那个对话");
-		const reopened = await until(`document.body.innerText.includes("SPAWN-DONE") && document.querySelector('${NOTE}[data-ly-session-suggestion="started"]') && document.querySelector('${ITEM}[data-state="started"]')`, "重开后两处都是已开始");
-		check("重启后打开原对话，对话里那一行和环境卡片都是「已开始」，按钮上没有圆点", reopened && !(await app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-environment-dot]"))`)), String(reopened));
+		const reopened = await until(`document.body.innerText.includes("REPORT-ACK") && document.querySelector('${CARD}[data-ly-session-suggestion="started"]') && document.querySelector('[data-delivery-kind="session"]')`, "重开后卡片和交回那一行都在");
+		check("重启后打开原对话：卡片是「已开始」，交回那一行还在，按钮上没有圆点", reopened && !(await app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-environment-dot]"))`)), String(reopened));
+		// 环境卡片这一路没人打开过；打开它，那一节说的和卡片是同一件事。
+		await press("[data-ly-environment-toggle]", "环境按钮");
+		check("环境卡片里那一条也是「已开始」", await until(`document.querySelector('${ITEM}[data-state="started"]')`, "环境卡片里的已开始"));
+		if (child) check("侧栏里还挂在原对话下面", await until(`document.querySelector('[data-ly-row="${child.id}"][data-ly-row-nested]')`, "重启后的子行"));
+		const after = child ? (await listed()).find((meta) => meta.id === child.id) : undefined;
+		check("条子撕掉了：新会话的 meta 里不再要交回，记着第一轮已经结束", Boolean(after) && after?.spawnedFrom?.reportBack === undefined && after?.spawnedFrom?.settled === true && after?.spawnedFrom?.toolCallId === callId, JSON.stringify(after?.spawnedFrom ?? null));
+		check("重启后那一行没有交回开关", !(await app.evaluate<boolean>(`Boolean(document.querySelector('${LATE}'))`)));
+		check("主会话只被交回叫醒过一次", asked.filter((one) => one.who === "report").length === 1, JSON.stringify(asked.map((one) => one.who)));
 		await pause(1000);
 		await shot("04_重启后仍是已开始");
 
-		console.log("\n【四】点环境卡片里那一行切到那个会话");
-		await press(`${ITEM}[data-ly-suggestion-action="open"]`, "打开");
+		console.log("\n【五】点卡片那一行切到那个会话");
+		await press(`${CARD} [data-ly-suggestion-action="open"]`, "打开");
 		const switched = child ? await until(`document.querySelector('[data-ly-row="${child.id}"] [aria-current="page"]') && document.body.innerText.includes("CHILD-OK")`, "切到新会话") : false;
 		check("切过去了，看得到新会话自己的回答", switched, String(await activeRow()));
 		await pause(1500);
 		await shot("05_打开新会话");
 
-		console.log("\n【五】归档自己");
+		console.log("\n【六】归档自己");
 		await app.evaluate(`[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "新对话")?.setAttribute("data-qa-new-chat", "")`);
 		await press("[data-qa-new-chat]", "新对话");
 		await until(`!document.querySelector('[data-ly-row] [aria-current="page"]')`, "空白的新对话");

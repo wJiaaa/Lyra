@@ -19,6 +19,7 @@ import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 import { toolCategory } from "../../lib/tool-kinds.ts";
 import { previewPages, samePage, type PageState } from "./preview-pages.ts";
+import { SPAWN_SESSION_TOOL } from "../../../shared/session-suggestion.ts";
 
 type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 
@@ -71,8 +72,9 @@ export type Run =
 	 * caller still asks that separately: a run can be the newest work in a turn that has since ended.
 	 */
 	/*
-	 * `shown` is a run of one: a page the agent put up for the reader with `preview`. It is the
-	 * turn's result rather than its work, so it is never folded away with the work — see `isProcess`.
+	 * `shown` is a run of one: a page the agent put up for the reader with `preview`, or a suggested
+	 * session waiting on the reader's Start (`spawn_session`). Either is for the reader rather than
+	 * the turn's work, so it is never folded away with the work — see `isProcess`.
 	 */
 	| { kind: "tools"; calls: Call[]; live?: boolean; shown?: true };
 
@@ -513,6 +515,8 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	for (const message of messages) if (message.role === "toolResult" && message.isError) failed.add(message.toolCallId);
 	const pages = previewPages(messages, (at) => opensTurn(messages[at]) && !resumesTurn(messages, at));
 	const shows = (call: Call) => {
+		// 建议另开的会话是等人点「开始」的卡片，折进过程就没人点了；参数被退回的没有卡片，照常是活。
+		if (call.block.name === SPAWN_SESSION_TOOL) return !failed.has(call.block.id);
 		if (call.block.name !== "preview" || failed.has(call.block.id)) return false;
 		if (call.page) return !("publishing" in call.page);
 		return call.block.arguments?.check !== true;

@@ -240,7 +240,8 @@ export function createPeerRouter(host: PeerHost) {
 
 export type PeerRouter = ReturnType<typeof createPeerRouter>;
 
-function lastReply(session: AgentSession): string {
+/** 它最后那段 assistant 文本。交回建议的会话也读这一段，见 `session-report-back.ts`。 */
+export function lastReply(session: AgentSession): string {
 	for (let index = session.messages.length - 1; index >= 0; index--) {
 		const message = session.messages[index]!;
 		if (message.role !== "assistant") continue;

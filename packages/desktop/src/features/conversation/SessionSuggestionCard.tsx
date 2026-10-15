@@ -1,0 +1,227 @@
+/**
+ * 一次 `spawn_session` 在对话里画成的那张卡片：建议另开一个会话，在这里决定开不开。
+ *
+ * 站在调用的位置、自成一行，不和前后的工具并成一段（`grouping.ts` 的 `shows`）：一张等人点「开始」的
+ * 卡片折进过程就没人点了。参数还在写时标题先出来、按钮不能按，写完就是整张卡片——提建议那一刻就在。
+ *
+ * 开始以后缩成一行，和其他过程行同一个骨架（`FlowRow`）：行首是新会话的图标，在跑时摘要上扫光，点了
+ * 过去。行首不放侧栏那枚状态点、行尾不写「进行中」「已完成」——扫光已经说了在跑，同一件事说两遍是吵；
+ * 看过之后状态清掉，剩下的那句「已开始」更是什么都没说。只有没跑完要说，它改变人接下来做什么。
+ * 第一轮还在跑时，行尾挂着「交回这里」，开始以后也能改主意；第一轮一结束它就走了，那时改什么都不算。
+ * 跑完要交回的，交回那一刻在主会话里另有一行（`DeliveryRow`）。
+ *
+ * ADR-0049 曾把卡片挪进环境卡片，理由是它会被后面的输出顶到几屏之上。那件事现在由侧栏兜着——开出来
+ * 的会话挂在这个对话下面——环境卡片里那一节也还在，做第二个入口；两处读同一份状态，开始、收起一起变。
+ */
+
+import { useState, type ReactNode } from "react";
+import type { AssistantContent, AssistantMessage } from "@plume/core";
+import { SPAWN_SESSION_TOOL, type SessionSuggestionDetails } from "../../../shared/session-suggestion.ts";
+import { focusScreenOf, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { useI18n } from "../../i18n/index.ts";
+import { bridge } from "../../services/index.ts";
+import { useApp, type ToolRun } from "../../store/index.ts";
+import { dismissSuggestion, startedFrom, useDismissedSuggestions, type SessionSuggestion } from "../../store/session-suggestions.ts";
+import { ChevronRight, Reply, SquarePen, X } from "../../ui/icons/index.ts";
+import { WorktreeToggle } from "../../ui/inputs/WorktreeToggle.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { FlowRow } from "./FlowRow.tsx";
+import { toolCardFallback } from "./tool-status.ts";
+
+type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
+
+/** 由这条建议开出来的会话的 id；建议被开始时重画，侧栏每变一次不重画。 */
+function useStartedId(sessionId: string | null, callId: string): string | null {
+	return useApp((s) => (sessionId ? (startedFrom(s.sessions, sessionId, callId)?.id ?? null) : null));
+}
+
+/**
+ * 「开始」那一排：按钮、工作树开关、交回开关。对话里的卡片和环境卡片那一节共用一份，两处问的是同一个问题。
+ *
+ * 两个开关各自从一个默认起步：工作树跟输入框同一个设置，交回跟模型提建议时说的（`reportBack`）。
+ */
+export function SuggestionStart({ sessionId, suggestion, disabled }: { sessionId: string; suggestion: SessionSuggestion; disabled?: boolean }) {
+	const { t } = useI18n();
+	const { callId, details } = suggestion;
+	const { workspace } = useScopedWorkspace();
+	const worktreeByDefault = useApp((s) => Boolean(s.settings?.worktrees?.autoCreateOnNewSession));
+	const [worktreePick, setWorktreePick] = useState<boolean | null>(null);
+	const [reportBack, setReportBack] = useState(details.reportBack === true);
+	const [starting, setStarting] = useState(false);
+	const inWorktree = worktreePick ?? worktreeByDefault;
+	const offersWorktree = Boolean(workspace?.isGitRepo);
+
+	const start = async () => {
+		if (starting) return;
+		setStarting(true);
+		try {
+			// 新会话叫建议的标题，不叫那段写给模型的提示词的前六十个字。
+			await useApp.getState().startSession(details.prompt, { sessionId, toolCallId: callId, ...(reportBack ? { reportBack: true } : {}) }, { title: details.title, ...(offersWorktree ? { worktree: inWorktree } : {}) });
+		} finally {
+			setStarting(false);
+		}
+	};
+
+	return (
+		<div className="flex items-center gap-1.5">
+			<Button size="sm" variant="primary" loading={starting} disabled={disabled} label={t("sessionOps.startTip")} onClick={() => void start()} data-ly-suggestion-action="start">
+				{t("sessionOps.start")}
+			</Button>
+			{offersWorktree && <WorktreeToggle size="sm" on={inWorktree} onChange={setWorktreePick} />}
+			<ReportBackToggle on={reportBack} disabled={disabled} onChange={setReportBack} />
+		</div>
+	);
+}
+
+/** 「交回这里」：和工作树开关同一个样子，只有图标是「不」，图标加名字、染强调色是「要」。 */
+function ReportBackToggle({ on, disabled, compact, onChange }: { on: boolean; disabled?: boolean; compact?: boolean; onChange: (on: boolean) => void }) {
+	const { t } = useI18n();
+	const tip = on ? t("sessionOps.reportBackOn") : t("sessionOps.reportBackOff");
+	return (
+		<button
+			type="button"
+			data-ly-suggestion-report={on ? "on" : "off"}
+			aria-pressed={on}
+			aria-label={tip}
+			data-ly-tip={tip}
+			data-ly-tip-side="top"
+			disabled={disabled}
+			onClick={() => onChange(!on)}
+			// 挂在 24px 的过程行后面时矮一档，不把那一行撑高。
+			className={`flex shrink-0 items-center gap-1 rounded-lg px-[6px] text-label transition-colors duration-[var(--ly-t-quick)] disabled:opacity-45 ${compact ? "h-[22px] min-w-[22px]" : "h-[26px] min-w-[26px]"} ${
+				on ? "bg-accent/10 text-accent hover:bg-accent/15" : "text-ink-faint hover:bg-card-hover hover:text-ink active:bg-elevated"
+			}`}
+		>
+			<Reply size={compact ? 14 : 16} strokeWidth={1.8} className="shrink-0" aria-hidden />
+			{on && <span className="whitespace-nowrap pr-0.5">{t("sessionOps.reportBack")}</span>}
+		</button>
+	);
+}
+
+/** 对话里那一张。没有可画的（参数被退回、这一轮在写完之前停了）就交回普通的工具行。 */
+export function SessionSuggestionCard({ block, run, stopReason, turnRunning, fallback }: {
+	block: ToolCall;
+	run?: ToolRun;
+	stopReason: AssistantMessage["stopReason"];
+	turnRunning: boolean;
+	fallback: ReactNode;
+}) {
+	const sessionId = useScopedSessionId();
+	const details = run?.status === "done" ? (run.result?.details as SessionSuggestionDetails | undefined) : undefined;
+	if (details?.kind === "session_suggestion" && sessionId) return <Suggested sessionId={sessionId} suggestion={{ callId: block.id, details }} />;
+	if (block.name !== SPAWN_SESSION_TOOL || (run?.status ?? toolCardFallback(stopReason, turnRunning)) !== "running") return fallback;
+	// 还在写：参数是边写边解析的，标题、说明有多少画多少。
+	const title = typeof block.arguments?.title === "string" ? block.arguments.title : "";
+	const summary = typeof block.arguments?.summary === "string" ? block.arguments.summary : "";
+	return <Frame title={title} summary={summary} state="writing" callId={block.id} actions={<Writing />} />;
+}
+
+/** 写完之前「开始」已经在它的位置上，只是按不动：写完那一下卡片不跳。 */
+function Writing() {
+	const { t } = useI18n();
+	return (
+		<Button size="sm" variant="primary" disabled label={t("sessionOps.startTip")} data-ly-suggestion-action="start">
+			{t("sessionOps.start")}
+		</Button>
+	);
+}
+
+function Frame({ title, summary, state, callId, actions, aside }: { title: string; summary: string; state: string; callId: string; actions?: ReactNode; aside?: ReactNode }) {
+	return (
+		<section data-ly-session-suggestion={state} data-ly-suggestion-call={callId} aria-label={title || undefined} className="flex w-full max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 py-2.5 pr-1.5 pl-3 text-label">
+			<SquarePen size={15} strokeWidth={1.7} aria-hidden className={`mt-[2px] shrink-0 text-ink-muted ${state === "writing" ? "ly-pulse" : ""}`} />
+			<div className="min-w-0 flex-1">
+				<p className="min-h-[1lh] font-medium text-ink" data-ly-suggestion-title>
+					{title}
+				</p>
+				{summary && (
+					<p className="mt-0.5 line-clamp-3 text-caption text-ink-muted" data-ly-suggestion-summary>
+						{summary}
+					</p>
+				)}
+				<div className="mt-2">{actions}</div>
+			</div>
+			{aside}
+		</section>
+	);
+}
+
+function Suggested({ sessionId, suggestion }: { sessionId: string; suggestion: SessionSuggestion }) {
+	const { t } = useI18n();
+	const { callId, details } = suggestion;
+	const startedId = useStartedId(sessionId, callId);
+	const dismissed = useDismissedSuggestions((s) => s.ids.includes(callId));
+	if (startedId) return <Started sessionId={sessionId} callId={callId} title={details.title} startedId={startedId} />;
+	// 收起只是一句记录：建议还在日志里，这里不再催人。
+	if (dismissed)
+		return (
+			<div data-ly-session-suggestion="dismissed" data-ly-suggestion-call={callId}>
+				<FlowRow icon={<SquarePen size={13} strokeWidth={1.8} />} title={<span className="font-normal">{t("sessionOps.noted")}</span>} summary={details.title} trailing={t("sessionOps.dismissed")} />
+			</div>
+		);
+	return (
+		<Frame
+			title={details.title}
+			summary={details.summary}
+			state="suggested"
+			callId={callId}
+			actions={<SuggestionStart sessionId={sessionId} suggestion={suggestion} />}
+			aside={<IconButton size="xs" label={t("sessionOps.dismiss")} icon={<X size={12} strokeWidth={1.9} />} onClick={() => dismissSuggestion(callId)} data-ly-suggestion-dismiss />}
+		/>
+	);
+}
+
+function Started({ sessionId, callId, title, startedId }: { sessionId: string; callId: string; title: string; startedId: string }) {
+	const { t } = useI18n();
+	const activity = useApp((s) => s.activity[startedId] ?? null);
+	const from = useApp((s) => s.sessions.find((one) => one.id === startedId)?.spawnedFrom);
+	const running = activity === "running" || activity === "waiting";
+	const failed = activity === "failed";
+	const open = () => {
+		// 分屏时这一张可能在没聚焦的那一边：在它所在的那一屏打开。
+		if (sessionId !== useApp.getState().activeSessionId) focusScreenOf(sessionId);
+		void useApp.getState().openSessionById(startedId);
+	};
+	return (
+		<div data-ly-session-suggestion="started" data-ly-suggestion-call={callId} className="flex min-w-0 items-center gap-1">
+			<FlowRow
+				icon={<SquarePen size={13} strokeWidth={1.8} />}
+				title={<span className="font-normal">{t("sessionOps.newSession")}</span>}
+				summary={<span data-ly-suggestion-title>{title}</span>}
+				running={running}
+				trailing={
+					<>
+						{failed && (
+							<span className="text-danger" data-ly-suggestion-status>
+								{t("sessionOps.failed")}
+							</span>
+						)}
+						{/* 点了是去那个会话，不是就地展开：箭头自己画，和交回那一行一样。 */}
+						<ChevronRight size={12} strokeWidth={2} aria-hidden />
+					</>
+				}
+				onToggle={open}
+				label={failed ? `${title} · ${t("sessionOps.failed")}` : title}
+				data-ly-suggestion-action="open"
+			/>
+			{running && from && !from.settled && <LateReportBack startedId={startedId} on={from.reportBack === true} />}
+		</div>
+	);
+}
+
+/**
+ * 开始以后的「交回这里」。点下去先照点的样子画，主进程答应了以 meta 为准；答「晚了」（第一轮恰好在这一下
+ * 结束）就退回去，那时这个开关也跟着第一轮一起消失。
+ */
+function LateReportBack({ startedId, on }: { startedId: string; on: boolean }) {
+	const [asked, setAsked] = useState<boolean | null>(null);
+	const change = (next: boolean) => {
+		setAsked(next);
+		void bridge.sessions
+			.reportBack(startedId, next)
+			.catch(() => false)
+			.finally(() => setAsked(null));
+	};
+	return <ReportBackToggle compact on={asked ?? on} onChange={change} />;
+}

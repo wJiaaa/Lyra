@@ -22,6 +22,7 @@ interface SpawnArgs {
 	title?: unknown;
 	summary?: unknown;
 	prompt?: unknown;
+	report_back?: unknown;
 }
 
 /** The trimmed text, or why it cannot be used — said so the model can send it again, fixed. */
@@ -40,13 +41,18 @@ function spawnSession(args: SpawnArgs): ToolResult {
 	if (typeof summary !== "string") return errorResult(summary.error);
 	const prompt = field(args.prompt, "prompt", PROMPT_MAX);
 	if (typeof prompt !== "string") return errorResult(prompt.error);
-	const details: SessionSuggestionDetails = { kind: "session_suggestion", title, summary, prompt };
+	if (args.report_back !== undefined && typeof args.report_back !== "boolean") return errorResult("report_back must be true or false.");
+	const reportBack = args.report_back === true;
+	const details: SessionSuggestionDetails = { kind: "session_suggestion", title, summary, prompt, ...(reportBack ? { reportBack: true } : {}) };
 	return {
 		content: [
 			{
 				type: "text",
 				// The model has to hear that nothing ran: a card waiting on a click looks, from here, exactly like work in progress.
-				text: `Suggested "${title}". Nothing has started: a card is waiting in the conversation, and the new session begins only if the person clicks Start. Carry on with the current task.`,
+				text:
+					`Suggested "${title}". Nothing has started: a card is waiting in the conversation, and the new session begins only if the person clicks Start. ` +
+					(reportBack ? "If it starts and its first turn finishes, its reply is delivered here; do not wait for it. " : "") +
+					"Carry on with the current task.",
 			},
 		],
 		details,
@@ -61,9 +67,11 @@ export function createSessionOpsTools(host: { archiveAfterTurn(sessionId: string
 	const spawn: Tool<SpawnArgs> = {
 		name: SPAWN_SESSION_TOOL,
 		description:
-			"Suggest a new, separate conversation for something you noticed that is worth doing but would bloat the current change — dead code, stale docs, missing tests, a TODO you confirmed, a security problem spotted in passing. " +
+			"Suggest a new, separate conversation for follow-up work that deserves its own session: something you noticed that is worth doing but would bloat the current change — dead code, stale docs, missing tests, a TODO you confirmed, a security problem spotted in passing. " +
+			"How it differs from a sub-agent (`task`): the person sees it as a card and decides whether it starts; once started it is a conversation in their sidebar they can open, talk to and stop, with its own clean context, and it stays afterwards to be continued. " +
+			"A sub-agent is yours: it runs at once, the person cannot see or steer it, and it only hands its conclusion back to you. Work you need done now to finish the current task, that nobody has to watch, is a sub-agent's. " +
 			"Not for vague code smells, low-confidence guesses, small fixes you can make inline, or the current task itself. " +
-			"Returns immediately and starts nothing: the person sees a card and decides. Keep working on the current task afterwards. " +
+			"Returns immediately and starts nothing. Keep working on the current task afterwards. " +
 			"The prompt is the new conversation's first message and is all it will know: name the files and give enough context to act without this conversation.",
 		parameters: {
 			type: "object",
@@ -71,6 +79,11 @@ export function createSessionOpsTools(host: { archiveAfterTurn(sessionId: string
 				title: { type: "string", maxLength: TITLE_MAX, description: "The card's title: an imperative phrase starting with a verb, at most 60 characters." },
 				summary: { type: "string", description: "One or two sentences for the card: first why you are suggesting it now, then what the new conversation will do." },
 				prompt: { type: "string", description: "The new conversation's first message. Self-contained: file paths and context, no references to this conversation." },
+				report_back: {
+					type: "boolean",
+					description:
+						"Default false. True only when what it finds should change what you do here: when its first turn ends, its reply is delivered to this conversation and starts a turn here. Leave it off for independent follow-ups. The person can still change it on the card.",
+				},
 			},
 			required: ["title", "summary", "prompt"],
 			additionalProperties: false,

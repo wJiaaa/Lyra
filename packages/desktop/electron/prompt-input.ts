@@ -111,7 +111,8 @@ export function initialPrompt(value: unknown): InitialPrompt | undefined {
 function spawnedFrom(value: unknown): NonNullable<InitialPrompt["spawnedFrom"]> {
 	const id = (field: unknown) => typeof field === "string" && field.trim().length > 0 && field.length <= 200;
 	if (!object(value) || !id(value.sessionId) || !id(value.toolCallId)) throw new Error("Invalid spawnedFrom");
-	return { sessionId: value.sessionId as string, toolCallId: value.toolCallId as string };
+	if (value.reportBack !== undefined && typeof value.reportBack !== "boolean") throw new Error("Invalid spawnedFrom");
+	return { sessionId: value.sessionId as string, toolCallId: value.toolCallId as string, ...(value.reportBack === true ? { reportBack: true as const } : {}) };
 }
 
 export function promptOptions(

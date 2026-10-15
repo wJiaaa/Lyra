@@ -174,18 +174,18 @@ async function main() {
 		await pause(600);
 		await click('[aria-label="发送"]');
 		await settled(60000);
-		// 对话里只留一行记录；开始在右上角环境卡片里，点那一行把卡片打开。
-		await until(`document.querySelector("[data-ly-session-suggestion]")`, 15000);
-		await click("[data-ly-session-suggestion]");
-		const ITEM = "[data-ly-environment-suggestion]";
-		await until(`document.querySelector(${JSON.stringify(`${ITEM} [data-ly-worktree-toggle]`)})`, 15000);
-		const offered = await app.evaluate<string | null>(`document.querySelector(${JSON.stringify(`${ITEM} [data-ly-worktree-toggle]`)})?.getAttribute("aria-pressed") ?? null`);
-		check("环境卡片里「开始」旁边有工作树开关，默认跟设置（关）", offered === "false", `aria-pressed=${offered}`);
-		await click(`${ITEM} [data-ly-worktree-toggle]`);
+		// 卡片就在对话里调用的位置，「开始」和工作树开关都在上面。
+		const CARD = "[data-ly-session-suggestion]";
+		await until(`document.querySelector(${JSON.stringify(`${CARD} [data-ly-worktree-toggle]`)})`, 15000);
+		const offered = await app.evaluate<string | null>(`document.querySelector(${JSON.stringify(`${CARD} [data-ly-worktree-toggle]`)})?.getAttribute("aria-pressed") ?? null`);
+		check("对话里的建议卡片上，「开始」旁边有工作树开关，默认跟设置（关）", offered === "false", `aria-pressed=${offered}`);
+		await click(`${CARD} [data-ly-worktree-toggle]`);
 		await pause(500);
-		await shot("06_环境卡片里选了工作树");
-		await click(`${ITEM} [data-ly-suggestion-action="start"]`);
-		await until(`document.querySelector(${JSON.stringify(`${ITEM} [data-ly-suggestion-status]`)})?.textContent === "已完成"`, 60000);
+		await shot("06_建议卡片上选了工作树");
+		await click(`${CARD} [data-ly-suggestion-action="start"]`);
+		await until(`document.querySelector(${JSON.stringify(`${CARD}[data-ly-session-suggestion="started"]`)})`, 20000);
+		// 第一轮结束时主进程在 meta 上记一笔 settled：拿它当「跑完了」，卡片那一行不再写状态。
+		for (let i = 0; i < 300 && !(await app.evaluate<boolean>(`window.plume.sessions.list().then((all) => all.some((meta) => meta.spawnedFrom?.settled))`)); i++) await pause(200);
 		await pause(1200);
 		const spawned = await app.evaluate<{ title: string; cwd: string; worktree?: { project: string; branch: string } } | null>(`window.plume.sessions.list().then((all) => all.find((meta) => meta.spawnedFrom) ?? null)`);
 		const spawnedRan = await app.evaluate<string>(RAN);
@@ -195,7 +195,7 @@ async function main() {
 		// Its row says "done" first — what it is doing outranks where — so its place is checked by group.
 		const filed = spawned ? await app.evaluate<boolean>(`Boolean(document.querySelector('[data-ly-row="' + ${JSON.stringify(spawned.title)} + '"]') || [...document.querySelectorAll("[data-ly-row]")].some((row) => row.textContent.includes(${JSON.stringify(spawned.title)})))`) : false;
 		check("侧栏还是只有原项目一组，新会话在里面", third.groups.length === 1 && filed, `分组：${third.groups.join(" | ")}；行首：${third.marks.join(" ")}`);
-		check("对话里那一行说「已完成 · 打开」", (await app.evaluate<string>(`document.querySelector("[data-ly-session-suggestion] [data-ly-suggestion-status]")?.textContent ?? ""`)) === "· 已完成 · 打开", "");
+		check("卡片缩成一行，跑完了不扫光、行尾不写状态", await app.evaluate<boolean>(`Boolean(document.querySelector('[data-ly-session-suggestion="started"]')) && !document.querySelector("[data-ly-session-suggestion] .ly-glide") && !document.querySelector("[data-ly-session-suggestion] [data-ly-suggestion-status]")`), "");
 		check("建了第二棵工作树，项目旁边仍然没有东西", (await worktrees()).length === 2 && (await readdir(parent)).length === 1, `~/.plume/worktrees：${(await worktrees()).join("、")}`);
 		await shot("07_建议开出的会话在工作树里");
 	} finally {

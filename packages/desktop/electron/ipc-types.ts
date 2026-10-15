@@ -404,6 +404,11 @@ export interface PlumeApi {
 		/** Move a session in or out of the archive. Returns the whole list, already updated. */
 		setArchived(sessionId: string, archived: boolean): Promise<SessionMeta[]>;
 		/**
+		 * 从建议卡片开出来的会话，开始以后改「交回这里」。只在第一轮还在跑时算数；false 是已经晚了
+		 * （第一轮结束了、它没在跑、或它不是从建议开出来的）。
+		 */
+		reportBack(sessionId: string, on: boolean): Promise<boolean>;
+		/**
 		 * 把会话归到另一个项目下：日志文件跟着搬，不只是改个名字。
 		 *
 		 * 答复分得比 `boolean` 细，因为三种失败要对用户说三句不同的话：`running` 是「先让它停下来」，

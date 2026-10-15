@@ -13,6 +13,8 @@ export { MessageActions } from "./MessageActions.tsx";
 export { HookRunsButton } from "./HookRunsAction.tsx";
 export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
+/* 建议新会话的「开始」那一排：环境卡片那一节和对话里的卡片问同一个问题。 */
+export { SuggestionStart } from "./SessionSuggestionCard.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { runs, runKey, withoutThinking } from "./grouping.ts";

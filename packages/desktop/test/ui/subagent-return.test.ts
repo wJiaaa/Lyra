@@ -58,6 +58,32 @@ test("几个一起回来：一行说几个，出错的另外标出来，逐个�
 	}
 });
 
+test("建议的会话交回：一行「来自新会话 · 标题」，不画子智能体的脸；点了去那个会话，没跑完的标出来", async () => {
+	const previewed: string[] = [];
+	const real = useApp.getState().previewSession;
+	useApp.setState({
+		activeSessionId: "s",
+		sessions: [{ id: "s-child", title: "补上使用说明" } as never],
+		previewSession: ((meta: { id: string }) => { previewed.push(meta.id); return 0; }) as never,
+	});
+	const view = await mount(h(DeliveryRow, { delivery: [{ id: "s-child", kind: "session", agent: "", description: "补上使用说明", status: "failed" }] }));
+	try {
+		assert.equal(view.find("[data-delivery-row]").getAttribute("data-delivery-kind"), "session");
+		const row = view.find<HTMLButtonElement>("[data-delivery-row] button");
+		assert.match(row.textContent ?? "", /来自新会话/);
+		assert.match(row.textContent ?? "", /补上使用说明/);
+		assert.match(row.textContent ?? "", /没跑完/);
+		assert.equal(view.all("[data-delivery-row] .ly-avatar").length, 0, "不是子智能体");
+		await act(async () => {
+			row.click();
+		});
+		assert.deepEqual(previewed, ["s-child"]);
+	} finally {
+		await view.unmount();
+		useApp.setState({ sessions: [], previewSession: real });
+	}
+});
+
 test("子智能体要授权：卡上是它的脸和一行「谁在请求」；主智能体自己要的照旧是那枚图标", async () => {
 	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({

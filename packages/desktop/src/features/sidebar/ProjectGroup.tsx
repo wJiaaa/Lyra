@@ -11,9 +11,11 @@
 import { useRef } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Group } from "../../lib/sidebar-grouping.ts";
+import type { SessionMeta } from "@plume/core";
+import { withSpawned, type Group } from "../../lib/sidebar-grouping.ts";
 import { ProjectHead } from "./ProjectHead.tsx";
-import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
+import type { RowActions } from "./SessionRow.tsx";
+import { SessionRows } from "./SessionRows.tsx";
 import { ShowMore } from "./ShowMore.tsx";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
@@ -33,6 +35,7 @@ export const SESSION_PAGE = COLLAPSED_SESSION_COUNT;
 
 export function ProjectGroup({
 	group,
+	spawned,
 	shown,
 	collapsed,
 	onToggleCollapsed,
@@ -41,6 +44,8 @@ export function ProjectGroup({
 	actions,
 }: {
 	group: Group;
+	/** Conversations started from a suggestion, drawn under their parent; see `nestSpawned`. */
+	spawned: Record<string, SessionMeta[]>;
 	/** How many rows this group is currently showing. */
 	shown: number;
 	/** Folded shut, hiding its sessions. Remembered across launches. */
@@ -81,7 +86,8 @@ export function ProjectGroup({
 			 * it rather than through it.
 			 */}
 			<div data-ly-head className="sticky top-[var(--ly-rail)] z-20">
-				<ProjectHead group={group} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
+				{/* Folded, the head sums up every conversation in the project, the nested ones too. */}
+				<ProjectHead group={{ ...group, sessions: withSpawned(group.sessions, spawned) }} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 
 			<Collapsible open={!collapsed}>
@@ -90,13 +96,7 @@ export function ProjectGroup({
 				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
 					{/* 只包住行：展开显示按钮在外面，展开收起时才跟着下沿走（见 `useUnfold`）。 */}
 					<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-						{visible.map((session) => (
-							<SessionRow
-								key={session.id}
-								session={session}
-								{...rowActions(actions, session)}
-							/>
-						))}
+						<SessionRows sessions={visible} spawned={spawned} actions={actions} />
 					</div>
 
 					<ShowMore

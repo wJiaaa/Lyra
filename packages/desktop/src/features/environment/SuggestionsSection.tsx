@@ -1,25 +1,21 @@
 /**
  * 「建议的新会话」：模型在这个对话里建议另开的会话（`spawn_session`），在这里开始、收起、打开。
  *
- * 原来是对话里的一张卡片。建议不拦着这一轮，模型提完接着干活，等这一轮收尾，卡片早滚到几屏之上——
- * 人最该看到它的时候它不在眼前。这张卡片不随对话滚动，和子 Agent、侧边聊天一样是从这个对话分出去的
- * 工作；对话里只留一行记录（`conversation/SessionSuggestionNote.tsx`），还没处理的由标题栏按钮上的
- * 圆点提醒（`EnvironmentToggle`）。
+ * 卡片本身画在对话里调用的位置（`conversation/SessionSuggestionCard.tsx`）。这一节是第二个入口：它不随
+ * 对话滚动，提完建议模型接着干活、卡片被顶到几屏之上时，还没处理的由标题栏按钮上的圆点提醒
+ * （`EnvironmentToggle`），在这里也能开始。两处读同一份状态，「开始」那一排也是同一个组件。
  *
- * 等人决定的排在前面，每条带说明、「开始」和输入框上那颗工作树开关；开始以后缩成一行，说那个会话在做
- * 什么，点了过去。收起的不再列出。「已开始」读的是会话列表里的 `spawnedFrom`，所以重启后照样对。见 ADR-0049。
+ * 等人决定的排在前面；开始以后缩成一行，说那个会话在做什么，点了过去。收起的不再列出。「已开始」读的是
+ * 会话列表里的 `spawnedFrom`，所以重启后照样对。见 ADR-0049。
  */
 
-import { useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
-import { focusScreenOf, useScopedToolRuns, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { focusScreenOf, useScopedToolRuns } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { dismissSuggestion, startedFrom, suggestionStatus, suggestionsIn, useDismissedSuggestions, type SessionSuggestion } from "../../store/session-suggestions.ts";
 import { SquarePen, X } from "../../ui/icons/index.ts";
-import { WorktreeToggle } from "../../ui/inputs/WorktreeToggle.tsx";
-import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { SessionStatus } from "../conversation/index.ts";
+import { SessionStatus, SuggestionStart } from "../conversation/index.ts";
 import { ROW, Section, SectionLabel } from "./rows.tsx";
 
 export function SuggestionsSection({ sessionId }: { sessionId: string }) {
@@ -51,25 +47,6 @@ export function SuggestionsSection({ sessionId }: { sessionId: string }) {
 function Pending({ sessionId, suggestion }: { sessionId: string; suggestion: SessionSuggestion }) {
 	const { t } = useI18n();
 	const { callId, details } = suggestion;
-	// 开在自己的工作树里还是项目里，和输入框问的是同一个问题，从同一个设置起步。
-	const { workspace } = useScopedWorkspace();
-	const worktreeByDefault = useApp((s) => Boolean(s.settings?.worktrees?.autoCreateOnNewSession));
-	const [worktreePick, setWorktreePick] = useState<boolean | null>(null);
-	const inWorktree = worktreePick ?? worktreeByDefault;
-	const offersWorktree = Boolean(workspace?.isGitRepo);
-	const [starting, setStarting] = useState(false);
-
-	const start = async () => {
-		if (starting) return;
-		setStarting(true);
-		try {
-			// 新会话叫建议的标题，不叫那段写给模型的提示词的前六十个字。
-			await useApp.getState().startSession(details.prompt, { sessionId, toolCallId: callId }, { title: details.title, ...(offersWorktree ? { worktree: inWorktree } : {}) });
-		} finally {
-			setStarting(false);
-		}
-	};
-
 	return (
 		<div data-ly-environment-suggestion={callId} data-state="suggested" className="flex items-start gap-2 rounded-lg px-2 py-1.5">
 			<SquarePen size={14} strokeWidth={1.8} aria-hidden className="mt-[3px] shrink-0 text-ink-muted" />
@@ -80,11 +57,8 @@ function Pending({ sessionId, suggestion }: { sessionId: string; suggestion: Ses
 				<p className="mt-0.5 line-clamp-3 text-caption text-ink-muted" data-ly-suggestion-summary>
 					{details.summary}
 				</p>
-				<div className="mt-2 flex items-center gap-1.5">
-					<Button size="sm" variant="primary" loading={starting} label={t("sessionOps.startTip")} onClick={() => void start()} data-ly-suggestion-action="start">
-						{t("sessionOps.start")}
-					</Button>
-					{offersWorktree && <WorktreeToggle size="sm" on={inWorktree} onChange={setWorktreePick} />}
+				<div className="mt-2">
+					<SuggestionStart sessionId={sessionId} suggestion={suggestion} />
 				</div>
 			</div>
 			<IconButton size="xs" label={t("sessionOps.dismiss")} icon={<X size={12} strokeWidth={1.9} />} onClick={() => dismissSuggestion(callId)} data-ly-suggestion-dismiss />

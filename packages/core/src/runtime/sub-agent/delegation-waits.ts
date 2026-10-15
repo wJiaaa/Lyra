@@ -152,6 +152,19 @@ export interface FinishedJob {
 	output: string;
 }
 
+/**
+ * 一个从建议卡片上开出来的会话跑完了第一轮，按它被要求的交回来（桌面端的 `spawn_session` 的 `reportBack`）。
+ *
+ * 它不是子代理：人看得见它、能在里面插话，跑完它还在。交回的是它最后那段回复，和子代理的结果走同一条
+ * 送达，所以父会话闲着时一样被叫醒、忙着时一样插进这一轮。
+ */
+export interface FinishedSession {
+	sessionId: string;
+	title: string;
+	status: "done" | "failed";
+	reply: string;
+}
+
 /** 送达消息里一份报告需要的东西：跑完的结果，和登记簿上它是谁。 */
 export interface DeliveryItem {
 	report: SettledDispatch;
@@ -171,7 +184,7 @@ export interface DeliveryItem {
  *
  * `delivery` 给界面：画成一行「谁的结果到了」，不是一个人发的气泡。
  */
-export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = [], pending: Pick<SubAgentSummary, "agent" | "description">[] = []): Message {
+export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = [], pending: Pick<SubAgentSummary, "agent" | "description">[] = [], sessions: FinishedSession[] = []): Message {
 	const blocks = items.map(({ report, summary }) => {
 		const status = report.error ? "failed" : (summary?.status ?? "done");
 		const body = report.error ? `它没能跑完：${report.error}` : report.answer?.text || "（它跑完了，但什么都没交回来。）";
@@ -217,16 +230,25 @@ export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = [],
 					"（运行时送达）你之前放到后台的命令结束了。下面是它的退出状态和你上次读取之后的输出，不用再拿 bash_output 去查：",
 					...jobs.map((job) => `<background_job id="${job.id}" command="${attribute(job.command)}" status="${attribute(job.status)}">\n${job.output}\n</background_job>`),
 				];
+	const sessionReports: DeliveredReport[] = sessions.map((one) => ({ id: one.sessionId, kind: "session", agent: "", description: one.title, status: one.status }));
+	const sessionParts =
+		sessions.length === 0
+			? []
+			: [
+					"（运行时送达）你之前建议另开、用户点了开始的会话跑完了第一轮。下面是它最后的回复；那个会话还在，用户可以接着在那里跟它说话：",
+					...sessions.map((one) => `<session_result id="${one.sessionId}" title="${attribute(one.title)}" status="${one.status}">\n${one.reply || "（它没有留下回复。）"}\n</session_result>`),
+					"就着这份结果接着做你手上的事：说清它带来了什么、要不要因此改你正在做的。它做过的事不要再做一遍。",
+				];
 	return {
 		role: "user",
 		synthetic: true,
 		timestamp: Date.now(),
-		delivery: [...delivery, ...jobReports],
+		delivery: [...delivery, ...jobReports, ...sessionReports],
 		/*
 		 * 一份报告一个文本块：发送前和 `task` 当场交回的结果按同一条线剪（见 `pruneMessage`），分块时
 		 * 只剪超长的那份，几份一起到的时候不会把夹在中间的整份剪掉。
 		 */
-		content: [...agentParts, ...jobParts].map((text) => ({ type: "text" as const, text })),
+		content: [...agentParts, ...jobParts, ...sessionParts].map((text) => ({ type: "text" as const, text })),
 	};
 }
 

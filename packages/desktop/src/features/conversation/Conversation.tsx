@@ -13,7 +13,6 @@ import { environmentCard, useEnvironmentCard } from "../../store/environment-car
 import { clearTranscriptJump, useTranscriptJump } from "../../store/transcript-jump.ts";
 import { BrowserCards, laterPageOpens, pageOpens } from "./BrowserCard.tsx";
 import { GeneratedImages } from "./ImageCanvas.tsx";
-import { SessionSuggestionNotes } from "./SessionSuggestionNote.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
@@ -571,8 +570,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
             const pages = pageOpens(block);
             // 这一轮里生成的图，同样画在外面，见 `GeneratedImages`。
             const drawn = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call.id) : []));
-            // 建议另开的会话在这里留一行记录，折进过程里就没人看见，也画在外面；开始在环境卡片里。
-            const suggestions = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "spawn_session").map(({ block: call }) => call) : []));
             /*
              * 按**回合**算，不是按块的位置算：正文一开始流式输出，过程就不再排在末尾。
              */
@@ -589,7 +586,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
                 />
                 {pages.length > 0 && <BrowserCards calls={pages} later={laterPages[range.start + at]} />}
                 {drawn.length > 0 && <GeneratedImages calls={drawn} />}
-                {suggestions.length > 0 && <SessionSuggestionNotes calls={suggestions} />}
               </Fragment>
             );
           })}

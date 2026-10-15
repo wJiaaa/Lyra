@@ -181,7 +181,9 @@ test("spawnedFrom 穿过建会话的白名单，坏的形状当场拒绝", () =>
 	const from = { sessionId: "s-origin", toolCallId: "toolu_01" };
 	assert.deepEqual(initialPrompt({ content: "去做", spawnedFrom: from })?.spawnedFrom, from);
 	assert.equal(initialPrompt({ content: "去做" })?.spawnedFrom, undefined, "不给就没有这一项");
-	for (const invalid of [null, "s-origin", { sessionId: "s" }, { sessionId: "", toolCallId: "t" }, { sessionId: "s", toolCallId: 4 }, { sessionId: "s", toolCallId: "t".repeat(201) }]) {
+	assert.deepEqual(initialPrompt({ content: "去做", spawnedFrom: { ...from, reportBack: true } })?.spawnedFrom, { ...from, reportBack: true }, "交回的条子也要穿过去");
+	assert.deepEqual(initialPrompt({ content: "去做", spawnedFrom: { ...from, reportBack: false } })?.spawnedFrom, from, "不交回就不留这一项");
+	for (const invalid of [null, "s-origin", { sessionId: "s" }, { sessionId: "", toolCallId: "t" }, { sessionId: "s", toolCallId: 4 }, { sessionId: "s", toolCallId: "t".repeat(201) }, { sessionId: "s", toolCallId: "t", reportBack: "yes" }]) {
 		assert.throws(() => initialPrompt({ content: "去做", spawnedFrom: invalid }), `本该拒绝：${JSON.stringify(invalid)}`);
 	}
 });
@@ -242,6 +244,18 @@ test("spawn_session 立刻返回：说清楚什么都还没开始，卡片要的
 	assert.deepEqual(result.details, { kind: "session_suggestion", ...BRIEF } satisfies SessionSuggestionDetails);
 	assert.match(text(result), /Nothing has started/);
 	assert.equal(asked.length, 0, "建议不碰宿主");
+	assert.doesNotMatch(text(result), /delivered here/, "默认不交回");
+});
+
+test("spawn_session 的 report_back：要交回才记进 details、才在返回里说会送回来；不是布尔就退回", async () => {
+	const spawn = named(tools().tools, "spawn_session");
+	const back = await spawn.execute({ ...BRIEF, report_back: true }, ctx());
+	assert.deepEqual(back.details, { kind: "session_suggestion", ...BRIEF, reportBack: true } satisfies SessionSuggestionDetails);
+	assert.match(text(back), /delivered here; do not wait for it/);
+	assert.deepEqual((await spawn.execute({ ...BRIEF, report_back: false }, ctx())).details, { kind: "session_suggestion", ...BRIEF });
+	const bad = await spawn.execute({ ...BRIEF, report_back: "yes" }, ctx());
+	assert.equal(bad.isError, true);
+	assert.match(text(bad), /^report_back must be true or false/);
 });
 
 test("spawn_session 的参数不合格就退回去，并且点名是哪一项", async () => {

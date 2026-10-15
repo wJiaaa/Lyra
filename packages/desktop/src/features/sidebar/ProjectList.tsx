@@ -11,9 +11,10 @@ import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Grouped } from "../../lib/sidebar-grouping.ts";
+import { withSpawned, type Nested } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup } from "./ProjectGroup.tsx";
-import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
+import type { RowActions } from "./SessionRow.tsx";
+import { SessionRows } from "./SessionRows.tsx";
 import { useSidebarReorder } from "./useSidebarReorder.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
 import type { SortKey } from "./ListMenu.tsx";
@@ -42,11 +43,11 @@ export function ProjectList({
 	listSettings,
 	onNewLooseChat,
 }: {
-	groups: Grouped;
+	groups: Nested;
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
-	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active">;
+	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "spawned">;
 	actions: RowActions;
 	onReordered?: () => void;
 	sort: SortKey;
@@ -76,19 +77,12 @@ export function ProjectList({
 			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 			{hasPinned && (
 				<>
-					<SectionLabel first section="pinned" sessions={groups.pinnedSessions} count={groups.pinnedSessions.length} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
+					<SectionLabel first section="pinned" sessions={withSpawned(groups.pinnedSessions, groups.spawned)} count={groups.pinnedSessions.length} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-							{groups.pinnedSessions?.map((session) => (
-								<SessionRow
-									key={session.id}
-									session={session}
-									project={session.projectName}
-									{...rowActions(actions, session)}
-								/>
-							))}
+							<SessionRows sessions={groups.pinnedSessions} spawned={groups.spawned} actions={actions} project />
 						</div>
 					</Collapsible>
 				</>
@@ -106,7 +100,7 @@ export function ProjectList({
 					<SectionLabel
 						first={!hasPinned}
 						section="projects"
-						sessions={groups.projects.flatMap((group) => group.sessions)}
+						sessions={withSpawned(groups.projects.flatMap((group) => group.sessions), groups.spawned)}
 						count={groups.projects.length}
 						collapsed={collapsed.includes(PROJECTS)}
 						onToggle={() => onToggleCollapsed(PROJECTS)}
@@ -134,7 +128,7 @@ export function ProjectList({
 					</SectionLabel>
 					<Collapsible open={!collapsed.includes(PROJECTS)}>
 						{groups.projects.map((group) => (
-							<ProjectGroup key={group.path} group={group} {...groupProps(group.path)} />
+							<ProjectGroup key={group.path} group={group} spawned={groups.spawned} {...groupProps(group.path)} />
 						))}
 					</Collapsible>
 				</>
@@ -150,7 +144,7 @@ export function ProjectList({
 						first
 						held
 						section="recent"
-						sessions={groups.loose}
+						sessions={withSpawned(groups.loose, groups.spawned)}
 						count={groups.loose.length}
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
@@ -173,13 +167,7 @@ export function ProjectList({
 					    No pager: every chat is listed, and the heading still folds the whole section. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-							{groups.loose.map((session) => (
-								<SessionRow
-									key={session.id}
-									session={session}
-									{...rowActions(actions, session)}
-								/>
-							))}
+							<SessionRows sessions={groups.loose} spawned={groups.spawned} actions={actions} />
 						</div>
 					</Collapsible>
 				</div>
