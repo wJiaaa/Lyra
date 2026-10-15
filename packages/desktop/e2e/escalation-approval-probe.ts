@@ -73,7 +73,8 @@ async function until(what: string, condition: () => Promise<boolean>) {
 }
 
 async function settle() {
-	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
+	// Only document-timeline animations: the sidebar's sticky-header `ly-under-head` runs on a scroll timeline, so its `finished` never resolves.
+	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.timeline===document.timeline&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
 }
 
 /** A real press where the element is drawn, after checking that the point lands on it. */
