@@ -34,7 +34,7 @@ export function describeOne(block: Extract<AssistantContent, { type: "toolCall" 
 }
 
 /** The file a call is about, when it is about one — the part worth naming in a summary. */
-export function subjectOf(block: Extract<AssistantContent, { type: "toolCall" }>): string | undefined {
+function subjectOf(block: Extract<AssistantContent, { type: "toolCall" }>): string | undefined {
   const { path, url } = (block.arguments ?? {}) as { path?: unknown; url?: unknown };
   // Either separator: a Windows path split on "/" alone came back whole, drive letter and all.
   if (typeof path === "string") return baseName(path);

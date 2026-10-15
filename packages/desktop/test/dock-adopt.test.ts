@@ -84,7 +84,8 @@ test("a blank conversation that is sent keeps the panes it was arranged with", (
 	assert.ok(has(tree("s-new"), "terminal"), "the arrangement should have come with it");
 	flushTree();
 	assert.ok(saved.get(paneStorageKey("s-new"))?.includes("terminal"), "and been saved under the new key");
-	assert.ok(has(tree("@draft"), "terminal"), "the next blank conversation starts from the same arrangement");
+	// Moved, not copied: a copy left under `@draft` came with every later blank conversation.
+	assert.ok(!has(tree("@draft"), "terminal"), "the next blank conversation starts empty");
 });
 
 test("clicking an existing conversation from a blank one does not hand it the blank one's panes", () => {

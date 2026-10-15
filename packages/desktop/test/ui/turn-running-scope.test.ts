@@ -120,7 +120,8 @@ test("reasoning cut short under a stopped screen stays still while the focused c
 	// 乙 stopped mid-thought; 甲, focused, is running.
 	const stopped: AssistantMessage = { role: "assistant", content: [{ type: "thinking", thinking: "先看目录\n再读配置" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "aborted", timestamp: 21 };
 	const said: Message[] = [exchange("b", 1)[0], stopped];
-	useApp.setState({ running: true, sessionCache: { b: parked("b", said, false) } });
+	// Reasoning is hidden by default; this is about how it behaves once someone turns it on.
+	useApp.setState({ running: true, settings: { ...settings, showThinking: true }, sessionCache: { b: parked("b", said, false) } });
 	view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(SessionScope.Provider, { value: "b" }, h(MessageRow, { message: stopped, index: 1, upTo: 1 })) }));
 	const row = view.find("[data-ly-thinking] .ly-flow-summary");
 	assert.equal(row.querySelector(".ly-glide"), null, "the stopped reasoning is gliding as if still being written");

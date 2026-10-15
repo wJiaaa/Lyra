@@ -75,5 +75,5 @@
   // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built,
   // `sips` (part of macOS) to crop an e2e probe's screenshots, `mkfifo` (part of every POSIX
   // system) for a test that is skipped on Windows, `uv` to install Harbor for `pnpm bench`.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "mkfifo", "osascript", "uv"]
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "mkfifo", "osascript", "uv", "sqlite3"]
 }
