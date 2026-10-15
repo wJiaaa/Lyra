@@ -60,7 +60,7 @@ const write = (res: ServerResponse, events: [string, unknown][]) => {
  * `holdMs` keeps the sentence on screen before the call arrives — an archive that lands the instant
  * the reply does leaves nothing for the recording to show of the conversation it took away.
  */
-function reply(res: ServerResponse, text: string, tool?: { name: string; input: unknown }, holdMs = 0): void {
+function reply(res: ServerResponse, text: string, tool?: { name: string; input: unknown }, holdMs = 0, streamMs = 0): void {
 	res.writeHead(200, { "content-type": "text/event-stream" });
 	write(res, [
 		["message_start", { type: "message_start", message: { id: "m", type: "message", role: "assistant", content: [], model: "scripted", stop_reason: null, usage: { input_tokens: 900, output_tokens: 0 } } }],
@@ -69,19 +69,28 @@ function reply(res: ServerResponse, text: string, tool?: { name: string; input: 
 		["content_block_stop", { type: "content_block_stop", index: 0 }],
 	]);
 	setTimeout(() => {
-		if (tool) {
-			const id = `toolu_${Math.random().toString(36).slice(2, 10)}`;
+		const finish = () => {
 			write(res, [
-				["content_block_start", { type: "content_block_start", index: 1, content_block: { type: "tool_use", id, name: tool.name, input: {} } }],
-				["content_block_delta", { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } }],
-				["content_block_stop", { type: "content_block_stop", index: 1 }],
+				["message_delta", { type: "message_delta", delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 40 } }],
+				["message_stop", { type: "message_stop" }],
 			]);
-		}
-		write(res, [
-			["message_delta", { type: "message_delta", delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 40 } }],
-			["message_stop", { type: "message_stop" }],
-		]);
-		res.end();
+			res.end();
+		};
+		if (!tool) return finish();
+		const id = `toolu_${Math.random().toString(36).slice(2, 10)}`;
+		write(res, [["content_block_start", { type: "content_block_start", index: 1, content_block: { type: "tool_use", id, name: tool.name, input: {} } }]]);
+		// `streamMs` 把参数一小段一小段吐出来，像真模型那样：调用还在写的那一段界面才有东西可看。
+		const json = JSON.stringify(tool.input);
+		const pieces = streamMs ? (json.match(/[\s\S]{1,12}/g) ?? [json]) : [json];
+		const next = (i: number) => {
+			if (i === pieces.length) {
+				write(res, [["content_block_stop", { type: "content_block_stop", index: 1 }]]);
+				return finish();
+			}
+			write(res, [["content_block_delta", { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: pieces[i] } }]]);
+			setTimeout(() => next(i + 1), streamMs);
+		};
+		next(0);
 	}, holdMs);
 }
 
@@ -108,7 +117,7 @@ function startModel(): Server {
 			const first = users[0]?.content;
 			const firstUser = typeof first === "string" ? first : (first ?? []).filter((part) => part.type === "text").map((part) => part.text ?? "").find((text) => !text.startsWith("<env>")) ?? "";
 			asked.push({ who, answered, firstUser, lastText });
-			if (who === "spawn" && !answered) return reply(res, "先修登录按钮。顺手看到一处没人用的旧代码，单独建议一个会话去清理。", { name: "spawn_session", input: { title: TITLE, summary: SUMMARY, prompt: CHILD } });
+			if (who === "spawn" && !answered) return reply(res, "先修登录按钮。顺手看到一处没人用的旧代码，单独建议一个会话去清理。", { name: "spawn_session", input: { title: TITLE, summary: SUMMARY, prompt: CHILD } }, 0, 120);
 			if (who === "spawn") return reply(res, "SPAWN-DONE 登录按钮的点击区域修好了。");
 			if (who === "report") return reply(res, "REPORT-ACK 新会话确认 legacyLogin 没人调用、已经删掉，登录这边不用再动。");
 			if (who === "archive" && !answered) return reply(res, "错别字改好了，按你说的把这个对话归档。", { name: "archive_session", input: { reason: "README 错别字已改" } }, 2500);
@@ -264,6 +273,28 @@ async function main(): Promise<void> {
 		await ask(SPAWN_ASK);
 		const CARD = "[data-ly-session-suggestion]";
 		const ITEM = "[data-ly-environment-suggestion]";
+		// 参数一段段写进来的那几秒：每 80ms 看一眼那个位置画的是什么。
+		const seen: { state: string | null; section: boolean; start: boolean; title: string; summary: string; disabled: boolean | null }[] = [];
+		let shotWriting = false;
+		for (let i = 0; i < 200; i++) {
+			const now = await app.evaluate<(typeof seen)[number]>(`(() => {
+				const one = document.querySelector("${CARD}");
+				const start = one?.querySelector('[data-ly-suggestion-action="start"]');
+				return { state: one?.getAttribute("data-ly-session-suggestion") ?? null, section: one?.tagName === "SECTION", start: Boolean(start), title: one?.querySelector("[data-ly-suggestion-title]")?.textContent ?? "", summary: one?.querySelector("[data-ly-suggestion-summary]")?.textContent ?? "", disabled: start ? start.disabled : null };
+			})()`);
+			seen.push(now);
+			if (now.state === "writing" && now.title.length > 4 && !shotWriting) {
+				shotWriting = true;
+				await shot("00_参数还在写_一行过程行", CARD);
+			}
+			if (now.state === "suggested") break;
+			await pause(80);
+		}
+		const writing = seen.filter((one) => one.state === "writing");
+		console.log(`      写的那几秒看到 ${writing.length} 帧：${[...new Set(writing.map((one) => one.title))].join(" → ")}`);
+		check("参数还在写时是一行过程行：没有卡片框、没有「开始」，标题写到哪画到哪", writing.length >= 3 && writing.every((one) => !one.section && !one.start) && new Set(writing.map((one) => one.title)).size >= 2, JSON.stringify(writing.slice(0, 3)));
+		const first = seen.find((one) => one.state === "suggested");
+		check("写完整张卡片一次出现：第一帧就有完整标题、说明和能按的「开始」", Boolean(first && first.section && first.title === TITLE && first.summary === SUMMARY && first.disabled === false), JSON.stringify(first ?? null));
 		const carded = await until(`document.querySelector('${CARD}[data-ly-session-suggestion="suggested"]') && document.body.innerText.includes("SPAWN-DONE")`, "卡片和这一轮的收尾");
 		check("这一轮跑完了，对话里有一张等人决定的卡片", carded, (await transcript()).slice(-300));
 		await pause(1200);

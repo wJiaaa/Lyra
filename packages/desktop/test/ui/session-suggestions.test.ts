@@ -337,16 +337,24 @@ test("交回：模型要了就默认开着，人能关；开着开始的，建�
 	}
 });
 
-test("参数还在写：卡片已经在，标题有多少画多少，「开始」按不动", async () => {
-	const writing: ToolCallContent = { ...CALL, arguments: { title: "删掉没人" } };
-	const view = await mount(card({ block: writing, run: undefined, stopReason: "pending" }));
-	try {
-		assert.equal(view.find("[data-ly-session-suggestion]").getAttribute("data-ly-session-suggestion"), "writing");
-		assert.equal(view.find("[data-ly-suggestion-title]").textContent, "删掉没人");
-		assert.equal(view.find<HTMLButtonElement>('[data-ly-suggestion-action="start"]').disabled, true);
-		assert.equal(view.all("[data-test-fallback]").length, 0);
-	} finally {
-		await view.unmount();
+test("参数还在写：只是一行过程行，标题有多少画多少、扫光；没有卡片框，也没有「开始」", async () => {
+	// 写着的时候 `arguments` 是空的，参数只在 `argumentsText` 里长；末尾停在写了一半的转义上也要读得出来。
+	for (const [text, title] of [["", undefined], ['{"title": "删掉没人', "删掉没人"], ['{"title": "删掉\\"没人\\', '删掉"没人'], ['{"summary": "\\"title\\": \\"x', undefined]] as const) {
+		const writing = { ...CALL, arguments: {}, argumentsText: text } as ToolCallContent;
+		const args = { title };
+		const view = await mount(card({ block: writing, run: undefined, stopReason: "pending" }));
+		try {
+			assert.equal(view.find("[data-ly-session-suggestion]").getAttribute("data-ly-session-suggestion"), "writing");
+			assert.ok(view.find(".ly-flow-row"), "过程行的骨架");
+			assert.equal(view.all("section").length, 0, "没有卡片框");
+			assert.equal(view.all('[data-ly-suggestion-action="start"]').length, 0, "写完之前没有「开始」");
+			assert.ok(view.text().includes(translate("sessionOps.suggesting")));
+			assert.equal(view.all("[data-ly-suggestion-title]")[0]?.textContent, args.title, JSON.stringify(args));
+			if (args.title) assert.ok(view.find(".ly-glide"), "在写：标题上扫光");
+			assert.equal(view.all("[data-test-fallback]").length, 0);
+		} finally {
+			await view.unmount();
+		}
 	}
 });
 

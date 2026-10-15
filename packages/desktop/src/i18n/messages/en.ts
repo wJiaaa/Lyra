@@ -2666,6 +2666,7 @@ export const en = {
 	"sessionOps.done": "Done",
 	"sessionOps.failed": "Stopped short",
 	"sessionOps.dismiss": "Dismiss suggestion",
+	"sessionOps.suggesting": "Suggesting a chat",
 	"sessionOps.noted": "Suggested a chat",
 	"sessionOps.dismissed": "Dismissed",
 	"sessionOps.newSession": "New chat",

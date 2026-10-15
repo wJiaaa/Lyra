@@ -2851,6 +2851,7 @@ export const zhCN = {
 	"sessionOps.done": "已完成",
 	"sessionOps.failed": "没跑完",
 	"sessionOps.dismiss": "收起这条建议",
+	"sessionOps.suggesting": "建议新会话",
 	"sessionOps.noted": "建议了新会话",
 	"sessionOps.dismissed": "已收起",
 	"sessionOps.newSession": "新会话",

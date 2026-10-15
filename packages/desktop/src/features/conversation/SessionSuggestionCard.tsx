@@ -2,7 +2,8 @@
  * 一次 `spawn_session` 在对话里画成的那张卡片：建议另开一个会话，在这里决定开不开。
  *
  * 站在调用的位置、自成一行，不和前后的工具并成一段（`grouping.ts` 的 `shows`）：一张等人点「开始」的
- * 卡片折进过程就没人点了。参数还在写时标题先出来、按钮不能按，写完就是整张卡片——提建议那一刻就在。
+ * 卡片折进过程就没人点了。参数还在写时只是一行过程行（标题写到哪画到哪、扫光），写完整张卡片一次出现。
+ * 写的时候就画卡片框是试过的：先冒出图标、空标题和一颗按不动的「开始」，说明再一行行把框撑高，像坏了。
  *
  * 开始以后缩成一行，和其他过程行同一个骨架（`FlowRow`）：行首是新会话的图标，在跑时摘要上扫光，点了
  * 过去。行首不放侧栏那枚状态点、行尾不写「进行中」「已完成」——扫光已经说了在跑，同一件事说两遍是吵；
@@ -15,9 +16,9 @@
  */
 
 import { useState, type ReactNode } from "react";
-import type { AssistantContent, AssistantMessage } from "@plume/core";
+import type { AssistantContent, AssistantMessage, Message } from "@plume/core";
 import { SPAWN_SESSION_TOOL, type SessionSuggestionDetails } from "../../../shared/session-suggestion.ts";
-import { focusScreenOf, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
+import { focusScreenOf, useScopedFromMessages, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp, type ToolRun } from "../../store/index.ts";
@@ -111,28 +112,57 @@ export function SessionSuggestionCard({ block, run, stopReason, turnRunning, fal
 	const details = run?.status === "done" ? (run.result?.details as SessionSuggestionDetails | undefined) : undefined;
 	if (details?.kind === "session_suggestion" && sessionId) return <Suggested sessionId={sessionId} suggestion={{ callId: block.id, details }} />;
 	if (block.name !== SPAWN_SESSION_TOOL || (run?.status ?? toolCardFallback(stopReason, turnRunning)) !== "running") return fallback;
-	// 还在写：参数是边写边解析的，标题、说明有多少画多少。
-	const title = typeof block.arguments?.title === "string" ? block.arguments.title : "";
-	const summary = typeof block.arguments?.summary === "string" ? block.arguments.summary : "";
-	return <Frame title={title} summary={summary} state="writing" callId={block.id} actions={<Writing />} />;
+	return <Writing block={block} />;
 }
 
-/** 写完之前「开始」已经在它的位置上，只是按不动：写完那一下卡片不跳。 */
-function Writing() {
+/**
+ * 这次调用此刻在转录里的样子。从转录里读、不用传进来的那一份：这一行只在转录的形状变了时重画
+ * （`sameRun`），参数每多写一段并不重画，传进来的那一份停在它刚出现时写到的地方（同 `PreviewCall`）。
+ * 只看最后几条：正在写的调用在正在写的那条回复里。
+ */
+function liveCall(messages: Message[], id: string): ToolCall | null {
+	for (let at = messages.length - 1; at >= Math.max(0, messages.length - 4); at--) {
+		const message = messages[at]!;
+		if (message.role !== "assistant") continue;
+		for (const block of message.content) if (block.type === "toolCall" && block.id === id) return block;
+	}
+	return null;
+}
+
+/**
+ * 写到一半的标题。写着的时候 `arguments` 还是空的，只有 `argumentsText` 在长（见 `preview-pages.ts`），
+ * 所以读原文：前面不是 `\` 的 `"title"` 只可能是键。末尾写了一半的转义先去掉，不然整句解析不了。
+ */
+function writtenTitle(block: ToolCall): string {
+	if (typeof block.arguments?.title === "string") return block.arguments.title;
+	const found = /(?<!\\)"title"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(block.argumentsText ?? "");
+	if (!found) return "";
+	const raw = found[1].replace(/\\(u[0-9a-fA-F]{0,3})?$/, "");
+	try {
+		return JSON.parse(`"${raw}"`) as string;
+	} catch {
+		return raw;
+	}
+}
+
+/** 还在写：和别的过程行一样一行，参数边写边解析，标题有多少画多少。 */
+function Writing({ block }: { block: ToolCall }) {
 	const { t } = useI18n();
+	// 选出来的是字符串：标题变了才重画，说明、提示词往下写时不动。
+	const title = useScopedFromMessages((messages) => writtenTitle(liveCall(messages, block.id) ?? block));
 	return (
-		<Button size="sm" variant="primary" disabled label={t("sessionOps.startTip")} data-ly-suggestion-action="start">
-			{t("sessionOps.start")}
-		</Button>
+		<div data-ly-session-suggestion="writing" data-ly-suggestion-call={block.id}>
+			<FlowRow icon={<SquarePen size={13} strokeWidth={1.8} />} title={<span className="font-normal">{t("sessionOps.suggesting")}</span>} summary={title ? <span data-ly-suggestion-title>{title}</span> : undefined} running />
+		</div>
 	);
 }
 
-function Frame({ title, summary, state, callId, actions, aside }: { title: string; summary: string; state: string; callId: string; actions?: ReactNode; aside?: ReactNode }) {
+function Frame({ title, summary, callId, actions, aside }: { title: string; summary: string; callId: string; actions?: ReactNode; aside?: ReactNode }) {
 	return (
-		<section data-ly-session-suggestion={state} data-ly-suggestion-call={callId} aria-label={title || undefined} className="flex w-full max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 py-2.5 pr-1.5 pl-3 text-label">
-			<SquarePen size={15} strokeWidth={1.7} aria-hidden className={`mt-[2px] shrink-0 text-ink-muted ${state === "writing" ? "ly-pulse" : ""}`} />
+		<section data-ly-session-suggestion="suggested" data-ly-suggestion-call={callId} aria-label={title} className="flex w-full max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 py-2.5 pr-1.5 pl-3 text-label">
+			<SquarePen size={15} strokeWidth={1.7} aria-hidden className="mt-[2px] shrink-0 text-ink-muted" />
 			<div className="min-w-0 flex-1">
-				<p className="min-h-[1lh] font-medium text-ink" data-ly-suggestion-title>
+				<p className="font-medium text-ink" data-ly-suggestion-title>
 					{title}
 				</p>
 				{summary && (
@@ -164,7 +194,6 @@ function Suggested({ sessionId, suggestion }: { sessionId: string; suggestion: S
 		<Frame
 			title={details.title}
 			summary={details.summary}
-			state="suggested"
 			callId={callId}
 			actions={<SuggestionStart sessionId={sessionId} suggestion={suggestion} />}
 			aside={<IconButton size="xs" label={t("sessionOps.dismiss")} icon={<X size={12} strokeWidth={1.9} />} onClick={() => dismissSuggestion(callId)} data-ly-suggestion-dismiss />}
