@@ -13,13 +13,11 @@
 
 import { isReadOnlyCommand } from "../tools/bash.ts";
 import { errorResult } from "../tools/result.ts";
-import type { ApprovedPlan } from "../types/message.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
+import { SUBMIT_PLAN_TOOL_NAME } from "./plan-view.ts";
 
 /** 会话状态图里的开关。每轮开始按 `SessionMeta.planMode` 写入，批准计划时就地关掉。 */
 export const PLAN_MODE_KEY = "planMode";
-
-export const SUBMIT_PLAN_TOOL_NAME = "submit_plan";
 
 export function inPlanMode(state: Map<string, unknown>): boolean {
 	return state.get(PLAN_MODE_KEY) === true;
@@ -77,18 +75,4 @@ function allow(tool: Tool, args: Record<string, unknown>): "ok" | ToolResult {
 	if (tool.name === "lsp") return args.operation === "rename" ? refusal(tool.name, "a rename edits files") : "ok";
 	if (READ_ONLY_TOOLS.has(tool.name) || tool.mutating === false) return "ok";
 	return refusal(tool.name, "it can change things");
-}
-
-/** 计划在转录、审批卡片和压缩快照里长的样子。 */
-export function renderPlan(plan: Omit<ApprovedPlan, "approvedAt">): string {
-	const lines: string[] = [];
-	if (plan.title) lines.push(`# ${plan.title}`, "");
-	lines.push("## 步骤");
-	plan.steps.forEach((step, index) => {
-		const files = step.files?.length ? `（${step.files.join("、")}）` : "";
-		lines.push(`${index + 1}. ${step.what}${files}`);
-	});
-	if (plan.risks.length) lines.push("", "## 风险", ...plan.risks.map((risk) => `- ${risk}`));
-	if (plan.unknowns.length) lines.push("", "## 未确定", ...plan.unknowns.map((unknown) => `- ${unknown}`));
-	return lines.join("\n");
 }

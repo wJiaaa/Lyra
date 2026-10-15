@@ -46,7 +46,8 @@ import { loadPromptContext, promptCapabilities, type PromptProfile } from "./pro
 import { reconcilePrompt, type PromptContext } from "../prompt/context.ts";
 import { currentSections, diffSections, promptSections, promptUpdateMessage } from "../prompt/update.ts";
 import { buildTurnConfig } from "./turn-config.ts";
-import { PLAN_MODE_KEY, planModeTools, SUBMIT_PLAN_TOOL_NAME } from "./plan-mode.ts";
+import { PLAN_MODE_KEY, planModeTools } from "./plan-mode.ts";
+import { SUBMIT_PLAN_TOOL_NAME } from "./plan-view.ts";
 import { submitPlanTool } from "./plan-tool.ts";
 import { recordPlanMode } from "./session-model.ts";
 import type { SubAgentRegistry } from "./sub-agent/sub-agents.ts";

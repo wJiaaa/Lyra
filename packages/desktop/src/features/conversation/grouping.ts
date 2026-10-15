@@ -15,6 +15,7 @@ import { isNudge } from "../../lib/spoken.ts";
 import { routedBlock } from "../../lib/tool-summary.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
+import { writtenTodos } from "../../lib/todos.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 import { toolCategory } from "../../lib/tool-kinds.ts";
@@ -313,10 +314,7 @@ export function computeTurnStats(messages: Message[], endMessageIndex: number): 
 	let currentTodos: ReturnType<typeof todosFrom> = [];
 	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) {
 		const msg = messages[i];
-		if (msg.role === "toolResult" && msg.toolName === "todo_write" && !msg.isError) {
-			const details = msg.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
-			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;
-		}
+		if (msg.role === "toolResult") currentTodos = writtenTodos(msg.toolName, msg.details, msg.isError) ?? currentTodos;
 		saw(clock, msg);
 		if (msg.role === "assistant" && currentTodos.some((t) => t.status !== "completed")) {
 			clock.halted = true;
@@ -569,10 +567,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
 		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock(index);
-		if (message.role === "toolResult" && message.toolName === "todo_write" && !message.isError) {
-			const details = message.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
-			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;
-		}
+		if (message.role === "toolResult") currentTodos = writtenTodos(message.toolName, message.details, message.isError) ?? currentTodos;
 		/*
 		 * 每一条都记进表里，包括下面那两种画不出行的。
 		 *

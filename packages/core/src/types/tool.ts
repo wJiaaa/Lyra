@@ -291,8 +291,10 @@ export interface ApprovalOrigin {
 /**
  * 一张卡片的回答。表单有三种：交了（`values`）、拒绝（`reject`，对应协议的 decline）、
  * 没回答就关掉（`cancel`）——超时、撤回、服务器自己取消了也是 `cancel`。
+ *
+ * `note` 是选了某个选项之外顺带说的话。选项本身不变：批准计划时附上的注意事项就走这里，批准还是批准。
  */
-export type ApprovalDecision = "once" | "always" | "reject" | "skip" | "cancel" | { answer: string | string[]; skipped?: boolean } | { values: FormValues };
+export type ApprovalDecision = "once" | "always" | "reject" | "skip" | "cancel" | { answer: string | string[]; skipped?: boolean; note?: string } | { values: FormValues };
 
 export interface SubAgentInput {
 	description: string;

@@ -6,10 +6,11 @@
  */
 
 import { errorResult } from "../tools/result.ts";
-import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
+import { planTodos, TODOS_KEY } from "../tools/todo.ts";
 import type { ApprovedPlan } from "../types/message.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
-import { inPlanMode, PLAN_MODE_KEY, renderPlan, SUBMIT_PLAN_TOOL_NAME } from "./plan-mode.ts";
+import { inPlanMode, PLAN_MODE_KEY } from "./plan-mode.ts";
+import { normalizePlan, renderPlan, SUBMIT_PLAN_TOOL_NAME } from "./plan-view.ts";
 
 /** 卡片上的两个选项。自由输入也接受：写了什么，什么就是打回的理由。 */
 export const PLAN_APPROVE = "批准，开始执行";
@@ -56,7 +57,7 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 	async execute(args, ctx: ToolContext): Promise<ToolResult> {
 		if (!ctx.requestApproval) return errorResult("This host cannot ask the user, so no plan can be approved.");
 		if (!inPlanMode(ctx.state)) return errorResult("Plan mode is off; there is nothing to approve. Do the work.");
-		const plan = normalize(args);
+		const plan = normalizePlan(args as unknown as Record<string, unknown>);
 		if (typeof plan === "string") return errorResult(plan);
 
 		const rendered = renderPlan(plan);
@@ -66,14 +67,15 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 		});
 
 		if (typeof decision === "object" && "answer" in decision && decision.answer === PLAN_APPROVE) {
-			const approved: ApprovedPlan = { ...plan, approvedAt: Date.now() };
+			// 批准时附上的评论是执行时的注意事项，不是打回：计划照批，评论随计划一起留下（压缩后也在）。
+			const notes = decision.note;
+			const approved: ApprovedPlan = { ...plan, ...(notes ? { notes } : {}), approvedAt: Date.now() };
 			// 开关就地关掉：这一轮剩下的调用走的是同一张工具表，包着的 `execute` 从此放行。
 			ctx.state.set(PLAN_MODE_KEY, false);
 			// 步骤就是清单。批准的计划是正本，之后 `todo_write` 改的是它的状态。
-			const todos: TodoItem[] = plan.steps.map((step) => ({ content: step.what, status: "pending" }));
-			ctx.state.set(TODOS_KEY, todos);
+			ctx.state.set(TODOS_KEY, planTodos(plan.steps));
 			return {
-				content: [{ type: "text", text: `The user approved the plan. Plan mode is off; every tool is available again.\n\n${rendered}\n\nThe steps are now the task list. Start with step 1 and keep the list in step with the plan.` }],
+				content: [{ type: "text", text: `The user approved the plan${notes ? " with notes" : ""}. Plan mode is off; every tool is available again.\n\n${notes ? renderPlan(approved) : rendered}\n\nThe steps are now the task list. Start with step 1 and keep the list in step with the plan.${notes ? " The notes are the user's comments on this plan: follow them as you carry it out." : ""}` }],
 				details: { kind: "plan", plan: approved },
 			};
 		}
@@ -97,16 +99,3 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 		};
 	},
 };
-
-function normalize(args: SubmitPlanArgs): Omit<ApprovedPlan, "approvedAt"> | string {
-	if (!Array.isArray(args.steps) || args.steps.length === 0) return "Provide at least one step.";
-	const steps: ApprovedPlan["steps"] = [];
-	for (const step of args.steps) {
-		if (typeof step !== "object" || step === null || typeof step.what !== "string" || !step.what.trim()) return "Every step needs a nonempty `what`.";
-		const files = Array.isArray(step.files) ? step.files.filter((file): file is string => typeof file === "string" && file.trim() !== "") : undefined;
-		steps.push({ what: step.what.trim(), ...(files?.length ? { files } : {}) });
-	}
-	const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim()) : []);
-	const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
-	return { ...(title ? { title } : {}), steps, risks: strings(args.risks), unknowns: strings(args.unknowns) };
-}

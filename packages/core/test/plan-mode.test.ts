@@ -8,10 +8,11 @@ import { runAgent } from "../src/agent/loop.ts";
 import { buildSystemPrompt } from "../src/prompt/system.ts";
 import { ApprovalGate } from "../src/runtime/approvals.ts";
 import { compactIfNeeded } from "../src/runtime/compaction/compaction.ts";
-import { inPlanMode, PLAN_MODE_KEY, planModeTools, renderPlan } from "../src/runtime/plan-mode.ts";
+import { inPlanMode, PLAN_MODE_KEY, planModeTools } from "../src/runtime/plan-mode.ts";
+import { currentPlan, renderPlan } from "../src/runtime/plan-view.ts";
 import { PLAN_APPROVE, PLAN_REVISE, submitPlanTool } from "../src/runtime/plan-tool.ts";
 import { formatTaskContext, taskContextFromHistory } from "../src/runtime/compaction/task-context.ts";
-import { TODOS_KEY } from "../src/tools/todo.ts";
+import { TODOS_KEY, todosFromLog } from "../src/tools/todo.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig, type Tool, type ToolContext } from "../src/types.ts";
 import { runConfig } from "./run-config.ts";
 
@@ -203,4 +204,65 @@ test("the system prompt explains plan mode only while it is on", async () => {
 test("renderPlan leaves out empty sections", () => {
 	const rendered = renderPlan({ steps: [{ what: "只有一步" }], risks: [], unknowns: [] });
 	assert.equal(rendered, "## 步骤\n1. 只有一步");
+});
+
+test("an approved plan is the task list the log restores, until a todo_write replaces it", () => {
+	const at = (toolName: string, details: unknown, isError = false) =>
+		({ role: "toolResult", toolCallId: `${toolName}-${Math.random()}`, toolName, content: [], isError, details, timestamp: 1 }) as Message;
+	const approved = at("submit_plan", { kind: "plan", plan: { ...PLAN, approvedAt: 1 } });
+	assert.deepEqual(todosFromLog([approved]), [{ content: "加 OAuth 回调", status: "pending" }, { content: "补测试", status: "pending" }]);
+	const ticked = [{ content: "加 OAuth 回调", status: "completed" as const }];
+	assert.deepEqual(todosFromLog([approved, at("todo_write", { kind: "todo", todos: ticked })]), ticked);
+	assert.deepEqual(todosFromLog([at("submit_plan", { kind: "plan-feedback", feedback: "no reason given" })]), []);
+	assert.deepEqual(todosFromLog([at("submit_plan", { kind: "plan", plan: { ...PLAN, approvedAt: 1 } }, true)]), []);
+});
+
+test("currentPlan reads the last submitted plan off the log, approved or not", () => {
+	const call = (id: string, args: Record<string, unknown>) =>
+		({ role: "assistant", content: [{ type: "toolCall", id, name: "submit_plan", arguments: args }], timestamp: 1 }) as unknown as Message;
+	const result = (id: string, details: unknown, isError = false) =>
+		({ role: "toolResult", toolCallId: id, toolName: "submit_plan", content: [], isError, details, timestamp: 1 }) as Message;
+	const second = { ...PLAN, title: "改登录 v2" };
+
+	assert.equal(currentPlan([]), null);
+	// 还在等审批：没有结果。
+	assert.deepEqual(currentPlan([call("a", PLAN)]), { plan: PLAN, status: "open", toolCallId: "a" });
+	// 打回的那份仍是眼下的计划；改完再交，新的那份排到最后。
+	const declined = [call("a", PLAN), result("a", { kind: "plan-feedback", feedback: "再想想" })];
+	assert.equal(currentPlan(declined)?.status, "declined");
+	const approved = [...declined, call("b", second), result("b", { kind: "plan", plan: { ...second, approvedAt: 1 } })];
+	assert.deepEqual(currentPlan(approved), { plan: second, status: "approved", toolCallId: "b" });
+	// 被工具当场退回的那次人没见过，不算。
+	assert.equal(currentPlan([...approved, call("c", { steps: [] }), result("c", undefined, true)])?.toolCallId, "b");
+	assert.equal(currentPlan([...approved, call("d", PLAN), result("d", undefined, true)])?.toolCallId, "b");
+	// 压缩以后调用不在了，读快照里批准的那份。
+	const compacted = { role: "user", synthetic: true, content: [], timestamp: 2, compactionContext: { plan: { ...PLAN, approvedAt: 1 } } } as unknown as Message;
+	assert.deepEqual(currentPlan([compacted]), { plan: { ...PLAN, approvedAt: 1 }, status: "approved" });
+	assert.equal(currentPlan([compacted, call("e", second)])?.toolCallId, "e");
+});
+
+test("approving with comments keeps them on the plan as notes, without sending it back", async () => {
+	const { gate, state, ctx } = approvalFixture("full");
+	const pending = submitPlanTool.execute(PLAN, ctx);
+	const [request] = gate.list();
+	assert.equal(gate.resolve(request!.id, { answer: PLAN_APPROVE, note: "  > 补测试\n\n只补回调那一条  " }), true);
+	const result = await pending;
+	assert.equal(inPlanMode(state), false, "带评论批准仍是批准");
+	const details = result.details as { kind: string; plan: { notes?: string } };
+	assert.equal(details.kind, "plan");
+	assert.equal(details.plan.notes, "> 补测试\n\n只补回调那一条");
+	assert.match(textOf(result), /approved the plan with notes[\s\S]*## 执行时注意\n> 补测试[\s\S]*follow them/);
+	assert.match(renderPlan({ ...PLAN, notes: "先确认应用" }), /## 执行时注意\n先确认应用$/);
+});
+
+test("a note that is not text is refused, and the plan view shows the approved plan's notes", async () => {
+	const { gate, ctx } = approvalFixture("full");
+	const pending = submitPlanTool.execute(PLAN, ctx);
+	const [request] = gate.list();
+	assert.equal(gate.resolve(request!.id, { answer: PLAN_APPROVE, note: 42 } as never), false);
+	gate.resolve(request!.id, "reject");
+	await pending;
+	const call = { role: "assistant", content: [{ type: "toolCall", id: "p1", name: "submit_plan", arguments: PLAN }], timestamp: 1 } as unknown as Message;
+	const approved = { role: "toolResult", toolCallId: "p1", toolName: "submit_plan", content: [], isError: false, details: { kind: "plan", plan: { ...PLAN, notes: "先确认应用", approvedAt: 2 } }, timestamp: 2 } as unknown as Message;
+	assert.equal(currentPlan([call, approved])?.plan.notes, "先确认应用");
 });

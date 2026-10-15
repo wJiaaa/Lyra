@@ -354,10 +354,22 @@ test("修改 sends what was typed with the plan pane's comments; Esc opens it, �
 	const view = await card.render();
 	try {
 		assert.deepEqual(view.all("[data-plan-action]").map((button) => button.getAttribute("data-plan-action")), ["reject", "revise", "accept", "accept-auto"]);
-		await act(async () => { usePlanReview.getState().add("owner", { quote: "换成 OAuth", start: 0, end: 8, text: "先确认用哪个应用" }); });
-		assert.equal(view.find("[data-approval-plan-comments]").textContent, translate("plan.commentCount", { n: 1 }));
-
+		// 没有评论时 Esc 打开补充框，框里再按 Esc 收回一排动作。
 		await press(view.find("[data-approval-card]"), "Escape");
+		assert.equal(view.find<HTMLTextAreaElement>("[data-plan-revise-input]").placeholder, translate("plan.revisePlaceholder"));
+		await press(view.find("[data-plan-revise-input]"), "Escape");
+		assert.equal(view.all("[data-plan-revise-input]").length, 0);
+
+		await act(async () => { usePlanReview.getState().add("owner", { quote: "换成 OAuth", start: 0, end: 8, text: "先确认用哪个应用" }); });
+		// 有评论就是在改：评论按序号列在卡上，下面是补充框，主按钮是「修订」；拒绝、接受都还在。
+		const chip = view.find("[data-plan-comment-chip]");
+		assert.equal(chip.querySelector("[data-plan-comment-quote]")?.textContent, "换成 OAuth");
+		assert.equal(chip.querySelector("[data-plan-comment-text]")?.textContent, "先确认用哪个应用");
+		assert.equal(chip.textContent?.startsWith("1"), true, "评论前面挂着序号 1");
+		assert.equal(view.find<HTMLTextAreaElement>("[data-plan-revise-input]").placeholder, translate("plan.addMore"));
+		assert.deepEqual(view.all("[data-plan-action]").map((button) => button.getAttribute("data-plan-action")), ["reject", "accept"]);
+		assert.ok(view.find("[data-plan-send-revision]"));
+
 		const field = view.find<HTMLTextAreaElement>("[data-plan-revise-input]");
 		await act(async () => {
 			Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "拆成两次");
@@ -374,6 +386,27 @@ test("修改 sends what was typed with the plan pane's comments; Esc opens it, �
 		assert.deepEqual(again.saved, ["auto"], "先换到自动档");
 		assert.deepEqual(again.answered, [{ answer: "批准，开始执行" }]);
 	} finally { again.release(); await second.unmount(); useApp.setState(previous, true); }
+});
+
+/*
+ * 有评论时接受：评论作为注意事项随批准一起交出去，计划不重写。原先接受只发「批准」，评论悄悄作废。
+ */
+test("accepting a plan with comments sends them along as a note on the approval", async () => {
+	const { usePlanReview } = await import("../../src/store/plan-review.ts");
+	const previous = useApp.getState();
+	const card = await planCard("plan-notes", "auto");
+	const view = await card.render();
+	try {
+		await act(async () => { usePlanReview.getState().add("owner", { quote: "补测试", start: 20, end: 23, text: "只补回调那一条" }); });
+		await act(async () => { usePlanReview.getState().add("owner", { quote: "读登录模块", start: 5, end: 10, text: "顺便看看会话" }); });
+		assert.deepEqual(view.all("[data-plan-comment-text]").map((item) => item.textContent), ["顺便看看会话", "只补回调那一条"], "按正文里的先后编号");
+		// 删掉一条，另一条顺延成 1；两条都删掉，卡片回到一行动作。
+		await click(view.all("[data-plan-comment-delete]")[0]!);
+		assert.equal(view.all("[data-plan-comment-chip]").length, 1);
+		assert.equal(view.find('[data-plan-action="accept"]').getAttribute("data-ly-tip"), translate("plan.notesOnAccept", { n: 1 }));
+		await click(view.find('[data-plan-action="accept"]'));
+		assert.deepEqual(card.answered, [{ answer: "批准，开始执行", note: "> 补测试\n\n只补回调那一条" }]);
+	} finally { card.release(); await view.unmount(); useApp.setState(previous, true); }
 });
 
 // 窄窗口右栏一次只摆一格，开面板会把卡片盖住：不替人开，计划照旧画在卡片里。

@@ -109,7 +109,11 @@ export class ApprovalGate {
 				if (Array.isArray(value) && entry.request.selectionMode !== "multi") return false;
 				const answers = (typeof value === "string" ? [value] : value).map((item: string) => item.trim());
 				if (!answers.length || new Set(answers).size !== answers.length || answers.some((answer: string) => !answer || (!entry.request.allowCustomInput && !labels.includes(answer)))) return false;
-				entry.resolve({ answer: typeof value === "string" ? answers[0] : answers });
+				// 附言另走一个字段，不和选项混在一起：批准计划时附上注意事项，答的仍然是「批准」。
+				const said = "note" in decision ? decision.note : undefined;
+				if (said !== undefined && typeof said !== "string") return false;
+				const note = said?.trim();
+				entry.resolve({ answer: typeof value === "string" ? answers[0] : answers, ...(note ? { note } : {}) });
 			} else return false;
 		} else {
 			if (decision !== "once" && decision !== "always" && decision !== "reject") return false;

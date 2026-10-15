@@ -214,6 +214,10 @@ try {
 	await pause(1200);
 	check("批准计划后 core 关掉计划模式，芯片跟着熄灭", (await chip()).state === "off", await chip());
 	check("批准之后的那次请求照常进行", requests.some((request) => request.tail.includes('"tool_result"')), requests.length);
+	// 批准的计划就是清单：不用等模型再写一次 `todo_write`，右上角就该列着那五步。
+	await until(app, "document.querySelector('[data-ly-task-list]')", 1200).catch(() => undefined);
+	const listed = await app.evaluate<string>(`document.querySelector('[data-ly-task-list]')?.textContent ?? ""`);
+	check("批准后任务清单列出计划的五步", PLAN.steps.every((step) => listed.includes(step.what)), listed.slice(0, 200));
 	await photo("05_批准后自动关");
 	await stopRecording();
 	stopRecording = undefined;

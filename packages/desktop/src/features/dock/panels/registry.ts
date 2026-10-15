@@ -30,6 +30,8 @@ interface PanelAvailability {
 	 */
 	cwd: boolean;
 	session: boolean;
+	/** 这场对话交过计划（`currentPlan`），或者正有一份等着审批。 */
+	plan: boolean;
 }
 
 export interface PanelDefinition {

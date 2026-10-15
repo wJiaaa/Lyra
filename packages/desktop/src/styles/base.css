@@ -117,11 +117,13 @@
     background: color-mix(in srgb, var(--color-accent) 35%, transparent);
   }
 
+  /* 评过的那段主要靠下划线认：底色压到很淡，读正文时不像一整块被选中；线尾挂着序号，见 `PlanPanel` 的 `markAt`。 */
   ::highlight(ly-plan-comment) {
-    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
     text-decoration: underline;
     text-decoration-color: var(--color-accent);
-    text-underline-offset: 3px;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 4px;
   }
 
   input,

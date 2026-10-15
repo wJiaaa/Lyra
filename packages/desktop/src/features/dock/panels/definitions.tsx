@@ -9,7 +9,8 @@
 import type { MessageKey } from "../../../i18n/messages/index.ts";
 import { allPanels, panelOf, type PanelDefinition } from "./registry.ts";
 import type { PanelKind } from "../sideStore.ts";
-import { PanelKindScope, useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
+import { currentPlan } from "@plume/core/plan-view";
+import { PanelKindScope, useScopedApprovals, useScopedFromMessages, useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
 import "./builtin.tsx";
 
 /** A panel with its availability already decided, which is all a view needs. */
@@ -25,10 +26,13 @@ export function usePanelDefinitions(): ResolvedPanel[] {
 	 */
 	const { workspace, scratchCwd } = useScopedWorkspace();
 	const sessionId = useScopedSessionId();
+	const planned = useScopedFromMessages((messages) => currentPlan(messages) !== null);
+	const reviewing = useScopedApprovals().some((request) => request.kind === "interactive" && request.subject === "submit_plan");
 	const state = {
 		workspace: Boolean(workspace),
 		cwd: Boolean(workspace ?? scratchCwd),
 		session: Boolean(sessionId),
+		plan: planned || reviewing,
 	};
 	return allPanels().map((panel) => ({ ...panel, unavailable: panel.unavailable?.(state) }));
 }

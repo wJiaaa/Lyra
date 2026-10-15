@@ -50,6 +50,18 @@ const PLAN = {
 	unknowns: ["线上用的是哪个 OAuth 应用"],
 };
 
+/** 按评论改过的第二版：打回后模型重交的那一份。 */
+const REVISED = {
+	...PLAN,
+	steps: [
+		PLAN.steps[0]!,
+		{ what: "加 OAuth 回调路由，先校验 state 再换 token 写会话", files: ["src/auth/oauth.ts", "src/routes.ts"] },
+		PLAN.steps[2]!,
+		{ what: "删掉旧的密码登录", files: ["src/auth/login.ts"] },
+		PLAN.steps[4]!,
+	],
+};
+
 const requests: { tail: string }[] = [];
 
 function model() {
@@ -61,17 +73,18 @@ function model() {
 			const tail = JSON.stringify(body.messages.slice(-2));
 			requests.push({ tail });
 			res.writeHead(200, { "content-type": "text/event-stream" });
-			if (tail.includes('"tool_result"')) reply(res, "好，我按评论改一版。");
+			if (tail.includes("did not approve the plan")) reply(res, "", REVISED, "plan-2");
+			else if (tail.includes('"tool_result"')) reply(res, "开始第一步。");
 			else if (tail.includes("PLAN_ME")) reply(res, "", PLAN);
 			else reply(res, "好的。");
 		});
 	});
 }
 
-function reply(res: ServerResponse, text: string, plan?: typeof PLAN) {
+function reply(res: ServerResponse, text: string, plan?: typeof PLAN, id = "plan-1") {
 	const emit = (kind: string, data: object) => res.write(`event: ${kind}\ndata: ${JSON.stringify({ type: kind, ...data })}\n\n`);
 	emit("message_start", { message: { id: "plan", role: "assistant", content: [], usage: { input_tokens: 80, output_tokens: 0 } } });
-	emit("content_block_start", { index: 0, content_block: plan ? { type: "tool_use", id: "plan-1", name: "submit_plan", input: {} } : { type: "text", text: "" } });
+	emit("content_block_start", { index: 0, content_block: plan ? { type: "tool_use", id, name: "submit_plan", input: {} } : { type: "text", text: "" } });
 	emit("content_block_delta", { index: 0, delta: plan ? { type: "input_json_delta", partial_json: JSON.stringify(plan) } : { type: "text_delta", text } });
 	emit("content_block_stop", { index: 0 });
 	emit("message_delta", { delta: { stop_reason: plan ? "tool_use" : "end_turn" }, usage: { output_tokens: 16 } });
@@ -121,7 +134,7 @@ async function photo(name: string) {
 
 /** 面板与卡片此刻的样子，全从看得见的 DOM 和登记的高亮量。 */
 async function state() {
-	return app!.evaluate<{ pane: boolean; tabActive: boolean; h1: string; steps: number; hint: boolean; comments: string[]; marked: number; draft: number; title: string; count: string; cardH2: number; options: number; actions: string[]; button: boolean; cardHeight: number }>(`(()=>{
+	return app!.evaluate<{ pane: boolean; tabActive: boolean; h1: string; steps: number; hint: boolean; comments: string[]; numbers: string[]; marks: string[]; aligned: boolean; marked: number; draft: number; title: string; cardH2: number; options: number; actions: string[]; button: boolean; cardHeight: number }>(`(()=>{
 		const pane=document.querySelector(${JSON.stringify(PANE)});
 		const visible=pane&&pane.checkVisibility({visibilityProperty:true});
 		const card=document.querySelector('[data-approval-card]');
@@ -131,11 +144,21 @@ async function state() {
 			h1:pane?.querySelector('[data-plan-body] h1')?.textContent??"",
 			steps:pane?.querySelectorAll('[data-plan-body] ol > li').length??0,
 			hint:Boolean(pane?.querySelector('[data-plan-hint]')),
-			comments:[...(pane?.querySelectorAll('[data-plan-comment]')??[])].map(e=>e.textContent),
+			comments:[...(card?.querySelectorAll('[data-plan-comment-text]')??[])].map(e=>e.textContent),
+			numbers:[...(card?.querySelectorAll('[data-plan-comment-chip]')??[])].map(e=>e.firstElementChild?.textContent??""),
+			marks:[...(pane?.querySelectorAll('[data-plan-mark]')??[])].map(e=>e.textContent),
+			aligned:(()=>{
+				const ranges=[...(CSS.highlights.get('ly-plan-comment')??[])].sort((a,b)=>a.compareBoundaryPoints(Range.START_TO_START,b));
+				const marks=[...(pane?.querySelectorAll('[data-plan-mark]')??[])];
+				return ranges.length===marks.length&&ranges.every((range,i)=>{
+					const last=[...range.getClientRects()].filter(r=>r.width>0).pop();
+					const box=marks[i].getBoundingClientRect();
+					return last&&Math.abs(box.left-(last.right-2))<=2&&Math.abs(box.top+box.height/2-(last.top+1))<=2;
+				});
+			})(),
 			marked:CSS.highlights.get('ly-plan-comment')?.size??0,
 			draft:CSS.highlights.get('ly-plan-draft')?.size??0,
 			title:card?.querySelector('[data-approval-title]')?.textContent??"",
-			count:card?.querySelector('[data-approval-plan-comments]')?.textContent??"",
 			cardH2:card?.querySelectorAll('h2').length??0,
 			options:card?.querySelectorAll('[data-ly-question-option]').length??0,
 			actions:[...(card?.querySelectorAll('[data-plan-action]')??[])].map(e=>e.textContent),
@@ -199,12 +222,14 @@ try {
 	await pause(900);
 
 	const one = await state();
-	check("回车留下评论：列在正文下方，那段字换成评论的标记", one.comments.length === 1 && one.comments[0]!.includes("回调里先校验 state") && one.marked === 1 && one.draft === 0, { comments: one.comments, marked: one.marked, draft: one.draft });
-	check("审批卡上显示「1 条评论」", one.count === "1 条评论", one.count);
+	check("回车留下评论：评论列在审批卡上，前面挂序号 1", one.comments.length === 1 && one.comments[0]!.includes("回调里先校验 state") && one.numbers.join() === "1" && one.draft === 0, { comments: one.comments, numbers: one.numbers, draft: one.draft });
+	check("面板里那段字画下划线，最后一个字的右上角挂同号的序号", one.marked === 1 && one.marks.join() === "1" && one.aligned, { marked: one.marked, marks: one.marks, aligned: one.aligned });
+	check("面板底下不再列评论", (await app.evaluate<number>(`document.querySelectorAll('${PANE} [data-plan-comments]').length`)) === 0, null);
+	check("审批卡换成修订态：补充框、拒绝、接受、修订", one.actions.map((label) => label.replace(/[^\p{Script=Han}]/gu, "")).join("|") === "拒绝|接受" && await app.evaluate<string>(`document.querySelector('[data-plan-revise-input]')?.placeholder ?? ""`) === "还有什么要补充的吗？" && await app.evaluate<boolean>(`Boolean(document.querySelector('[data-plan-send-revision]'))`), one.actions);
 
 	await comment("旧的密码登录保留一个版本", "不用保留，直接删掉");
 	const two = await state();
-	check("第二条评论，按正文里的先后排", two.comments.length === 2 && two.comments[1]!.includes("直接删掉") && two.marked === 2 && two.count === "2 条评论", { comments: two.comments, marked: two.marked });
+	check("第二条评论，按正文里的先后编成 1、2，面板上两枚序号对得上", two.comments.length === 2 && two.comments[1]!.includes("直接删掉") && two.numbers.join() === "1,2" && two.marks.join() === "1,2" && two.aligned, { comments: two.comments, numbers: two.numbers, marks: two.marks, aligned: two.aligned });
 	await photo("03_两条评论");
 
 	await closeTab(app, "plan");
@@ -214,24 +239,52 @@ try {
 	await until(app, `document.querySelector(${JSON.stringify(BODY)})`, 300);
 	await pause(800);
 	const back = await state();
-	check("点卡片上的「打开计划」叫回来，评论还在", back.pane && back.comments.length === 2 && back.marked === 2, { pane: back.pane, comments: back.comments.length, marked: back.marked });
+	check("点卡片上的「打开计划」叫回来，划线和序号还在", back.pane && back.comments.length === 2 && back.marked === 2 && back.marks.join() === "1,2" && back.aligned, { pane: back.pane, comments: back.comments.length, marks: back.marks, aligned: back.aligned });
 	await photo("04_打开计划叫回面板");
 
-	await click(app, '[data-plan-action="revise"]');
-	await until(app, "document.activeElement?.matches('[data-plan-revise-input]')", 300);
+	await click(app, "[data-plan-revise-input]");
 	await pause(400);
 	await app.send("Input.insertText", { text: "另外拆成两次提交" });
 	await pause(700);
 	await photo("05_修改意见");
 	await click(app, "[data-plan-send-revision]");
-	await until(app, "!document.querySelector('[data-approval-card]')", 1200);
+	// 打回之后假模型立刻重交第二版，旧卡和新卡之间几乎没有空档：等的是第二版摊开。
+	await until(app, `document.querySelector(${JSON.stringify(BODY)})?.textContent.includes("删掉旧的密码登录")`, 1500);
 	await pause(1500);
 	const feedback = requests.find((request) => request.tail.includes('"tool_result"'))?.tail ?? "";
-	check("点「修改…」写一句发出，那句话和两条评论连着引文进了发给模型的工具结果", feedback.includes("另外拆成两次提交") && feedback.includes("加 OAuth 回调路由") && feedback.includes("回调里先校验 state") && feedback.includes("旧的密码登录保留一个版本") && feedback.includes("直接删掉"), feedback.slice(0, 400));
+	check("在补充框里写一句点「修订」，那句话和两条评论连着引文进了发给模型的工具结果", feedback.includes("另外拆成两次提交") && feedback.includes("加 OAuth 回调路由") && feedback.includes("回调里先校验 state") && feedback.includes("旧的密码登录保留一个版本") && feedback.includes("直接删掉"), feedback.slice(0, 400));
 
 	const after = await state();
-	check("审批结束后面板留着那份计划，只读：提示、评论、标记都撤了", after.pane && after.steps === 5 && !after.hint && after.comments.length === 0 && after.marked === 0, after);
-	await photo("06_打回后面板只读");
+	check("打回后模型按评论重交第二版，面板换成新的那份，旧的划线和序号都撤了", after.pane && after.steps === 5 && after.marked === 0 && after.marks.length === 0, after);
+
+	// 第二版只留一条小意见，直接接受：评论作为注意事项带上，不再打回一轮。
+	await until(app, "document.querySelector('[data-approval-card]')", 1500);
+	await pause(1000);
+	await photo("06_第二版交上来");
+	await comment("补回调和会话写入的测试", "测试只补回调那一条就行");
+	const noted = await state();
+	const tip = await app.evaluate<string>(`document.querySelector('[data-plan-action="accept"]')?.getAttribute('data-ly-tip') ?? ""`);
+	check("第二版从零开始，留一条后序号是 1；接受按钮说明评论会作为注意事项带上", noted.comments.length === 1 && noted.numbers.join() === "1" && noted.marks.join() === "1" && noted.aligned && tip === "1 条评论会作为注意事项一起带上，计划不重写", { numbers: noted.numbers, marks: noted.marks, tip });
+	await photo("07_第二版留一条评论");
+	const before = requests.length;
+	await click(app, '[data-plan-action="accept"]');
+	await until(app, "!document.querySelector('[data-approval-card]')", 1200);
+	await until(app, "document.querySelector('[data-ly-task-list]')", 1200).catch(() => undefined);
+	await pause(1500);
+	const approval = requests.slice(before).find((request) => request.tail.includes("approved the plan"))?.tail ?? "";
+	check("接受时评论随批准一起交给模型：带着「执行时注意」和那条评论，不是打回", approval.includes("approved the plan with notes") && approval.includes("执行时注意") && approval.includes("测试只补回调那一条就行") && !approval.includes("did not approve"), approval.slice(0, 400));
+	const done = await app.evaluate<{ status: string; notes: boolean; tasks: string }>(`(()=>{
+		const pane=document.querySelector(${JSON.stringify(PANE)});
+		const body=pane?.querySelector('[data-plan-body]');
+		return {
+			status:pane?.querySelector('[data-plan-status]')?.textContent??"",
+			notes:[...(body?.querySelectorAll('h2')??[])].some(e=>e.textContent==="执行时注意") && (body?.textContent.includes("测试只补回调那一条就行")??false),
+			tasks:document.querySelector('[data-ly-task-list]')?.textContent??"",
+		};
+	})()`);
+	check("面板显示已批准的第二版，末尾多一节「执行时注意」", done.status === "已批准" && done.notes, done);
+	check("任务清单列出第二版的五步", REVISED.steps.every((step) => done.tasks.includes(step.what)), done.tasks.slice(0, 200));
+	await photo("08_带评论接受后");
 	await pause(800);
 } catch (error) {
 	check("验证脚本跑完", false, String(error));

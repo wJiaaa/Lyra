@@ -1,7 +1,8 @@
 /**
- * 计划模式交上来的计划，等人拍板的那张卡：一行标题、一排动作。
+ * 计划模式交上来的计划，等人拍板的那张卡：一行标题、一排动作；有评论时评论按序号列在卡上，下面接一个补充框。
  *
- * 计划本身在右栏的计划面板里读、划线评论（见 `dock/panels/PlanPanel.tsx`），这里不再画一遍正文，也不走
+ * 计划本身在右栏的计划面板里读、划线评论（见 `dock/panels/PlanPanel.tsx`），评论落在这张卡上——序号和面板里
+ * 那段字末尾的那枚一样，对得上号。这里不再画一遍正文，也不走
  * 业务提问那套选项列表——四个动作各是一个按钮，键盘直达：Esc 修改，⌘↵ 主按钮，⇧⌘↵ 接受。窄窗口的右栏
  * 一次只摆一格，开面板会盖住这张卡，所以那时正文仍画在卡里。
  *
@@ -16,7 +17,10 @@ import { useApp, type AppState } from "../../store/index.ts";
 import { planFeedback, usePlanReview } from "../../store/plan-review.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { macKeyboard, shortcutLabel } from "../../ui/keyboard.ts";
+import { MessageCircle, X } from "../../ui/icons/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { MarkNumber } from "../../ui/primitives/MarkNumber.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
 /*
@@ -76,10 +80,19 @@ export function PlanApproval({ request, sessionId, compact, renderPlan, openPlan
 			useApp.getState().notify(error instanceof Error ? error.message : String(error), "error");
 		}
 	}
-	const accept = () => void answer({ answer: approve });
+	/*
+	 * 有评论时接受，评论作为执行时的注意事项随批准一起交出去，计划不重写。原先接受只发「批准」，划过的评论
+	 * 悄悄作废——人以为模型看到了。要按评论改计划，走「修改…」。
+	 */
+	const notes = planFeedback(comments);
+	const approval: ApprovalDecision = { answer: approve, ...(notes ? { note: notes } : {}) };
+	const notesTip = comments.length > 0 ? t("plan.notesOnAccept", { n: comments.length }) : undefined;
+	const accept = () => void answer(approval);
 	// 先换档再放行：批准那一刻 agent 就接着往下跑，第一步的工具调用该已经按自动档判。
-	const acceptAuto = () => void answer({ answer: approve }, async () => { if (settings) await saveSettings({ ...settings, permissionMode: "auto" }); });
+	const acceptAuto = () => void answer(approval, async () => { if (settings) await saveSettings({ ...settings, permissionMode: "auto" }); });
 	const reject = () => void answer("reject");
+	// 有评论就是在改：评论列在卡上，下面接着写，主按钮是「修订」。没有评论时按 Esc 也进这一态。
+	const editing = revising || comments.length > 0;
 	const feedback = planFeedback(comments, text);
 	const revise = () => { if (feedback) void answer({ answer: feedback }); };
 	const cancelRevise = () => {
@@ -89,10 +102,10 @@ export function PlanApproval({ request, sessionId, compact, renderPlan, openPlan
 	};
 
 	function onKey(event: React.KeyboardEvent<HTMLDivElement>) {
-		if (event.nativeEvent.isComposing || revising) return;
+		if (event.nativeEvent.isComposing || event.target instanceof HTMLTextAreaElement) return;
 		if (event.key === "Escape") {
 			event.preventDefault();
-			setRevising(true);
+			if (!editing) setRevising(true);
 		} else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 			event.preventDefault();
 			if (event.shiftKey || !offerAuto) accept();
@@ -106,24 +119,46 @@ export function PlanApproval({ request, sessionId, compact, renderPlan, openPlan
 			className="ly-glass flex max-h-[min(560px,calc(100dvh-14rem))] w-full max-w-[var(--ly-content)] flex-col gap-[var(--ly-composer-in)] overflow-hidden rounded-xl border border-line px-[var(--ly-composer-x)] pb-[var(--ly-composer-in)] pt-[var(--ly-composer-x)] outline-none">
 			<div className="flex shrink-0 items-center gap-3">
 				<span className="min-w-0 flex-1 truncate text-body font-medium text-ink" data-approval-title="">{t("plan.approvalTitle")}</span>
-				{comments.length > 0 && <span className="shrink-0 text-caption text-ink-faint" data-approval-plan-comments="">{t("plan.commentCount", { n: comments.length })}</span>}
 				{tags}
 				{/* 一段可点的字，不是按钮的形状：标题行右端的链接，`Button` 没有强调色的字。 */}
 				<button type="button" onClick={openPlan} className="shrink-0 cursor-pointer rounded text-detail text-accent hover:underline focus-visible:underline" data-approval-open-plan="">{t("plan.open")}</button>
 			</div>
 			{compact && <Scroller className="ly-approval-scroll -mx-2 min-h-0" contentClassName="px-2">{renderPlan(request.detail)}</Scroller>}
-			{revising ? (
-				<form className="flex shrink-0 flex-col gap-2" onSubmit={(event) => { event.preventDefault(); revise(); }}>
+			{editing ? (
+				<form className="flex min-h-0 flex-col gap-[var(--ly-composer-in)]" onSubmit={(event) => { event.preventDefault(); revise(); }}>
+					{comments.length > 0 && (
+						<Scroller className="-mx-1 min-h-0 max-h-[min(240px,30dvh)]" contentClassName="px-1">
+							<ol className="flex flex-col gap-1.5" data-plan-comment-list="">
+								{comments.map((comment, index) => (
+									<li key={comment.id} className="flex items-start gap-2.5 rounded-lg bg-shell py-2 pr-1.5 pl-2.5" data-plan-comment-chip="">
+										<MarkNumber n={index + 1} className="mt-[3px]" />
+										<div className="min-w-0 flex-1">
+											<p className="flex min-w-0 items-center gap-1.5 text-caption text-ink-faint">
+												<MessageCircle size={12} strokeWidth={1.8} className="shrink-0" aria-hidden />
+												<span className="truncate" data-plan-comment-quote="">{comment.quote.replace(/\s+/g, " ")}</span>
+											</p>
+											<p className="mt-0.5 whitespace-pre-wrap break-words text-label text-ink" data-plan-comment-text="">{comment.text}</p>
+										</div>
+										<IconButton size="sm" icon={<X size={13} strokeWidth={1.9} />} label={t("plan.deleteComment")} onClick={() => sessionId && usePlanReview.getState().remove(sessionId, comment.id)} data-plan-comment-delete="" />
+									</li>
+								))}
+							</ol>
+						</Scroller>
+					)}
 					<Textarea
-						autoFocus
+						autoFocus={revising}
 						rows={2}
 						value={text}
 						disabled={pending}
-						placeholder={t("plan.revisePlaceholder")}
+						placeholder={t(comments.length > 0 ? "plan.addMore" : "plan.revisePlaceholder")}
 						aria-label={t("plan.revise")}
 						onChange={(event) => setText(event.target.value)}
 						onKeyDown={(event) => {
-							if (event.key === "Enter" && !event.shiftKey) {
+							if (event.nativeEvent.isComposing) return;
+							if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+								event.preventDefault();
+								accept();
+							} else if (event.key === "Enter" && !event.shiftKey) {
 								event.preventDefault();
 								revise();
 							} else if (event.key === "Escape") {
@@ -132,12 +167,16 @@ export function PlanApproval({ request, sessionId, compact, renderPlan, openPlan
 								cancelRevise();
 							}
 						}}
-						className="w-full resize-none rounded-lg bg-shell px-3 py-2 text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+						className="w-full shrink-0 resize-none rounded-lg bg-shell px-3 py-2 text-label leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
 						data-plan-revise-input=""
 					/>
-					<div className="flex items-center justify-end gap-2">
-						{comments.length > 0 && <span className="mr-auto text-caption text-ink-muted">{t("plan.commentsAttached", { n: comments.length })}</span>}
-						<Button variant="soft" disabled={pending} onClick={cancelRevise}>{t("common.cancel")}<Keys keys={["Esc"]} /></Button>
+					<div className="flex shrink-0 items-center gap-2" data-approval-plan-actions="">
+						{/* 有评论时这一排仍然能拒绝、能接受：评论只是把「修订」顶成主按钮，别的路一条不少。 */}
+						{comments.length > 0
+							? <Button variant="soft" disabled={pending} onClick={reject} data-plan-action="reject">{t("plan.reject")}</Button>
+							: <Button variant="soft" disabled={pending} onClick={cancelRevise}>{t("common.cancel")}<Keys keys={["Esc"]} /></Button>}
+						<span className="flex-1" />
+						<Button variant="soft" disabled={pending} onClick={accept} label={notesTip} data-plan-action="accept">{t("plan.accept")}<Keys keys={["⌘", "↩"]} /></Button>
 						<Button type="submit" variant="primary" disabled={pending || !feedback} data-plan-send-revision="">{t("plan.sendRevision")}<Keys keys={["↩"]} /></Button>
 					</div>
 				</form>

@@ -244,6 +244,8 @@ export interface ApprovedPlan {
 	steps: { what: string; files?: string[] }[];
 	risks: string[];
 	unknowns: string[];
+	/** 人批准时附上的注意事项（多是在计划上划线留的评论）：不改计划，执行时照着做。 */
+	notes?: string;
 	approvedAt: number;
 }
 

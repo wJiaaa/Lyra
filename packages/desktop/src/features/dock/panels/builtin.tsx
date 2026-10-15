@@ -312,7 +312,10 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		detach: "self",
 	},
 	/*
-	 * 计划模式交上来的计划——由审批卡打开，不进「+」菜单：没有计划时它什么也没有。
+	 * 计划模式交上来的计划。计划交上来时审批卡替人打开；这场对话交过计划以后，「面板」菜单和「+」里
+	 * 一直有它，没交过就不列——空的计划面板没有可看的。
+	 *
+	 * 正文从会话历史里读（`currentPlan`），所以重启、换会话回来都还在，布局里留着它也不会开出一格空的。
 	 * 评论只在这个渲染进程的内存里（`store/plan-review.ts`），弹出去的窗口拿不到，所以不给弹出。
 	 */
 	{
@@ -320,9 +323,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		label: "plan.title",
 		icon: ListOrdered,
 		shortcut: "",
-		listed: false,
-		ephemeral: true,
-		unavailable: needsSession,
+		unavailable: (state) => needsSession(state) ?? (state.plan ? undefined : "plan.none"),
 		detach: "none",
 		render: PlanPane,
 	},

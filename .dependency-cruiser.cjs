@@ -120,6 +120,8 @@ module.exports = {
 				"`mcp/form` 一个 import 都没有：MCP 表单哪一格没填对，窗口画提示、闸门收答案，两处必须是同一个判断。" +
 				"`ui-language/` 整个目录一个 import 都不出去：界面块的解析、检查与组件表，模型在提示词里读到的、" +
 				"运行时回报给它的、桌面端画出来的，必须是同一份规则——两处各写一遍，就是模型学的属性被渲染器悄悄丢掉。" +
+				"`runtime/plan-view` 只有一个 `import type`：计划长什么样、会话里眼下是哪一份，审批卡、压缩快照和右栏计划面板" +
+				"必须是同一个答案——面板自己从历史里另找一遍，迟早和模型手上那份对不上。" +
 				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
@@ -127,7 +129,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-choice|config/models|config/image-models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|mcp/form|ai/thinking-options|runtime/delegation)\\.ts$" +
+					"|^packages/core/src/(config/schedule|config/model-choice|config/models|config/image-models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|mcp/form|ai/thinking-options|runtime/delegation|runtime/plan-view)\\.ts$" +
 					"|^packages/core/src/ui-language/(index|catalog|chart|check|expression|parse)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},

@@ -13,6 +13,7 @@
 		"./tokens": "./src/tokens.ts",
 		"./activity": "./src/activity.ts",
 		"./trajectory-view": "./src/trajectory-view.ts",
+		"./plan-view": "./src/runtime/plan-view.ts",
 		"./commands-view": "./src/commands-view.ts",
 		"./schedule": "./src/config/schedule.ts",
 		"./model-choice": "./src/config/model-choice.ts",
