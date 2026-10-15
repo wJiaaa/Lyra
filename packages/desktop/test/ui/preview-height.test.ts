@@ -45,7 +45,7 @@ const loaded = () => act(async () => void frame().dispatchEvent(new dom.Event("l
 const reports = (asked: number) =>
 	act(async () => void window.dispatchEvent(new dom.MessageEvent("message", { data: { __dwPreviewHeight: asked }, source: frame().contentWindow })));
 
-async function card(props: { startHeight?: number } = {}): Promise<void> {
+async function card(props: { startHeight?: number; preview?: PreviewInfo } = {}): Promise<void> {
 	view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(PreviewCard, { preview: PREVIEW, ...props }) }));
 }
 
@@ -122,6 +122,43 @@ test("「重新运行」之后重新量：新页面的报告定下新高度，�
 	assert.equal(height(), "300px", "the new page's first report was taken for a late one from the old, settled survey");
 	assert.equal(shown(), true);
 });
+
+for (const themed of [false, true]) {
+	test(`${themed ? "主题" : "普通"}预览收起后保留网页与自然布局，展开恢复全文高度和焦点`, async () => {
+		await card({ preview: { ...PREVIEW, themed } });
+		await loaded();
+		await reports(1200);
+		await tick(400);
+		await act(async () => view!.find<HTMLButtonElement>('button[aria-label="展开全部"]').click());
+		assert.equal(height(), "1200px");
+		const page = frame();
+		const src = page.src;
+		const toggle = view!.find<HTMLButtonElement>("[data-ly-preview-toggle]");
+		toggle.focus();
+		assert.equal(toggle.getAttribute("aria-expanded"), "true");
+		const content = view!.find<HTMLElement>(".ly-reveal");
+
+		await act(async () => toggle.click());
+		assert.equal(content.getAttribute("aria-hidden"), "true");
+		assert.equal(content.inert, true);
+		assert.equal(toggle.getAttribute("aria-expanded"), "false");
+		assert.equal(document.activeElement, toggle);
+		await reports(1600);
+		await tick(400);
+		assert.equal(height(), "1600px", "收起时仍保留自然布局，列宽变化后的真实高度也要更新");
+
+		await act(async () => toggle.click());
+		assert.equal(content.getAttribute("aria-hidden"), "false");
+		assert.equal(content.inert, false);
+		assert.equal(toggle.getAttribute("aria-expanded"), "true");
+		assert.equal(frame(), page, "展开不能重建 iframe");
+		assert.equal(frame().src, src, "展开不能导航或重新加载页面");
+		assert.equal(height(), "1600px");
+		assert.equal(document.activeElement, toggle);
+		await act(async () => view!.find<HTMLButtonElement>('button[aria-label="自适应高度"]').click());
+		assert.equal(height(), "720px", "整块折叠不能破坏原有的全文展开和缩回");
+	});
+}
 
 test("没套主题的页面，边框在高度之外：卡片给页面的正好是它要的高度", async () => {
 	await card();

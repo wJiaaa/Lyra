@@ -2186,6 +2186,8 @@ export const en = {
 	"sourceFilter.kind": "Kind",
 	"sourceFilter.status": "Status",
 	"preview.longer": "Show all",
+	"preview.collapse": "Collapse preview",
+	"preview.expand": "Expand preview: {title}",
 	"interface.sent": "Sent",
 	"preview.fitHeight": "Fit the height",
 	"preview.maximise": "Make it as big as it goes",

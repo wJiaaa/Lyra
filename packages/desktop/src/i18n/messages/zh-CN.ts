@@ -2371,6 +2371,8 @@ export const zhCN = {
 	"sourceFilter.kind": "记录类型",
 	"sourceFilter.status": "执行状态",
 	"preview.longer": "展开全部",
+	"preview.collapse": "收起预览",
+	"preview.expand": "展开预览：{title}",
 	"interface.sent": "已发送",
 	"preview.fitHeight": "自适应高度",
 	"preview.maximise": "放到最大",

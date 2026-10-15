@@ -1,8 +1,10 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, ChevronsDown, Copy, ExternalLink, Maximize2, Minimize2, RotateCw, SlidersHorizontal } from "../../ui/icons/index.ts";
+import { AppWindow, Check, ChevronRight, ChevronsDown, Copy, ExternalLink, Maximize2, Minimize2, RotateCw, SlidersHorizontal } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide } from "../dock/index.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
@@ -66,11 +68,8 @@ function previewUrl(preview: PreviewInfo): string {
  * in one second what a fenced code block takes a paragraph to explain, and a layout put up for
  * approval is answered by looking at it. So it renders here, in place, already interactive.
  *
- * It is a piece of the conversation, not an application window sitting in one. There was a title
- * bar here — a name and three buttons across the top, on a card with its own border — and it
- * announced itself twice: the page nearly always opens with its own heading, and the bar repeated
- * it above a strip of chrome that did nothing until you wanted it. Now the page is simply there,
- * and the controls surface on hover the way a message's own actions do.
+ * The title stays as a conversation flow row so folding and reopening use the same control.
+ * It adds no card chrome around themed pages; page actions stay over the page itself.
  *
  * Inside a sandboxed frame with `allow-scripts` and nothing else — no same-origin, so it cannot
  * reach this window; no top-navigation, so it cannot replace the app with something else. It is
@@ -116,6 +115,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	/** Once the page is on screen — the draft over it can go. */
 	onShown?: () => void;
 }) {
+	const [collapsed, setCollapsed] = useState(false);
 	const [nonce, setNonce] = useState(0);
 	const [tall, setTall] = useState(false);
 	const [ready, setReady] = useState(false);
@@ -382,7 +382,23 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	 */
 	const themed = look !== null;
 	return (
-		<>
+		<div>
+		<button
+			type="button"
+			aria-expanded={!collapsed}
+			aria-label={translate(collapsed ? "preview.expand" : "preview.collapse", { title: preview.title })}
+			data-ly-preview-toggle
+			data-expandable=""
+			data-open={collapsed ? undefined : ""}
+			className="ly-flow-row ly-scroll w-full cursor-pointer text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+			onClick={() => setCollapsed((value) => !value)}
+		>
+			<span className="ly-flow-lead"><AppWindow size={13} strokeWidth={1.8} aria-hidden /></span>
+			<span className="ly-flow-summary"><ScrollText text={preview.title} /></span>
+			<ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" aria-hidden />
+		</button>
+		{/* Keep the frame's layout and state while folding, including measurements when the column resizes. */}
+		<Collapse open={!collapsed} keepMounted bodyClassName="pt-1.5 pl-[22px]">
 		<div
 			ref={host}
 			data-ly-preview={themed ? "themed" : "card"}
@@ -405,7 +421,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			 * has no border; nor does a draft hand its height to one that has: a draft is drawn only for a
 			 * page written in the call, and only a file from disk is shown unthemed.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `box-content border border-line-soft ${capturing ? "" : "rounded-xl"}`} ${
+			className={`relative overflow-hidden ${themed ? "" : `box-content border border-line-soft ${capturing ? "" : "rounded-xl"}`} ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>
@@ -588,6 +604,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 				}}
 			/>
 		)}
-		</>
+		</Collapse>
+		</div>
 	);
 }
