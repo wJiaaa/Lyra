@@ -5,6 +5,7 @@ import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { displayPath } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
+import { scratchFile } from "./scratch-file.ts";
 
 const MAX_ENTRIES = 400;
 
@@ -30,7 +31,14 @@ export const lsTool: Tool<LsArgs> = {
 	async execute(args, ctx): Promise<ToolResult> {
 		let absolute = ctx.cwd;
 		if (args.path) {
-			const authorized = await authorizeRead(ctx, args.path);
+			// 和 read/edit/write 认同一个 `scratch://`：不换成真实目录，它会被当成相对路径拼成 `<cwd>/scratch:/`。
+			let scratch: string | null;
+			try {
+				scratch = await scratchFile(ctx, args.path);
+			} catch (error) {
+				return errorResult(error instanceof Error ? error.message : String(error));
+			}
+			const authorized = await authorizeRead(ctx, scratch ?? args.path);
 			if (!authorized.ok) return errorResult(authorized.message);
 			absolute = authorized.absolute;
 		}

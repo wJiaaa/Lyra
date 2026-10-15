@@ -17,6 +17,8 @@ import { BUILTIN_RESOURCES } from "../src/resources/handlers.ts";
 import { parseResourceUrl, ResourceRouter, resolveInside } from "../src/resources/router.ts";
 import type { ResourceContext } from "../src/resources/types.ts";
 import { editTool } from "../src/tools/edit.ts";
+import { lsTool } from "../src/tools/ls.ts";
+import { readLocalPageFor } from "../src/tools/preview.ts";
 import { readTool } from "../src/tools/read.ts";
 import { writeTool } from "../src/tools/write.ts";
 import type { ToolContext } from "../src/types.ts";
@@ -347,6 +349,37 @@ test("edit takes a scratch address after write or read of the same address", asy
 	const afterRead = await editTool.execute({ path: "scratch://made-by-bash.ts", old_string: "1", new_string: "2" } as never, c);
 	assert.equal(afterRead.isError, undefined, textOf(afterRead));
 	assert.equal(await readFile(join(scratchDir, "made-by-bash.ts"), "utf8"), "let x = 2;\n");
+});
+
+// ls 和 preview 以前把 `scratch://` 当成相对路径，拼成 `<cwd>/scratch:/`，永远找不到。
+test("ls lists a scratch address as the scratch directory", async () => {
+	const c = toolCtx();
+	await writeTool.execute({ path: "scratch://listed/page.html", content: "<h1>hi</h1>" } as never, c);
+	const top = await lsTool.execute({ path: "scratch://" }, c);
+	assert.equal(top.isError, undefined, textOf(top));
+	assert.match(textOf(top), /^listed\/$/m);
+	const inner = await lsTool.execute({ path: "scratch://listed" }, c);
+	assert.match(textOf(inner), /^page\.html {2}\(/m);
+});
+
+test("ls of a scratch address that leaves through a symlink is refused with the reason", async () => {
+	const target = await mkdtemp(join(tmpdir(), "ly-scratch-ls-out-"));
+	try {
+		await symlink(target, join(scratchDir, "ls-out"));
+		const result = await lsTool.execute({ path: "scratch://ls-out" }, toolCtx());
+		assert.ok(result.isError);
+		assert.match(textOf(result), /临时目录外面/);
+	} finally {
+		await rm(join(scratchDir, "ls-out"), { force: true });
+		await rm(target, { recursive: true, force: true });
+	}
+});
+
+test("a preview or browser page given a scratch address opens that file", async () => {
+	await writeFile(join(scratchDir, "todo.html"), "<h1>todo</h1>");
+	const page = await readLocalPageFor(toolCtx(), "scratch://todo.html");
+	assert.ok("content" in page, "error" in page ? page.error : "");
+	assert.equal(page.content, "<h1>todo</h1>");
 });
 
 test("a session with no router reads addresses as ordinary paths", async () => {

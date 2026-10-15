@@ -4,6 +4,7 @@ import { basename, isAbsolute, relative } from "node:path";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { authorizeRead } from "./read-access.ts";
+import { scratchFile } from "./scratch-file.ts";
 
 interface PreviewArgs {
 	title?: string;
@@ -198,11 +199,17 @@ export async function readLocalPage(absolute: string): Promise<string> {
 	return readFile(absolute, "utf8");
 }
 
-/** `readLocalPage` for a tool: the path is the model's, so it is judged the way every other read is. */
+/**
+ * `readLocalPage` for a tool: the path is the model's, so it is judged the way every other read is.
+ *
+ * A `scratch://` address becomes its file on disk, the same one read/edit/write resolve to; taken as a
+ * relative path it was `<cwd>/scratch:/x.html`, which never exists. Both `preview`'s `path` and
+ * `browser_open` on a local page come through here.
+ */
 export async function readLocalPageFor(ctx: ToolContext, path: string): Promise<{ content: string; absolute: string } | { error: string }> {
-	const allowed = await authorizeRead(ctx, path);
-	if (!allowed.ok) return { error: allowed.message };
 	try {
+		const allowed = await authorizeRead(ctx, (await scratchFile(ctx, path)) ?? path);
+		if (!allowed.ok) return { error: allowed.message };
 		return { content: await readLocalPage(allowed.absolute), absolute: allowed.absolute };
 	} catch (error) {
 		return { error: error instanceof Error ? error.message : String(error) };
