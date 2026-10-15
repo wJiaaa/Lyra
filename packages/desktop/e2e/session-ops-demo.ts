@@ -369,8 +369,8 @@ async function main(): Promise<void> {
 				};
 			})()`);
 			check("侧栏里它挂在提建议的那一行下面，不是并排的一行", nest.nested && nest.above === origin, JSON.stringify(nest));
-			// 拐角对着父会话那枚状态点的竖线位置，子行缩进一格。
-			check("分支拐角对着父会话的状态点，子行缩进一格", Math.abs(nest.branchX - nest.markX) <= 1.5 && nest.indent >= 20 && nest.indent <= 24, JSON.stringify(nest));
+			// 拐角在父会话那枚状态点的竖线位置再往右 5px，子行缩进一格。
+			check("分支拐角在父会话状态点右侧 5px，子行缩进一格", Math.abs(nest.branchX - nest.markX - 4) <= 1.5 && nest.indent >= 25 && nest.indent <= 29, JSON.stringify(nest));
 			console.log(`      分支线：${JSON.stringify(nest.line)}`);
 			check("分支线是这一行里的一小段「└」：不越过这一行的框、不往上连到父会话", nest.inside && Boolean(nest.line && nest.line.h >= 6 && nest.line.h <= 12 && nest.line.w >= 6 && nest.line.top.includes("rounded-bl")), JSON.stringify({ inside: nest.inside, line: nest.line }));
 		}

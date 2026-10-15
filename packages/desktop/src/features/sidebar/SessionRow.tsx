@@ -281,7 +281,7 @@ export function SessionRow({
 				 * row's box — run up to the parent and it spills past the hover background.
 				 */}
 				{nested && (
-					<span aria-hidden data-ly-row-branch className="relative w-3.5 shrink-0 self-stretch">
+					<span aria-hidden data-ly-row-branch className="relative ml-[5px] w-3.5 shrink-0 self-stretch">
 						<span className="absolute top-[5px] right-[-1px] bottom-1/2 left-[6px] rounded-bl-sm border-b border-l border-ink-faint" />
 					</span>
 				)}
