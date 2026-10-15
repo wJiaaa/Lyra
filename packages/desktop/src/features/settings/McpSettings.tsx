@@ -231,6 +231,7 @@ function ServerCard({
 }) {
 	const { t } = useI18n();
 	const menu = usePopover();
+	const managed = server.managedBy === "magpie";
 	/*
 	 * The launch settings and the tool list, opened on demand from the header rather than sitting as
 	 * two disclosure rows at the foot of every card. A page of three servers used to be three names and
@@ -269,6 +270,7 @@ function ServerCard({
 				<div className="min-w-0 flex-1">
 					<Input
 						value={server.name}
+						readOnly={managed}
 						onChange={(e) => onUpdate({ name: e.target.value })}
 						aria-label={t("mcpSettings.name")}
 						className="w-full min-w-0 truncate bg-transparent text-body text-ink focus:outline-none"
@@ -299,7 +301,7 @@ function ServerCard({
 					className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 aria-expanded:bg-card-hover aria-expanded:text-ink aria-expanded:opacity-100"
 					icon={<SlidersHorizontal size={14} strokeWidth={1.9} aria-hidden />}
 				/>
-				<Toggle checked={server.enabled} onChange={(enabled) => onUpdate({ enabled })} ariaLabel={t("market.enableNamed", { name: server.name })} />
+				<Toggle checked={server.enabled} disabled={managed} onChange={(enabled) => onUpdate({ enabled })} ariaLabel={t("market.enableNamed", { name: server.name })} />
 				<IconButton
 					label={t("common.more")}
 					ariaLabel={t("plugins.moreFor", { name: server.name })}
@@ -310,7 +312,8 @@ function ServerCard({
 				/>
 			</div>
 
-			{(missing.length > 0 || (server.needs?.length ?? 0) > 0) && (
+			{managed && <p className="border-t border-line-soft px-4 py-2.5 text-detail text-ink-muted">{t("mcpSettings.magpieManaged")}</p>}
+			{!managed && (missing.length > 0 || (server.needs?.length ?? 0) > 0) && (
 				<div className="border-t border-line-soft px-4 py-3.5">
 					<McpKeys servers={[server]} compact />
 				</div>
@@ -345,7 +348,7 @@ function ServerCard({
 			)}
 
 			<Collapse open={open === "launch"}>
-				<div className="border-t border-line-soft px-4 pt-3 pb-1">
+				<fieldset disabled={managed} className="border-t border-line-soft px-4 pt-3 pb-1">
 					<div className="space-y-3 pt-1 pb-2">
 							{server.transport === "stdio" ? (
 								<>
@@ -398,7 +401,7 @@ function ServerCard({
 								<Toggle checked={server.pinned === true} onChange={(pinned) => onUpdate({ pinned })} ariaLabel={t("mcpSettings.pinned")} />
 							</div>
 						</div>
-				</div>
+				</fieldset>
 			</Collapse>
 			<Collapse open={open === "tools"}>
 				<div className="space-y-1 border-t border-line-soft px-4 py-3">
@@ -447,8 +450,8 @@ function ServerCard({
 								{t("mcpSettings.reconnect")}
 							</MenuItem>
 						)}
-						{(onOpenInMarket || folder || server.enabled) && <MenuSeparator />}
-						<MenuItem
+						{!managed && (onOpenInMarket || folder || server.enabled) && <MenuSeparator />}
+						{!managed && <MenuItem
 							danger
 							icon={<Trash2 size={13} strokeWidth={1.8} />}
 							onClick={() => {
@@ -457,7 +460,7 @@ function ServerCard({
 							}}
 						>
 							{server.origin ? t("mcp.uninstall") : t("common.delete")}
-						</MenuItem>
+						</MenuItem>}
 					</MenuBody>
 				</Popover>
 			)}

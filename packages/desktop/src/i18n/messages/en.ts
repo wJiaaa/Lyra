@@ -602,6 +602,7 @@ export const en = {
 	"mcpSettings.logout": "Sign out",
 	"mcpSettings.signedIn": "Signed in with OAuth. The tokens are stored encrypted on this machine.",
 	"mcpSettings.name": "Name",
+	"mcpSettings.magpieManaged": "Managed by Magpie. Edit, enable or remove this server in Magpie’s Library, then restart Plume to apply the change. Fill missing credentials in Magpie.",
 	"mcpSettings.launch": "How it starts, and its environment",
 	"mcpSettings.command": "Command",
 	"mcpSettings.viewInMarket": "View in the market",

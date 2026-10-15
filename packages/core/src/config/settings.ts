@@ -14,6 +14,7 @@ import { MCP_OAUTH_PREFIX } from "../mcp/oauth.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 import { loadProjectLayer, mergeLayer, type ConfigProblem } from "./layers.ts";
 import { withMagpieProvider, withoutMagpieProvider, type MagpieGateway } from "./magpie.ts";
+import { withMagpieMcp } from "./magpie-library.ts";
 
 /** How much the agent may do without stopping to ask. */
 export type PermissionMode =
@@ -645,7 +646,7 @@ async function withKeys(settings: Settings): Promise<Settings> {
 
 export async function loadSettings(): Promise<Settings> {
 	// magpie 的供应商在取回密钥之后才加：它的 key 就在文件里，vault 里也不该有它的一份。
-	return withMagpieProvider(await withKeys(await readSettingsFile()));
+	return withMagpieMcp(withMagpieProvider(await withKeys(await readSettingsFile())));
 }
 
 /**
@@ -882,8 +883,9 @@ export function saveSettings(settings: Settings): Promise<void> {
 }
 
 async function writeSettings(settings: Settings): Promise<void> {
-	// magpie 的供应商是读入时由 `magpie` 块合成的：进了 `providers` 就成了用户自己的、断开也删不掉。
-	settings = { ...settings, providers: withoutMagpieProvider(settings.providers) };
+	// 外部 MCP 不另存副本，但其 OAuth 登录仍需按完整的服务器列表保留。
+	const servers = new Set(settings.mcpServers.map((server) => server.id));
+	settings = { ...settings, providers: withoutMagpieProvider(settings.providers), mcpServers: settings.mcpServers.filter((server) => server.managedBy !== "magpie") };
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
 	/*
@@ -904,7 +906,6 @@ async function writeSettings(settings: Settings): Promise<void> {
 	await putSecrets(keys);
 	// Removed providers and servers — and a key somebody cleared — are forgotten in the same pass.
 	// 删掉的服务器，它的 OAuth 登录（`mcp/oauth.ts`）也一起忘掉；登录不经过这里写，所以按服务器在不在判断。
-	const servers = new Set(settings.mcpServers.map((server) => server.id));
 	await keepSecrets((id) =>
 		id.startsWith(MCP_OAUTH_PREFIX) ? servers.has(id.slice(MCP_OAUTH_PREFIX.length)) : (!id.startsWith("provider:") && !id.startsWith("mcp:")) || id in keys,
 	);

@@ -4,6 +4,7 @@ import { platform } from "node:os";
 import { basename, join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { imageModelRows } from "../config/image-models.ts";
+import { magpieInstructions } from "../config/magpie-library.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import { commandShell } from "../platform.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
@@ -40,7 +41,7 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 	profile?: PromptProfile;
 }) {
 	const { cwd, settings, profile, ...rest } = input;
-	const [memory, projectInstructions, identityOverride, guidelinesOverride, isolatedWorktree, isGitRepo] = await Promise.all([
+	const [memory, projectInstructions, identityOverride, guidelinesOverride, isolatedWorktree, isGitRepo, sharedInstructions] = await Promise.all([
 		/*
 		 * 按会话冻结记忆（见 `memory-inject.ts`）。暂存目录的最后一段就是会话 id（`scratchDir`），
 		 * 是两处调用方（组装一轮、上下文面板预估）都已经传进来的会话标识；没有它的调用方每次重读。
@@ -51,6 +52,7 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 		profile ? undefined : readPromptOverride(cwd, "guidelines"),
 		isIsolatedWorktree(cwd),
 		access(join(cwd, ".git")).then(() => true, () => false),
+		magpieInstructions(),
 	]);
 	return buildPromptContext({
 		...rest,
@@ -62,7 +64,7 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 		guidelinesOverride,
 		isolatedWorktree,
 		isGitRepo,
-		customInstructions: settings.personalization?.customInstructions,
+		customInstructions: [sharedInstructions, settings.personalization?.customInstructions].filter(Boolean).join("\n\n"),
 		tone: settings.personalization?.tone,
 		memorySnippet: memory.memorySnippet,
 		projectMemory: memory.projectMemory,

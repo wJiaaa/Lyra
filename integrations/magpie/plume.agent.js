@@ -14,6 +14,12 @@ export const agent = {
 	config: "~/.plume/settings.json",
 	model: "defaultModelId",
 	prefix: "magpie/",
+	library: {
+		instructions: "~/.plume/magpie/AGENTS.md",
+		mcp: "~/.plume/magpie/mcp.json",
+		mcpFormat: "claude",
+		skills: "~/.plume/skills",
+	},
 	notice: "Plume reads its settings when it starts: restart Plume to use the new model.",
 };
 

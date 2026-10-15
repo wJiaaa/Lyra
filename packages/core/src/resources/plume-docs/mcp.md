@@ -15,7 +15,7 @@ MCP 服务给 Plume 带来新工具（搜索、数据库、浏览器……），
 
 ## 配置存在哪
 
-只有一处：用户级的 `~/.plume/settings.json` 里的 `mcpServers`，对所有项目生效。**没有项目级 MCP**：项目里 `.plume/config.json` 写的 `mcpServers` 会被忽略（会话里提示一句「被忽略了」）；项目根目录的 `.mcp.json` 也不读，要用就在设置页手动加一遍。
+手动添加和市场安装的配置保存在用户级 `~/.plume/settings.json` 的 `mcpServers` 中，对所有项目生效。Magpie 资源库分发的服务另存于 `~/.plume/magpie/mcp.json`（Claude 格式的 `mcpServers` 对象），Plume 启动时合并到同一份服务器列表，设置页标明「由 Magpie 管理」。这类服务在 Magpie 中修改、启停和移除，重启 Plume 后生效；Plume 不会把它们复制进自己的设置。**没有项目级 MCP**：项目里 `.plume/config.json` 写的 `mcpServers` 会被忽略（会话里提示一句「被忽略了」）；项目根目录的 `.mcp.json` 也不读，要用就在设置页手动加一遍。
 
 手改文件时，`mcpServers` 是一个数组：
 

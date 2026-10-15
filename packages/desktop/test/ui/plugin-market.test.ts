@@ -12,6 +12,7 @@ import { act, createElement as h } from "react";
 import { DEFAULT_SETTINGS, type McpServerConfig, type Plugin, type RegistryEntry, type Settings } from "@plume/core";
 import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { PluginsView } from "../../src/features/plugins/PluginsView.tsx";
+import { McpSettings } from "../../src/features/settings/McpSettings.tsx";
 import { RegistrySources } from "../../src/features/plugins/RegistrySources.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
@@ -59,6 +60,7 @@ function stubBridge(scan: Scan, settings: Partial<Settings> = {}): Stub {
 				list: async () => stub.scan,
 				fetchRegistry: async () => ({ ok: true, registry: { url: REGISTRY, name: "Test", entries } }),
 				icons: async () => ({}),
+				mcpStatus: async () => [],
 				readme: async () => null,
 				environment: async () => [],
 				installFromRegistry: async (entry: RegistryEntry, _from?: string, replace?: boolean) => {
@@ -266,6 +268,30 @@ test("来源对话框：删一个技能来源只删技能那张单子，插件�
 		const saved = stub.saved.at(-1);
 		assert.deepEqual(saved?.pluginRegistries, [REGISTRY]);
 		assert.deepEqual(saved?.skillRegistries, []);
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("Magpie 管理的 MCP 可查看但不能误改，手动服务器仍可编辑", async () => {
+	const stub = stubBridge(scanWith(), { mcpServers: [
+		{ id: "magpie__shared", name: "共享服务", transport: "http", url: "https://example.invalid/mcp", enabled: true, managedBy: "magpie" },
+		{ id: "own", name: "个人服务", transport: "stdio", command: "node", enabled: false },
+	] });
+	const view = await mount(h(McpSettings));
+	try {
+		await settle();
+		assert.match(view.text(), /由 Magpie 管理/);
+		const shared = view.find('[data-mcp-server="magpie__shared"]');
+		assert.equal(shared.querySelector<HTMLInputElement>('input')?.readOnly, true);
+		assert.equal(shared.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled, true);
+		await click(shared.querySelector('button[aria-label="启动方式与环境变量"]')!);
+		assert.equal(shared.querySelector<HTMLFieldSetElement>("fieldset")?.disabled, true);
+		await click(shared.querySelector('button[aria-haspopup="menu"]')!);
+		assert.ok(![...document.querySelectorAll('[role="menuitem"]')].some((item) => item.textContent?.includes("删除")));
+		assert.equal(view.find<HTMLInputElement>('[data-mcp-server="own"] input').readOnly, false);
+		assert.equal(view.find<HTMLButtonElement>('[data-mcp-server="own"] [role="switch"]').disabled, false);
+		assert.deepEqual(stub.saved, []);
 	} finally {
 		await view.unmount();
 	}

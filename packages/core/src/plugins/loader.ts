@@ -606,7 +606,7 @@ function serversFrom(
  * ${NAME}`: it used to be read from the environment here, once, and the token itself written into
  * settings — in plain text, and never read again after the person rotated it.
  */
-function normalizeServer(
+export function normalizeServer(
 	id: string,
 	name: string,
 	config: Record<string, unknown>,

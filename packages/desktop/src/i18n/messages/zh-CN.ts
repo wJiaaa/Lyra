@@ -787,6 +787,7 @@ export const zhCN = {
 	"mcpSettings.logout": "退出登录",
 	"mcpSettings.signedIn": "已通过 OAuth 登录，令牌加密保存在本机。",
 	"mcpSettings.name": "名称",
+	"mcpSettings.magpieManaged": "由 Magpie 管理。请在 Magpie 资源库修改、启停或移除，重启 Plume 后生效；缺少的密钥也在 Magpie 中填写。",
 	"mcpSettings.launch": "启动方式与环境变量",
 	"mcpSettings.command": "命令",
 	"mcpSettings.viewInMarket": "在市场中查看",

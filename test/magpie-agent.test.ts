@@ -40,6 +40,12 @@ test("插件说明 Plume 的模型写在哪", () => {
 	assert.equal(agent.id, "plume");
 	assert.equal(agent.config, "~/.plume/settings.json");
 	assert.equal(agent.model, "defaultModelId");
+	assert.deepEqual(agent.library, {
+		instructions: "~/.plume/magpie/AGENTS.md",
+		mcp: "~/.plume/magpie/mcp.json",
+		mcpFormat: "claude",
+		skills: "~/.plume/skills",
+	});
 	assert.ok(agent.icon.startsWith("data:image/png;base64,"));
 });
 
