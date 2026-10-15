@@ -149,14 +149,10 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
    * 按块开窗之后，翻一次必然多出整轮——必然看得见。一轮里同类的调用合成一行、每行默认收着（`WorkStep`
    * 收起时不渲染里面的调用），一轮四百次调用摊开也只是几十行。
    */
-  // 三个布尔各取一次：取 `appearance` 整个对象的话，改字号也会把整段转录重新分一遍。
-  const groupExplore = useApp((s) => s.settings?.appearance.groupExplore !== false);
-  const groupTerminal = useApp((s) => s.settings?.appearance.groupTerminal !== false);
-  const groupChanges = useApp((s) => s.settings?.appearance.groupChanges === true);
   const allBlocks = useMemo(
     // 跑着的那一轮从发出就按有过程分，见 `turnBlocks` 的 `live`。
-    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }, running),
-    [allRuns, groupExplore, groupTerminal, groupChanges, running],
+    () => turnBlocks(allRuns, running),
+    [allRuns, running],
   );
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   /*

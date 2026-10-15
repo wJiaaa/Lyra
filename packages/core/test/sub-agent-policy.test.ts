@@ -338,8 +338,8 @@ test("旧网络配置被丢弃，始终允许记录继续保留在配置中", ()
 	assert.deepEqual(settings.alwaysAllow, stored.alwaysAllow);
 });
 
-test("删掉的调用链排法开关不随外观设置留下来", () => {
-	const settings = normalizeSettings({ appearance: { callChain: "expanded", errorDetail: "full" } } as never);
-	assert.ok(!("callChain" in settings.appearance));
+test("删掉的调用链排法开关和工具调用分组开关不随外观设置留下来", () => {
+	const settings = normalizeSettings({ appearance: { callChain: "expanded", groupExplore: false, groupTerminal: false, groupChanges: true, errorDetail: "full" } } as never);
+	for (const key of ["callChain", "groupExplore", "groupTerminal", "groupChanges"]) assert.ok(!(key in settings.appearance), key);
 	assert.equal(settings.appearance.errorDetail, "full", "同一组里别的外观设置照旧读进来");
 });

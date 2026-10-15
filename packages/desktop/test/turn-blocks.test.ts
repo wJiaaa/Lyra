@@ -69,8 +69,8 @@ test("一轮有过程：一块，过程在前，最后那句话是回答", () =>
 });
 
 test("同一类连着做的合成一行，换了一类另起一行", () => {
-	const blocks = turnBlocks([ask("改一下", 0), work(["read", "grep"]), work(["edit"]), think(3), work(["write", "bash"]), say("好了。", 5)]);
-	assert.deepEqual(items(blocks[1]), ["step(read,grep)", "step(edit,think,write)", "step(bash)", "assistant"]);
+	const blocks = turnBlocks([ask("改一下", 0), work(["browser_open", "browser_act"]), work(["web_fetch"]), think(3), work(["web_search", "read"]), say("好了。", 5)]);
+	assert.deepEqual(items(blocks[1]), ["step(browser_open,browser_act)", "step(web_fetch,think,web_search)", "step(read)", "assistant"]);
 	const keys = blocks[1].items.filter((item) => item.kind === "step").map((item) => item.key);
 	assert.equal(new Set(keys).size, keys.length, "每一段一个 key");
 });
@@ -128,8 +128,16 @@ test("没有过程的一轮不产生空壳", () => {
 
 test("挂在一段活后面的推理就是那一段的，换了一类也不跟过去", () => {
 	// 跟过去的话，上一行的「思考 N 次」会少一次，数往回跳。
-	const blocks = turnBlocks([ask("跑一下", 0), work(["read"]), think(2), work(["bash"])]);
-	assert.deepEqual(items(blocks[1]), ["step(read,think)", "step(bash)"]);
+	const blocks = turnBlocks([ask("跑一下", 0), work(["read"]), think(2), work(["browser_open"])]);
+	assert.deepEqual(items(blocks[1]), ["step(read,think)", "step(browser_open)"]);
+});
+
+test("探索、终端、文件更改挨在一起合成一行：改失败了读一下再改，不摊成一次一行", () => {
+	// b784f76e 那一段：edit 失败 → sed -n 看一眼 → python 改 → edit 失败 → read → edit。
+	const list = [ask("改一下", 0), work(["edit"]), shell("sed -n 168,172p help.ts"), shell("python3 - <<'EOF'\nopen('help.ts','w')\nEOF"), work(["edit", "read", "edit"]), work(["browser_open"]), work(["grep"])];
+	assert.deepEqual(items(turnBlocks(list)[1]), ["step(edit,bash,bash,edit,read,edit)", "step(browser_open)", "step(grep)"], "其余几类照旧另起一行");
+	const blocks = turnBlocks([ask("改一下", 0), work(["edit"]), say("再看看。", 2), work(["read"])]);
+	assert.deepEqual(items(blocks[1]), ["step(edit)", "assistant", "step(read)"], "说了话照旧另起一行");
 });
 
 /** 一次 bash：分到哪一类看命令本身。 */
@@ -137,11 +145,6 @@ const shell = (command: string): Run => ({
 	kind: "tools",
 	calls: [{ block: { type: "toolCall", id: `c${id++}`, name: "bash", arguments: { command } }, stopReason: "toolUse" }],
 } as Run);
-
-test("只读的 shell 命令和读、搜是同一段探索，跑别的命令另起一行", () => {
-	const blocks = turnBlocks([ask("查一下", 0), work(["read"]), shell("rg -n 'a|b' src | head -20"), work(["grep"]), shell("pnpm test | tail -5")]);
-	assert.deepEqual(items(blocks[1]), ["step(read,bash,grep)", "step(bash)"]);
-});
 
 test("命令还在生成的 bash 先不画，到齐后直接落进它那一段，不在底下先冒一行", () => {
 	// 生成中：`arguments` 还是空的，只有 `argumentsText` 在长。
@@ -155,20 +158,7 @@ test("命令还在生成的 bash 先不画，到齐后直接落进它那一段�
 	assert.deepEqual(items(during[1]), ["step(read)"], "命令没到齐，转录上还没有它");
 	assert.deepEqual(items(after[1]), ["step(read,bash)"], "到齐了就在探索那一段里");
 	assert.equal(during[1].items[0].key, after[1].items[0].key, "那一段还是原来那一行，没有换");
-	assert.deepEqual(items(turnBlocks([ask("看看", 0), read, { ...streaming({}), calls: [{ ...(streaming({}) as { calls: { block: object }[] }).calls[0], stopReason: "aborted" }] } as Run])[1]), ["step(read)", "step(bash)"], "这一轮停在半路：照旧画出来");
-});
-
-test("关掉的那一类每次调用自成一行，开关管不着的几类照旧合", () => {
-	const list = [ask("改一下", 0), work(["read", "grep"]), work(["edit", "write"]), shell("pnpm build"), shell("pnpm test"), work(["browser_open", "browser_act"])];
-	const off = { groupExplore: false, groupTerminal: false, groupChanges: false };
-	assert.deepEqual(items(turnBlocks(list, off)[1]), ["step(read)", "step(grep)", "step(edit)", "step(write)", "step(bash)", "step(bash)", "step(browser_open,browser_act)"]);
-	assert.deepEqual(
-		items(turnBlocks(list, { groupExplore: true, groupTerminal: true, groupChanges: false })[1]),
-		["step(read,grep)", "step(edit)", "step(write)", "step(bash,bash)", "step(browser_open,browser_act)"],
-		"默认：文件更改一处一行",
-	);
-	const keys = turnBlocks(list, off)[1].items.map((item) => item.key);
-	assert.equal(new Set(keys).size, keys.length, "拆开的每一行各有自己的 key");
+	assert.deepEqual(items(turnBlocks([ask("看看", 0), read, { ...streaming({}), calls: [{ ...(streaming({}) as { calls: { block: object }[] }).calls[0], stopReason: "aborted" }] } as Run])[1]), ["step(read,bash)"], "这一轮停在半路：照旧画出来");
 });
 
 test("只想不做的一轮，过程只有那段推理", () => {
@@ -206,7 +196,7 @@ test("送达叫醒的一轮和人开的一样，按有没有过程分块", () =>
 });
 
 test("和来信一起到的送达，回它的那一轮跑着时和人开的一样先占位", () => {
-	assert.deepEqual(turnBlocks([delivered(0, true), think(1)], undefined, true).map((b) => b.kind), ["plain", "work"]);
+	assert.deepEqual(turnBlocks([delivered(0, true), think(1)], true).map((b) => b.kind), ["plain", "work"]);
 });
 
 test("不显示推理时，推理行拿掉；被它隔开的同类活合成一行", () => {
@@ -220,7 +210,7 @@ test("不显示推理时，只想不做的一轮不算有过程，就是一句�
 });
 
 /** 推理不画时 `Conversation` 怎么分。 */
-const hidden = (list: Run[], running: boolean) => turnBlocks(withoutThinking(list), undefined, running);
+const hidden = (list: Run[], running: boolean) => turnBlocks(withoutThinking(list), running);
 
 test("不显示推理时，跑着的那一轮从开始想就算有过程，不等第一次工具调用", () => {
 	const thinking = hidden([ask("看看", 0), think(1)], true);
@@ -248,7 +238,7 @@ test("不显示推理时，只有跑着的最后一轮先占位", () => {
 test("模型不把推理流出来：刚发出就占位，开口、调工具都是同一块", () => {
 	// 经代理的 GPT 第一条回复就是话加工具调用，之前什么推理也没有。
 	for (const showThinking of [false, true]) {
-		const blocks = (list: Run[], running: boolean) => turnBlocks(showThinking ? list : withoutThinking(list), undefined, running);
+		const blocks = (list: Run[], running: boolean) => turnBlocks(showThinking ? list : withoutThinking(list), running);
 		const sent = blocks([ask("看看", 0)], true);
 		assert.deepEqual(sent.map((b) => b.kind), ["plain", "work"], "刚发出：先占住过程这一块");
 		assert.deepEqual(sent[1].runs, []);
@@ -260,7 +250,7 @@ test("模型不把推理流出来：刚发出就占位，开口、调工具都�
 
 test("压缩命令开的那一轮跑着也不占位", () => {
 	const compact = { kind: "command", command: { status: "running" } } as unknown as Run;
-	assert.deepEqual(turnBlocks([ask("看看", 0), say("好。", 1), compact], undefined, true).map((b) => b.kind), ["plain", "plain", "plain"]);
+	assert.deepEqual(turnBlocks([ask("看看", 0), say("好。", 1), compact], true).map((b) => b.kind), ["plain", "plain", "plain"]);
 });
 
 test("不显示推理时，后台结果叫醒的一轮想着也不占位", () => {

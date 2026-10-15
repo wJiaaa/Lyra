@@ -13,7 +13,7 @@
 
 import { isNudge } from "../../lib/spoken.ts";
 import { routedBlock } from "../../lib/tool-summary.ts";
-import type { AppearanceSettings, AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
+import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
@@ -737,14 +737,14 @@ export interface TurnBlock {
 	turn: number;
 }
 
-/** 有过程的一轮里的一行：一段同类的活（`step`），或者原样画的一条（话、页面、标记）。 */
+/** 有过程的一轮里的一行：一段活（`step`），或者原样画的一条（话、页面、标记）。 */
 type TurnItem = { kind: "run"; key: string; run: Run } | { kind: "step"; key: string; step: Step };
 
 /**
- * 一段同一类的活，连同夹在中间、跟在后面的推理——画出来是一行。
+ * 一段连着做的活，连同夹在中间、跟在后面的推理——画出来是一行。
  *
- * 同一类连着做（打开页面、点、输入、截图）合成一行，那一行从第一次调用起就说总的，跑着的时候新的
- * 一次接在句尾。换了一类另起一行；说了话也另起一行。
+ * 同一类连着做（打开页面、点、输入、截图）合成一行；探索、终端、文件更改这几类开关开着的，挨在一起也合
+ * （见 `joins`）。接不上的另起一行；说了话也另起一行。
  *
  * 推理落在哪一段就算哪一段，放下就不再挪：「想 → 点 → 想 → 输入」是一段浏览器的活，读作「思考 2 次 ·
  * 打开网页、操作网页」。挂在一段活后面的推理就是那一段的，下一次调用换了一类也不跟过去——跟过去的话，
@@ -841,17 +841,18 @@ export function thinkingLive(run: Extract<Run, { kind: "message" }>): boolean {
 	return run.message.role === "assistant" && run.message.stopReason === "pending" && run.upTo === run.message.content.length;
 }
 
-/** 哪几类连着做时合成一行，见 `AppearanceSettings` 的 `groupExplore`。不传就是都合。 */
-export type ToolGrouping = Pick<AppearanceSettings, "groupExplore" | "groupTerminal" | "groupChanges">;
+/** 挨在一起也合成一段的三类：探索、终端、文件更改。 */
+const WORKBENCH = new Set(["explore", "terminal", "files"]);
 
-const MERGE_ALL: ToolGrouping = { groupExplore: true, groupTerminal: true, groupChanges: true };
-
-/** 关掉的那一类每一次调用自成一段；开关管不着的几类（浏览器、网页……）照旧合。 */
-function merges(category: string, grouping: ToolGrouping): boolean {
-	if (category === "explore") return grouping.groupExplore;
-	if (category === "terminal") return grouping.groupTerminal;
-	if (category === "files") return grouping.groupChanges;
-	return true;
+/**
+ * 这次调用接不接在这一段后面。
+ *
+ * 探索、终端、文件更改挨在一起也是一段：改失败了读一下再改，是「编辑 → 探索 → 编辑」，按同一类才合，一次调用
+ * 一行，一段修修补补的活摊成六七行。其余几类（浏览器、派发、预览……）各说各的事，只和同一类合。
+ * `step.category` 是第一次调用的类别：它是这三类之一，后面接上来的也都是，所以只看它就够。
+ */
+function joins(step: Step, category: string): boolean {
+	return step.category === category || (WORKBENCH.has(step.category) && WORKBENCH.has(category));
 }
 
 /**
@@ -863,7 +864,7 @@ function merges(category: string, grouping: ToolGrouping): boolean {
  * `TurnWork`），看上去和 `plain` 一样；跑完了还是没有过程的一轮照旧退回一句回答。后台结果叫醒的一轮、压缩命令
  * 开的一轮不这样分。
  */
-export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL, live = false): TurnBlock[] {
+export function turnBlocks(list: Run[], live = false): TurnBlock[] {
 	const out: TurnBlock[] = [];
 	let turn = 0;
 	// 这一轮是人开的口：后台结果叫醒的、压缩命令开的都不算。
@@ -888,7 +889,7 @@ export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL, live
 		 * 等到那时才换成有过程的一轮，页面就换了一个父元素，重新挂一遍、闪一下。
 		 */
 		if ((live && asked && end === list.length) || body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
-			out.push({ kind: "work", runs: body, items: itemsOf(body, grouping), turn });
+			out.push({ kind: "work", runs: body, items: itemsOf(body), turn });
 		} else for (const run of body) plain(run);
 		at = end;
 	}
@@ -909,7 +910,7 @@ function unclassified(call: Call): boolean {
 	return call.block.name === "bash" && call.stopReason === "pending" && typeof call.block.arguments?.command !== "string";
 }
 
-function itemsOf(body: Run[], grouping: ToolGrouping): TurnItem[] {
+function itemsOf(body: Run[]): TurnItem[] {
 	const items: TurnItem[] = [];
 	// 断言而不是标注：循环里 TS 把它收窄成初值 `null`，看不见循环后半段的赋值。
 	let step = null as Step | null;
@@ -928,7 +929,7 @@ function itemsOf(body: Run[], grouping: ToolGrouping): TurnItem[] {
 				const category = toolCategory(call.block.name, call.block.arguments);
 				const before = thoughts.map((thought) => ({ kind: "thinking" as const, run: thought }));
 				thoughts = [];
-				if (step?.category === category && merges(category, grouping)) {
+				if (step && joins(step, category)) {
 					step.calls.push(call);
 					step.members.push(...before, { kind: "call", call });
 					continue;
