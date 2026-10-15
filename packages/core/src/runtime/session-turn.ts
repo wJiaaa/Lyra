@@ -46,7 +46,7 @@ import { loadPromptContext, promptCapabilities, type PromptProfile } from "./pro
 import { reconcilePrompt, type PromptContext } from "../prompt/context.ts";
 import { currentSections, diffSections, promptSections, promptUpdateMessage } from "../prompt/update.ts";
 import { buildTurnConfig } from "./turn-config.ts";
-import { PLAN_MODE_KEY, planModeTools } from "./plan-mode.ts";
+import { PLAN_MODE_KEY, planModeTools, unsubmittedPlanCheck } from "./plan-mode.ts";
 import { SUBMIT_PLAN_TOOL_NAME } from "./plan-view.ts";
 import { submitPlanTool } from "./plan-tool.ts";
 import { recordPlanMode } from "./session-model.ts";
@@ -344,6 +344,10 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		messages: modelHistory(log, input.provider, input.model),
 	});
 	const assembled = reconcilePrompt(prompt, turn.systemPrompt);
+	// 这一轮从日志的这里开始写：没交计划的提醒只看这之后调过什么（续跑共用同一份 config，也算在内）。
+	const from = log.messages.length;
+	const stopHook = makeOnStop(hooks);
+	const unsubmittedPlan = unsubmittedPlanCheck(can.state, () => log.messages.slice(from));
 
 	// 记下的是发出去的那份工具表：被延迟的不在里面，两个入口在（`tools/mcp-search.ts`）。
 	const table = toolTable(turn.tools);
@@ -384,7 +388,8 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
 			...toolHooks(hooks, can.extensions),
 			extensions: can.extensions,
-			onStop: makeOnStop(hooks),
+			// Stop 钩子先说：它是用户自己写的规则。钩子没意见，再看计划模式是不是漏交了计划。
+			onStop: async (info) => (await stopHook(info)) ?? unsubmittedPlan(),
 			drainSteering: input.drainSteering,
 			onContext: (context, model) => log.captureRequest(context, model),
 		},

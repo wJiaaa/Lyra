@@ -199,6 +199,7 @@
 | 没汇报进度 | 20 次请求 | 只问，不停 | `plan-watch.ts` `PROGRESS_EVERY` |
 | 收尾时清单还有「正在做」 | 每次运行 1 次 | 问一次，不停 | `plan-watch.ts` `closing` |
 | Stop 钩子要求接着做 | 3 次 | 之后不再理会钩子 | `hooks.ts` `MAX_STOP_HOOK_CONTINUATIONS` |
+| 计划模式调过工具、以正文收尾却没交计划 | 每轮 1 次，排在 Stop 钩子后 | 提醒用 `submit_plan` 交，之后不再问 | `plan-mode.ts` `unsubmittedPlanCheck` |
 | 请求被拒收 / 上下文超长 | 各恢复 1 次 | 照原错误收场 | `loop.ts` `requestReply` |
 | 请求重试 | 按设置页：网络默认无限、上游默认 10 次 | `error`；不在外面整轮重来，由人点「继续」 | `ai/retry.ts`，见 [retry-policy.md](retry-policy.md) |
 | 授权卡片没人答 | 5 分钟 | 当作拒绝 | `approvals.ts` `UNATTENDED_TIMEOUT_MS` |
@@ -215,6 +216,8 @@
 把状态图里的开关关掉（计划不写进清单，拆步由模型自己 `todo_write`）——同一轮里下一次调用就直接放行，不用换表、不用等下一轮。
 这条工具结果提交时会话把 meta 清掉（`recordTurnEvent`）。计划进 `task-context`，压缩后原样注入。
 这一轮派出去的子代理拿到的是包过的表，开关是主会话的。设计取舍见 ADR-0044。
+一轮调过工具、以正文收尾、却既没交计划也没 `ask_user`，`onStop` 在 Stop 钩子之后提醒它一次用 `submit_plan` 交上来
+（GPT 系模型习惯把计划写成正文）；一个工具都没调的问答不问，说过一次还不交就停下交给人。
 
 ## 插话与步数上限
 

@@ -13,7 +13,7 @@
 
 import { isReadOnlyCommand } from "../tools/bash.ts";
 import { errorResult } from "../tools/result.ts";
-import type { Tool, ToolContext, ToolResult } from "../types.ts";
+import type { Message, Tool, ToolContext, ToolResult } from "../types.ts";
 import { SUBMIT_PLAN_TOOL_NAME } from "./plan-view.ts";
 
 /** 会话状态图里的开关。每轮开始按 `SessionMeta.planMode` 写入，批准计划时就地关掉。 */
@@ -75,4 +75,35 @@ function allow(tool: Tool, args: Record<string, unknown>): "ok" | ToolResult {
 	if (tool.name === "lsp") return args.operation === "rename" ? refusal(tool.name, "a rename edits files") : "ok";
 	if (READ_ONLY_TOOLS.has(tool.name) || tool.mutating === false) return "ok";
 	return refusal(tool.name, "it can change things");
+}
+
+/** 计划模式的一轮查过东西、以正文收尾、却没交计划时，说一次的那句。 */
+export const UNSUBMITTED_PLAN_NOTE =
+	`（自动提示）现在是计划模式：计划只有通过 \`${SUBMIT_PLAN_TOOL_NAME}\` 提交，用户才看得到审批卡、才能批准，写在回复正文里的方案批不了。` +
+	`如果上面的回复就是方案，现在把它完整地用 \`${SUBMIT_PLAN_TOOL_NAME}\` 交上来，不要再把正文写一遍；还缺用户的决定，就用 \`ask_user\` 问。` +
+	"如果这一轮只是回答问题、用户并没有要改东西，回一句「无需计划」即可。";
+
+/**
+ * 计划模式的一轮以正文收尾，计划却没交：提醒一次。返回 `undefined` 是没有要说的。
+ *
+ * 起因是 2026-10-15 的 `a2637a66`：GPT 系模型查了 32 次代码，把方案写成普通回复就结束了，没调
+ * `submit_plan`——审批卡没出现，用户追问「你生成的计划呢」才补交。拦不如纠正：给它一句能照做的话，
+ * 而不是让这一轮静静地以「完成」收场。只说一次：说过还不交，就是它认定这里不需要计划，停下交给人。
+ *
+ * 这一轮没调过任何工具的不问。本机 12 个计划模式会话里，以正文收尾、没交计划的 4 次中 3 次是
+ * 「你好」「现在是计划模式吗」这种一个工具都没调的问答，问了只会多一次请求和一段多余的正文；
+ * 真正漏交的那次查了 32 次。调过 `ask_user` 的也不问：它在等人回答，或者已经照人的回答收住了。
+ *
+ * `since` 交回这一轮（含续跑）到目前为止写进日志的消息；`state` 是会话的状态图，批准计划时开关
+ * 已经关掉，也就不再问。
+ */
+export function unsubmittedPlanCheck(state: Map<string, unknown>, since: () => readonly Message[]): () => Message | undefined {
+	let reminded = false;
+	return () => {
+		if (reminded || !inPlanMode(state)) return undefined;
+		const called = since().flatMap((message) => (message.role === "toolResult" ? [message.toolName] : []));
+		if (called.length === 0 || called.includes(SUBMIT_PLAN_TOOL_NAME) || called.includes("ask_user")) return undefined;
+		reminded = true;
+		return { role: "user", content: [{ type: "text", text: UNSUBMITTED_PLAN_NOTE }], timestamp: Date.now(), synthetic: true };
+	};
 }
