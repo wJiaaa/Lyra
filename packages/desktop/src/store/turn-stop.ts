@@ -69,16 +69,30 @@ export function howItStopped(transcript: readonly Message[], reason?: string): T
  * 正要写回答时退了应用），回答确实没来。
  */
 export function beforePlanTick(messages: readonly Message[]): readonly Message[] {
-	const ticked = (message: Message | undefined) => message?.role === "toolResult" && message.toolName === "todo_write";
 	let at = messages.length - 1;
 	while (ticked(messages[at])) at--;
-	if (at === messages.length - 1) return messages;
+	if (at === messages.length - 1 || !isPlanTick(messages, at)) return messages;
+	return messages.slice(0, at - 1);
+}
+
+const ticked = (message: Message | undefined) => message?.role === "toolResult" && message.toolName === "todo_write";
+
+/**
+ * `messages[at]` 是不是回答之后补勾清单的那条回复，形状见 `beforePlanTick`。
+ *
+ * 转录分组也用它：补勾不该在回答下面再画一行。所以它不只在末尾成立——补勾之后人又说了话也算，
+ * 但补勾之后模型接着干了活就不算：那是在回答 `openPlanNote` 的「真是漏做了，就接着做完」，
+ * 这次 todo_write 是新一段工作的开头。
+ */
+export function isPlanTick(messages: readonly Message[], at: number): boolean {
 	const tick = messages[at];
-	if (tick?.role !== "assistant" || !tick.content.some((part) => part.type === "toolCall")) return messages;
-	if (!tick.content.every((part) => (part.type === "toolCall" ? part.name === "todo_write" : part.type !== "text" || !part.text.trim()))) return messages;
+	if (tick?.role !== "assistant" || !tick.content.some((part) => part.type === "toolCall")) return false;
+	if (!tick.content.every((part) => (part.type === "toolCall" ? part.name === "todo_write" : part.type !== "text" || !part.text.trim()))) return false;
 	const asked = messages[at - 1];
 	const answer = messages[at - 2];
-	if (asked?.role !== "user" || !asked.synthetic) return messages;
-	if (answer?.role !== "assistant" || answer.content.some((part) => part.type === "toolCall")) return messages;
-	return messages.slice(0, at - 1);
+	if (asked?.role !== "user" || !asked.synthetic) return false;
+	if (answer?.role !== "assistant" || answer.content.some((part) => part.type === "toolCall")) return false;
+	let next = at + 1;
+	while (ticked(messages[next])) next++;
+	return messages[next]?.role !== "assistant";
 }

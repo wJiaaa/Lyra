@@ -354,6 +354,53 @@ test("a synthetic user message is passed over the same way", () => {
 	assert.deepEqual(shape(rows), ["message@0:1", "tools:a,b"]);
 });
 
+/*
+ * 回答之后运行时问一句清单（core 的 `openPlanNote`），模型只回一次 todo_write。会话 a2637a66 里它在
+ * 回答和页脚底下单独画成一行，像回答完又干了点什么。
+ */
+function planAsk(): Message {
+	return { role: "user", content: [{ type: "text", text: "（自动提示）任务清单里还有 1 项没勾" }], timestamp: 1, synthetic: true };
+}
+
+function ticked(id: string): Message {
+	return { role: "toolResult", toolCallId: id, toolName: "todo_write", content: [], isError: false, timestamp: 2 };
+}
+
+test("补勾清单的那次 todo_write 不在回答下面另画一行", () => {
+	const rows = runs([user("改一下"), assistant([text("改好了")], "stop"), planAsk(), assistant([call("t", "todo_write")], "toolUse"), ticked("t")]);
+	assert.deepEqual(shape(rows), ["message@0:1", "message@1:1"]);
+});
+
+test("补勾之后人又说了话，那次补勾照样不画", () => {
+	const rows = runs([
+		user("改一下"),
+		assistant([text("改好了")], "stop"),
+		planAsk(),
+		assistant([call("t", "todo_write")], "toolUse"),
+		ticked("t"),
+		user("再改一处"),
+		assistant([call("a")], "toolUse"),
+	]);
+	assert.deepEqual(shape(rows), ["message@0:1", "message@1:1", "message@5:1", "tools:a"]);
+});
+
+test("被问清单后勾完接着干活，那次 todo_write 是新一段工作的开头，要画", () => {
+	const rows = runs([
+		user("改一下"),
+		assistant([text("改好了")], "stop"),
+		planAsk(),
+		assistant([call("t", "todo_write")], "toolUse"),
+		ticked("t"),
+		assistant([call("a")], "toolUse"),
+	]);
+	assert.deepEqual(shape(rows), ["message@0:1", "message@1:1", "tools:t,a"]);
+});
+
+test("没有被问过的单独一次 todo_write 照常画", () => {
+	const rows = runs([user("改一下"), assistant([text("先列个清单")], "stop"), user("好"), assistant([call("t", "todo_write")], "toolUse"), ticked("t")]);
+	assert.deepEqual(shape(rows), ["message@0:1", "message@1:1", "message@2:1", "tools:t"]);
+});
+
 test("a reply that ended with nothing to show still gets a row", () => {
 	// A dropped socket settles the tail as an error; without a row the failure is never drawn.
 	const rows = runs([user("跑一下"), assistant([thinking("在想")], "error")]);

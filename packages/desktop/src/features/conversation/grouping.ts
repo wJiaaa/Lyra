@@ -15,6 +15,7 @@ import { isNudge } from "../../lib/spoken.ts";
 import { routedBlock } from "../../lib/tool-summary.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
+import { isPlanTick } from "../../store/turn-stop.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 import { toolCategory } from "../../lib/tool-kinds.ts";
@@ -607,6 +608,12 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * 见 `isProcess`。
 		 */
 		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery && !message.peer) continue;
+
+		/*
+		 * 回答之后补勾清单的那一次 todo_write 不画：回答和它的页脚已经是这一轮的结尾，再在下面画一行
+		 * 工作，读起来像回答完又动手干了点什么。勾的结果清单面板上看得到。时间上面 `saw` 已经记了。
+		 */
+		if (message.role === "assistant" && isPlanTick(messages, index)) continue;
 
 		if (message.role !== "assistant") {
 			if (opensTurn(message)) {

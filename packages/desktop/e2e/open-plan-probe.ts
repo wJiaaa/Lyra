@@ -110,7 +110,17 @@ async function main(): Promise<void> {
 		await pause(2500);
 		await frames(app, 60);
 
-		const seen = await app.evaluate<{ text: string; running: boolean }>(`({ text: document.querySelector('main')?.innerText ?? '', running: ${RUNNING} })`);
+		/*
+		 * 回答之后那次补勾不另画一行（会话 a2637a66：它排在回答和页脚底下，像回答完又干了点什么）。
+		 * 量的是回答后面还有没有工作行：按文档顺序数排在回答那个元素后面的 `[data-ly-step]`。
+		 */
+		const seen = await app.evaluate<{ text: string; running: boolean; stepsAfter: number; steps: number }>(`(() => {
+			const main = document.querySelector('main');
+			const answer = document.evaluate("//main//*[contains(text(), " + ${JSON.stringify(JSON.stringify(ANSWER))} + ")]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+			const steps = [...(main?.querySelectorAll('[data-ly-step]') ?? [])];
+			const stepsAfter = answer ? steps.filter((step) => answer.compareDocumentPosition(step) & Node.DOCUMENT_POSITION_FOLLOWING).length : -1;
+			return { text: main?.innerText ?? '', running: ${RUNNING}, stepsAfter, steps: steps.length };
+		})()`);
 		await shot(app, `${STAMP}_${LABEL}_一轮结束`);
 		await pause(1200);
 
@@ -121,6 +131,8 @@ async function main(): Promise<void> {
 		check("回答下面没有「被中断」或「计划还有 N 项」那一行", !/上次执行被中断|计划还有 \d+ 项未完成/.test(seen.text), seen.text.match(/上次执行被中断|计划还有 \d+ 项未完成/)?.[0] ?? "");
 		check("那句自动提示不出现在转录里", !seen.text.includes(NOTE), "转录里能看见提示原文");
 		check("回答还在转录里", seen.text.includes(ANSWER), "回答不见了");
+		check("回答下面没有补勾清单那一行", seen.stepsAfter === 0, `回答后面有 ${seen.stepsAfter} 个工作行（全转录 ${seen.steps} 个）`);
+		check("回答前面列清单那一行还在", seen.steps - seen.stepsAfter >= 1, `回答前面 ${seen.steps - seen.stepsAfter} 个工作行`);
 		check("输入框回到发送态", !seen.running, "还是停止按钮");
 	} finally {
 		await stop();
