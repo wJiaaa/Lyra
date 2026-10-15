@@ -2,7 +2,7 @@
  * 后台结果送回来时，算不算新的一轮。
  *
  * 插在一轮中间的（`steered`）不算：主智能体一直在干活，它是这段工作里的一步。从前它一律被当成
- * 「开了一轮」，一段连续的工作被切成两轮、两个锚。把空闲的会话
+ * 「开了一轮」，一段连续的工作被切成两轮、两块。把空闲的会话
  * 叫醒的那一种照旧开一轮；人插的话也照旧开一轮。
  */
 
@@ -35,7 +35,7 @@ test("插在一轮中间的送达收进这段工作里，不切开它，也不�
 	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work"], "问题、一整轮");
 	assert.equal(new Set(blocks.map((b) => b.turn)).size, 1, "只有一轮");
 	assert.ok(
-		blocks[1].items.some((item) => item.kind === "run" && item.fold && item.run.kind === "message" && item.run.message.role === "user"),
+		blocks[1].items.some((item) => item.kind === "run" && item.run.kind === "message" && item.run.message.role === "user"),
 		"送达那一行还在，跟着过程收",
 	);
 	assert.equal(computeTurnStats(messages, messages.length - 1).startIndex, 0, "这一轮从人开口算起");

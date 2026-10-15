@@ -19,7 +19,6 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedSessions } from "./session-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
-import { click } from "./drive.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume后台命令通知测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -212,13 +211,8 @@ try {
 	})()`;
 	const processes = await running.evaluate<number>(`[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between}).length`);
 	check("问题和回答之间只有一段过程，没被送达切成两段", processes === 1, { processes });
-	// 给要点的那一行做个记号，再用真鼠标点：前面几轮也各有一段过程。
-	await running.evaluate(`[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between})[0]?.querySelector("button")?.setAttribute("data-probe-target","process")`);
-	if (!(await running.evaluate<boolean>(`Boolean(document.querySelector('[data-probe-target="process"]')?.closest("[data-ly-turn-process]")?.hasAttribute("data-ly-turn-open"))`))) {
-		await click(running, '[data-probe-target="process"]');
-	}
 	await pause(1000);
-	await shot("05_点开过程_送达行在里面");
+	await shot("05_过程摊开_送达行在里面");
 	const inside = await running.evaluate<{ rows: number; text: string; process: string }>(`(()=>{
 		const process=[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between})[0];
 		const row=process?.querySelector('[data-delivery-kind="job"]');

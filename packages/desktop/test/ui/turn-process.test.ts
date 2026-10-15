@@ -1,9 +1,8 @@
 /**
- * 一轮的锚，和锚下面那一段段活。
+ * 有过程的一轮，和里面那一段段活。
  *
- * 收起的一轮是转录里最贵的东西：一轮四百次工具调用收在一行「已工作 12 分 3 秒」底下，看上去什么都
- * 没有，而只要那些行还挂在 DOM 里，代价就一个不少——只是高度被压成了 0。量不出来是因为它们不可见，
- * 不是因为它们不存在。所以前几条盯的是「收起来的东西真的不在了」，后几条盯的是一段活怎么说话。
+ * 第一条盯的是一轮怎么摊开：没有整轮的锚和折叠，行按顺序排、不重挂。后几条盯的是一段活怎么说话，以及
+ * 收着的一段活里面的调用真的不在 DOM 里——一轮四百次调用，只要它们还挂着，代价就一个不少。
  */
 
 import assert from "node:assert/strict";
@@ -15,13 +14,13 @@ import { TurnWork } from "../../src/features/conversation/TurnWork.tsx";
 import { WorkStep, type DrawCall } from "../../src/features/conversation/WorkStep.tsx";
 import type { Call, Run, Step } from "../../src/features/conversation/grouping.ts";
 import { useApp } from "../../src/store/index.ts";
-import { click, fire, mount } from "../helpers/mount.ts";
+import { click, mount } from "../helpers/mount.ts";
 
 const inside = h("div", { "data-probe": "inside" }, "四百条过程");
 const answer = h("div", { "data-probe": "answer" }, "做好了。");
 const ENTRIES = [
-	{ key: "process", fold: true, node: inside },
-	{ key: "answer", fold: false, node: answer },
+	{ key: "process", node: inside },
+	{ key: "answer", node: answer },
 ];
 
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
@@ -59,42 +58,15 @@ const step = (calls: Call[], extra: Step["members"] = []): Step => ({
 	members: [...calls.map((call) => ({ kind: "call" as const, call })), ...extra],
 });
 
-test("a finished turn stays open line by line; folding it releases what is folded and keeps the answer out", async () => {
-	const view = await mount(h(TurnWork, { running: false, durationMs: 101_000, entries: ENTRIES }));
+test("a turn with work draws every line in order, with no anchor and nothing folded", async () => {
+	const view = await mount(h(TurnWork, { entries: ENTRIES }));
 	try {
-		const toggle = view.find<HTMLButtonElement>("button[aria-expanded]");
-		assert.equal(toggle.getAttribute("aria-expanded"), "true", "跑完不自动收：一段段活各自一行摊着");
-		assert.equal(view.all('[data-probe="inside"]').length, 1);
-		assert.match(view.text(), /已工作 1 分 41 秒/, "锚说这一轮跑了多久");
-
-		await click(toggle);
-		assert.equal(toggle.getAttribute("aria-expanded"), "false", "想收的人点锚");
-		const event = new Event("transitionend", { bubbles: true });
-		Object.defineProperty(event, "propertyName", { value: "grid-template-rows" });
-		await fire(view.find('.ly-freeze[data-open="false"]'), event);
-		assert.equal(view.all('[data-probe="inside"]').length, 0, "收完的东西不留在 DOM 里");
-		assert.equal(view.all('[data-probe="answer"]').length, 1, "回答永远在外面");
-		const box = view.find('.ly-freeze[data-open="false"]');
-		assert.ok(box.hasAttribute("inert"), "收起的不在 tab 顺序里");
-		assert.equal(box.getAttribute("aria-hidden"), "true");
-	} finally {
-		await view.unmount();
-	}
-});
-
-test("while the turn runs the anchor says so and cannot fold; once it ends it is still the same open element", async () => {
-	const view = await mount(h(TurnWork, { running: true, entries: ENTRIES }));
-	try {
-		const anchor = view.find<HTMLButtonElement>(".ly-turn-anchor");
-		assert.ok(anchor.disabled, "跑的时候锚不能点");
-		assert.match(anchor.textContent ?? "", /工作中/);
-		assert.equal(view.all('[data-probe="inside"]').length, 1, "里面的东西全摊着");
-
-		await view.rerender(h(TurnWork, { running: false, durationMs: 9_000, entries: ENTRIES }));
-		assert.equal(view.find(".ly-turn-anchor"), anchor, "跑完还是同一个元素：换元素那一刻锚会闪一下");
-		assert.equal(anchor.getAttribute("aria-expanded"), "true", "跑完不收");
-		assert.equal(view.all('[data-probe="inside"]').length, 1);
-		assert.match(anchor.textContent ?? "", /已工作 9 秒/);
+		assert.equal(view.all(".ly-turn-anchor, button[aria-expanded]").length, 0, "没有整轮的锚，也没有整轮折叠");
+		assert.equal(view.all('[data-probe="inside"]').length, 1, "过程摊在对话里");
+		assert.equal(view.all('[data-probe="answer"]').length, 1, "回答跟在最后");
+		const said = view.find('[data-probe="answer"]');
+		await view.rerender(h(TurnWork, { entries: [{ key: "later", node: h("div", null, "后来又做的") }, ...ENTRIES] }));
+		assert.equal(view.find('[data-probe="answer"]'), said, "前面多出一行，原来那几行不重挂");
 	} finally {
 		await view.unmount();
 	}

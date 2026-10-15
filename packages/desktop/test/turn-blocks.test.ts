@@ -1,5 +1,5 @@
 /**
- * 一整轮里，哪些跟着锚收起来，哪一句是回答；哪些调用合成一行。
+ * 一整轮怎么分块、一行行怎么排；哪些调用合成一行。
  *
  * 「想 → 做 → 说」这条线是在 Run 这一层定下来的，不是在渲染时看邻居。规则性的东西要能单独测——
  * 而这一条尤其容易悄悄错：判错了边界，收起过程时会把答案一起收进去，或者把过程漏在外面，
@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 
-import { thoughtLast, turnBlocks, turnEnd, withoutThinking, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
+import { turnBlocks, withoutThinking, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
 
 const ask = (text: string, index: number): Run => ({
 	kind: "message",
@@ -55,13 +55,13 @@ const work = (n: number | string[]): Run => ({
 
 const shape = (list: Run[]) => turnBlocks(list).map((b) => b.kind);
 
-/** 锚下面的每一行：`step(n)` 是合成一行的 n 次调用，`~` 是跟着锚收起来的。 */
+/** 有过程的一轮里的每一行：`step(n)` 是合成一行的 n 次调用。 */
 const items = (block: TurnBlock) =>
 	block.items.map((item) =>
-		item.kind === "step" ? `step(${item.step.members.map((m) => (m.kind === "call" ? m.call.block.name : "think")).join(",")})` : `${item.fold ? "~" : ""}${item.run.kind === "message" ? item.run.message.role : item.run.kind}`,
+		item.kind === "step" ? `step(${item.step.members.map((m) => (m.kind === "call" ? m.call.block.name : "think")).join(",")})` : `${item.run.kind === "message" ? item.run.message.role : item.run.kind}`,
 	);
 
-test("一轮有过程：一块，过程跟着锚收，最后那句话是回答", () => {
+test("一轮有过程：一块，过程在前，最后那句话是回答", () => {
 	const blocks = turnBlocks([ask("帮我看看", 0), think(1), work(2), think(3), work(1), say("看完了。", 5)]);
 	assert.deepEqual(shape([ask("帮我看看", 0), think(1), work(2), think(3), work(1), say("看完了。", 5)]), ["plain", "work"]);
 	assert.deepEqual(items(blocks[1]), ["step(think,read,read,think,read)", "assistant"], "开头的推理跟着第一次调用开一段，后面的推理算进它所在的那一段");
@@ -88,23 +88,23 @@ test("一段活往后长，它的 key 不变", () => {
 	assert.equal(before[1].items[0].key, after[1].items[0].key);
 });
 
-test("中途说的话把一段活切开，跟着过程一起收；只有最后那句在外面", () => {
+test("中途说的话把一段活切开，按发生的顺序排", () => {
 	const blocks = turnBlocks([ask("改一下", 0), work(1), say("我先看一下配置。", 2), work(1), say("改好了。", 4)]);
 	assert.deepEqual(shape([ask("改一下", 0), work(1), say("我先看一下配置。", 2), work(1), say("改好了。", 4)]), ["plain", "work"]);
-	assert.deepEqual(items(blocks[1]), ["step(read)", "~assistant", "step(read)", "assistant"]);
+	assert.deepEqual(items(blocks[1]), ["step(read)", "assistant", "step(read)", "assistant"]);
 });
 
 test("说完一句又接着想：推理不挂到话前面那段活上", () => {
 	const blocks = turnBlocks([ask("改一下", 0), work(1), say("我先看一下配置。", 2), thinkingOnly(3), work(2)]);
-	assert.deepEqual(items(blocks[1]), ["step(read)", "~assistant", "step(think,read,read)"]);
+	assert.deepEqual(items(blocks[1]), ["step(read)", "assistant", "step(think,read,read)"]);
 });
 
-test("还没说出最后那句话时，全在锚下面", () => {
+test("还没说出最后那句话时，全在过程这一块里", () => {
 	const blocks = turnBlocks([ask("跑一下", 0), think(1), work(2)]);
 	assert.deepEqual(items(blocks[1]), ["step(think,read,read)"]);
 });
 
-test("只有重连标记、没有推理和工具的一轮不要锚", () => {
+test("只有重连标记、没有推理和工具的一轮不算有过程，原样摊开", () => {
 	const hiccup = { kind: "hiccup", hiccup: {} } as Run;
 	assert.deepEqual(shape([ask("跑一下", 0), say("先说一句。", 1), hiccup, say("接着说。", 2)]), ["plain", "plain", "plain", "plain"]);
 });
@@ -113,10 +113,10 @@ test("断线还在等、或者已经放弃时，留在外面；收了场才算�
 	const drop = (outcome: string) => ({ kind: "hiccup", hiccup: { outcome } }) as unknown as Run;
 	assert.deepEqual(items(turnBlocks([ask("跑一下", 0), work(1), drop("waiting")])[1]), ["step(read)", "hiccup"], "等重试的倒计时要看得见");
 	assert.deepEqual(items(turnBlocks([ask("跑一下", 0), work(1), drop("gave_up")])[1]), ["step(read)", "hiccup"], "放弃了的那条带着「继续」");
-	assert.deepEqual(items(turnBlocks([ask("跑一下", 0), work(1), drop("recovered"), work(2)])[1]), ["step(read)", "~hiccup", "step(read,read)"], "救回来的断线是这段活里的一件事");
+	assert.deepEqual(items(turnBlocks([ask("跑一下", 0), work(1), drop("recovered"), work(2)])[1]), ["step(read)", "hiccup", "step(read,read)"], "救回来的断线是这段活里的一件事");
 });
 
-test("一条什么都没说出来的失败回复不收进锚里", () => {
+test("一条什么都没说出来的失败回复照样画出来", () => {
 	const failed: Run = { kind: "message", message: { role: "assistant", content: [], stopReason: "error" } as Message, index: 2, upTo: 0 };
 	assert.deepEqual(items(turnBlocks([ask("跑一下", 0), work(1), failed])[1]), ["step(read)", "assistant"], "失败那一行是它唯一露面的机会");
 });
@@ -171,9 +171,9 @@ test("关掉的那一类每次调用自成一行，开关管不着的几类照�
 	assert.equal(new Set(keys).size, keys.length, "拆开的每一行各有自己的 key");
 });
 
-test("只想不做的一轮，锚下面只有那段推理", () => {
+test("只想不做的一轮，过程只有那段推理", () => {
 	const blocks = turnBlocks([ask("想想这个", 0), think(1), say("我的看法是……", 2)]);
-	assert.deepEqual(items(blocks[1]), ["~assistant", "assistant"]);
+	assert.deepEqual(items(blocks[1]), ["assistant", "assistant"]);
 });
 
 test("连着两轮各自成块，不会串到一起", () => {
@@ -200,14 +200,13 @@ const delivered = (index: number, peer = false): Run => ({
 	upTo: 1,
 });
 
-test("送达叫醒的一轮不要锚，人开的那一轮照旧有", () => {
+test("送达叫醒的一轮和人开的一样，按有没有过程分块", () => {
 	const blocks = turnBlocks([ask("派两个出去", 0), think(1), say("派出去了。", 2), delivered(3), think(4), work(1), say("B 回来了。", 6)]);
-	assert.deepEqual(blocks.map((b) => [b.kind, b.woken ?? false]), [["plain", false], ["work", false], ["plain", false], ["work", true]]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work", "plain", "work"]);
 });
 
-test("和来信一起到的送达，回它的那一轮照旧有锚", () => {
-	const blocks = turnBlocks([delivered(0, true), think(1), say("看了。", 2)]);
-	assert.equal(blocks[1].woken, undefined);
+test("和来信一起到的送达，回它的那一轮跑着时和人开的一样先占位", () => {
+	assert.deepEqual(turnBlocks([delivered(0, true), think(1)], undefined, true).map((b) => b.kind), ["plain", "work"]);
 });
 
 test("不显示推理时，推理行拿掉；被它隔开的同类活合成一行", () => {
@@ -216,38 +215,55 @@ test("不显示推理时，推理行拿掉；被它隔开的同类活合成一�
 	assert.deepEqual(items(blocks[1]), ["step(read,read)", "assistant"]);
 });
 
-test("不显示推理时，只想不做的一轮没有锚，就是一句回答", () => {
+test("不显示推理时，只想不做的一轮不算有过程，就是一句回答", () => {
 	assert.deepEqual(shape(withoutThinking([ask("在吗", 0), think(1), say("在。", 1)])), ["plain", "plain"]);
 });
 
-/** 推理不画时 `Conversation` 怎么分：拿掉推理之前先问最后一轮想过没有。 */
-const hidden = (list: Run[], running: boolean) => turnBlocks(withoutThinking(list), undefined, running && thoughtLast(list));
+/** 推理不画时 `Conversation` 怎么分。 */
+const hidden = (list: Run[], running: boolean) => turnBlocks(withoutThinking(list), undefined, running);
 
-test("不显示推理时，跑着的那一轮从开始想就有锚，不等第一次工具调用", () => {
+test("不显示推理时，跑着的那一轮从开始想就算有过程，不等第一次工具调用", () => {
 	const thinking = hidden([ask("看看", 0), think(1)], true);
-	assert.deepEqual(thinking.map((b) => b.kind), ["plain", "work"], "还在想：锚先挂上");
-	assert.deepEqual(thinking[1].runs, [], "锚下面还什么都没有");
+	assert.deepEqual(thinking.map((b) => b.kind), ["plain", "work"], "还在想：先占住过程这一块");
+	assert.deepEqual(thinking[1].runs, [], "里面还什么都没有");
 
 	const speaking = hidden([ask("看看", 0), think(1), say("我先看一下。", 1)], true);
-	assert.deepEqual(speaking.map((b) => b.kind), ["plain", "work"], "说了第一句：锚还在，那句话生在锚下面");
+	assert.deepEqual(speaking.map((b) => b.kind), ["plain", "work"], "说了第一句：还是过程这一块，那句话在里面");
 	assert.deepEqual(items(speaking[1]), ["assistant"]);
 
 	const working = hidden([ask("看看", 0), think(1), say("我先看一下。", 1), work(1)], true);
-	assert.deepEqual(working.map((b) => b.kind), ["plain", "work"], "第一次工具调用：还是同一个锚");
-	assert.deepEqual(items(working[1]), ["~assistant", "step(read)"]);
+	assert.deepEqual(working.map((b) => b.kind), ["plain", "work"], "第一次工具调用：还是同一块");
+	assert.deepEqual(items(working[1]), ["assistant", "step(read)"]);
 });
 
 test("不显示推理时，只想不做的一轮跑完就退回一句回答", () => {
 	assert.deepEqual(hidden([ask("在吗", 0), think(1), say("在。", 1)], false).map((b) => b.kind), ["plain", "plain"]);
 });
 
-test("不显示推理时，只有跑着的最后一轮因为想过而挂锚", () => {
+test("不显示推理时，只有跑着的最后一轮先占位", () => {
 	const blocks = hidden([ask("在吗", 0), think(1), say("在。", 1), ask("再看看", 2), think(3)], true);
 	assert.deepEqual(blocks.map((b) => [b.kind, b.turn]), [["plain", 1], ["plain", 1], ["plain", 2], ["work", 2]]);
-	assert.deepEqual(hidden([ask("看看", 0), say("好。", 1)], true).map((b) => b.kind), ["plain", "plain"], "没想过：照旧等过程");
 });
 
-test("不显示推理时，后台结果叫醒的一轮想着也不挂锚", () => {
+test("模型不把推理流出来：刚发出就占位，开口、调工具都是同一块", () => {
+	// 经代理的 GPT 第一条回复就是话加工具调用，之前什么推理也没有。
+	for (const showThinking of [false, true]) {
+		const blocks = (list: Run[], running: boolean) => turnBlocks(showThinking ? list : withoutThinking(list), undefined, running);
+		const sent = blocks([ask("看看", 0)], true);
+		assert.deepEqual(sent.map((b) => b.kind), ["plain", "work"], "刚发出：先占住过程这一块");
+		assert.deepEqual(sent[1].runs, []);
+		assert.deepEqual(blocks([ask("看看", 0), say("我先看一下。", 1)], true).map((b) => b.kind), ["plain", "work"], "说了第一句：在这一块里");
+		assert.deepEqual(items(blocks([ask("看看", 0), say("我先看一下。", 1), work(1)], true)[1]), ["assistant", "step(read)"]);
+		assert.deepEqual(blocks([ask("看看", 0), say("好。", 1)], false).map((b) => b.kind), ["plain", "plain"], "跑完没有过程：退回一句回答");
+	}
+});
+
+test("压缩命令开的那一轮跑着也不占位", () => {
+	const compact = { kind: "command", command: { status: "running" } } as unknown as Run;
+	assert.deepEqual(turnBlocks([ask("看看", 0), say("好。", 1), compact], undefined, true).map((b) => b.kind), ["plain", "plain", "plain"]);
+});
+
+test("不显示推理时，后台结果叫醒的一轮想着也不占位", () => {
 	assert.deepEqual(hidden([delivered(0), think(1)], true).map((b) => b.kind), ["plain"]);
 	assert.deepEqual(hidden([delivered(0), think(1), say("看了。", 2)], true).map((b) => b.kind), ["plain", "plain"]);
 });
@@ -262,13 +278,7 @@ test("不显示推理时，停在推理上的那一行留个壳：推理切掉�
 	const kept = withoutThinking([ask("改一下", 0), stopped]);
 	assert.equal(kept.length, 2);
 	assert.deepEqual(kept[1].kind === "message" && [kept[1].from, kept[1].upTo], [1, 1]);
-	assert.deepEqual(shape(kept), ["plain", "plain"], "空壳不算推理，不该长出锚");
-});
-
-test("turnEnd 是下一句人话的前一条，没有下一句就是末尾", () => {
-	const blocks = turnBlocks([ask("第一件", 0), work(1), say("好了。", 3), ask("第二件", 5), work(1)]);
-	assert.equal(turnEnd(blocks, 1, 8), 4);
-	assert.equal(turnEnd(blocks, 3, 8), 7);
+	assert.deepEqual(shape(kept), ["plain", "plain"], "空壳不算推理，不该算成有过程");
 });
 
 /*

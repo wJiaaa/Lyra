@@ -202,7 +202,6 @@ try {
 	await d.type("画一只雪地里的红狐狸");
 	await d.submit();
 	await until(app, `document.querySelector('main [data-ly-canvas="pending"]')`, 900);
-	await click(app, "main [data-ly-turn-process] > button");
 	const ROW = 'main [data-ly-tool="running"] button';
 	await until(app, `document.querySelector('${ROW}')`, 400);
 	await pause(1500);

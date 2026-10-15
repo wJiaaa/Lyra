@@ -116,31 +116,6 @@
 }
 
 /*
- * 一轮的锚：字在线上。
- *
- * 线是这一轮过程的上沿，字是它的标题——放在线的开头（「—— 已工作 ——」）读着像分隔符，分开的是
- * 上下两轮；放在线上面，读着是「下面这些是这一轮做的」。行高和流水行一样，下面再留 8px 才是线。
- *
- * 过程里的行距仍然只有一种：每一行在 `TurnWork` 里各套一层折叠，10px 是折叠体里的上内边距，
- * 和转录本身的 `gap-2.5` 一样。放在折叠体里，它才会跟着高度一起收；用外边距或 `gap`，收起之后
- * 每一行还会各留下 10px。
- */
-.ly-turn-anchor {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 33px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-line);
-  text-align: left;
-  transition: color var(--ly-t-quick) var(--ly-e-out);
-}
-
-.ly-turn-anchor[data-open] .ly-flow-chevron {
-  transform: rotate(90deg);
-}
-
-/*
  * 流水行上换掉的那句话（`RollWords`）。
  *
  * 宽度由组件在换句时钉成像素再放开，这里只给它过渡；`overflow: hidden` 让变宽的那段时间里新句不压到

@@ -316,7 +316,7 @@ export async function expandLastTurn(page: Page, ready: string, budgetMs = 8000)
 		if (Date.now() > end) throw new Error(`expandLastTurn: ${ready}`);
 		const found = await page.evaluate<boolean>(`(()=>{
 			document.querySelectorAll('[data-e2e-expand]').forEach(e=>e.removeAttribute('data-e2e-expand'));
-			const last=[...document.querySelectorAll('main button.ly-turn-anchor[aria-expanded="false"], main button.ly-flow-row[aria-expanded="false"], main [data-ly-tool] > button[aria-expanded="false"]')].filter(e=>e.checkVisibility()).at(-1);
+			const last=[...document.querySelectorAll('main button.ly-flow-row[aria-expanded="false"], main [data-ly-tool] > button[aria-expanded="false"]')].filter(e=>e.checkVisibility()).at(-1);
 			last?.setAttribute('data-e2e-expand','');
 			return !!last;
 		})()`);

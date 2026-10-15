@@ -533,19 +533,20 @@ async function sceneSubagent(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// disclosure: a process block opened in one screen, while focus moves between screens.
+// disclosure: a line of work opened in one screen, while focus moves between screens.
 // ---------------------------------------------------------------------------
 
-const PROCESS = (side: Side) => `${pane(side)} [data-ly-turn-process="done"]`;
-const PROCESS_TOGGLE = (side: Side) => `${PROCESS(side)} button[aria-expanded]`;
+const PROCESS = (side: Side) => `${pane(side)} [data-ly-turn-process]`;
+const PROCESS_TOGGLE = (side: Side) => `${PROCESS(side)} button.ly-flow-row[aria-expanded]`;
+const OPENED = (side: Side) => `document.querySelector('${PROCESS_TOGGLE(side)}')?.getAttribute('aria-expanded') === 'true'`;
 
-/** Whether a screen's process block is drawn open: the flag, and the painted height of what it folds. */
+/** Whether a screen's first line of work is drawn open: the flag, and the painted height of what it unfolds. */
 const OPEN_STATE = (side: Side) => `(() => {
-	const block = document.querySelector('${PROCESS(side)}');
-	if (!block) return 'none';
-	const body = block.lastElementChild;
-	const tall = body ? Math.round(body.getBoundingClientRect().height) : -1;
-	return (block.hasAttribute('data-ly-turn-open') ? 'open' : 'shut') + ':' + tall;
+	const row = document.querySelector('${PROCESS_TOGGLE(side)}');
+	if (!row) return 'none';
+	const body = row.parentElement?.lastElementChild;
+	const tall = body && body !== row ? Math.round(body.getBoundingClientRect().height) : -1;
+	return (row.getAttribute('aria-expanded') === 'true' ? 'open' : 'shut') + ':' + tall;
 })()`;
 
 async function openStates(): Promise<{ a: string; b: string; focused: string | null }> {
@@ -572,7 +573,7 @@ async function sceneDisclosure(): Promise<void> {
 		})()`);
 		await caption(`鼠标点开左边「${A.title}」的过程块`);
 		await click(PROCESS_TOGGLE(A));
-		await within(`document.querySelector('${PROCESS(A)}')?.hasAttribute('data-ly-turn-open')`, 4000);
+		await within(OPENED(A), 4000);
 		await pause(900);
 		const opened = await openStates();
 		check(scene, "鼠标点开甲的过程块：甲屏展开", isOpen(opened.a), opened);
@@ -587,8 +588,8 @@ async function sceneDisclosure(): Promise<void> {
 
 		await caption(`点左边「${A.title}」的输入框，焦点回到甲；再用键盘点开右边乙的过程块`);
 		await focusByMouse(A);
-		if (!(await js<boolean>(`document.querySelector('${PROCESS(B)}')?.hasAttribute('data-ly-turn-open')`))) await keyboardPress(PROCESS_TOGGLE(B));
-		await within(`document.querySelector('${PROCESS(B)}')?.hasAttribute('data-ly-turn-open')`, 4000);
+		if (!(await js<boolean>(OPENED(B)))) await keyboardPress(PROCESS_TOGGLE(B));
+		await within(OPENED(B), 4000);
 		await pause(900);
 		const keyed = await openStates();
 		check(scene, "键盘点开乙的过程块（焦点在甲）：乙屏展开", isOpen(keyed.b), keyed);

@@ -136,12 +136,9 @@ const card = (app: RunningApp) => app.evaluate<{ text: string; images: { src: st
 	};
 })()`);
 
-/** 收着就点开：这一轮的过程、读图那一行，两层。 */
+/** 收着就点开读图那一行。 */
 async function expand(app: RunningApp) {
 	await until(app, `document.querySelector("main [data-ly-turn-process]")`);
-	if (!(await app.evaluate<boolean>(`document.querySelector("main [data-ly-turn-process]").hasAttribute("data-ly-turn-open")`))) {
-		await click(app, "main [data-ly-turn-process] > button");
-	}
 	await until(app, READ_ROW);
 	await app.evaluate(`(() => { ${READ_ROW}.querySelector("button[aria-expanded]")?.setAttribute("data-demo-read", ""); })()`);
 	if (await app.evaluate<boolean>(`document.querySelector("[data-demo-read]")?.getAttribute("aria-expanded") !== "true"`)) await click(app, "[data-demo-read]");

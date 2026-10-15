@@ -124,7 +124,7 @@ export function FlowRow({
  * 过渡的每一帧当成又一次变化。`ResizeObserver` 的回调在布局之后、绘制之前，所以新宽度从来不会先画出来
  * 一帧。没有尾巴时外层宽 0、里层不留空，所以它可以一直挂着——从无到有也是缓过去的。
  */
-export function FlowTrail({ children, from }: { children?: ReactNode; from?: number }) {
+function FlowTrail({ children, from }: { children?: ReactNode; from?: number }) {
 	const outer = useRef<HTMLSpanElement>(null);
 	const inner = useRef<HTMLSpanElement>(null);
 	// 只在挂上时读一次：之后变了也不该重新起步。

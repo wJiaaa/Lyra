@@ -17,7 +17,7 @@ import { SessionSuggestionNotes } from "./SessionSuggestionNote.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { computeTurnStats, isNudge, runs, runKey, thoughtLast, turnBlocks, turnEnd, withoutThinking, type Run } from "./grouping.ts";
+import { isNudge, runs, runKey, turnBlocks, withoutThinking, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { LiveToolCard, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
@@ -28,7 +28,6 @@ import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow, planMarkdown } from "./rows.tsx";
 import { TurnWork } from "./TurnWork.tsx";
 import { WorkStep, type DrawCall } from "./WorkStep.tsx";
-import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
 import { flash, settleReveal, useDrawingReveal } from "./reveal.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
@@ -134,9 +133,9 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
   const loadingSession = useScopedLoading();
   // 推理默认不画，见 `withoutThinking`。
   const showThinking = useApp((s) => s.settings?.showThinking === true);
-  const { allRuns, thought } = useMemo(() => {
+  const allRuns = useMemo(() => {
     const list = runs(messages, compactions, commandRuns, hiccups);
-    return showThinking ? { allRuns: list, thought: false } : { allRuns: withoutThinking(list), thought: thoughtLast(list) };
+    return showThinking ? list : withoutThinking(list);
   }, [messages, compactions, commandRuns, hiccups, showThinking]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
@@ -147,17 +146,17 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
    * 发言之间跑了 400 次工具调用），于是往那种轮次里翻页，60 个 Run 全落进一个已经收起的块，屏幕上
    * 只有「调用工具 N 个」那个数字在变。连点四次，转录一动不动。
    *
-   * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnWork` 收起时不渲染
-   * 里面的东西），所以一次多带几轮也不再是负担。
+   * 按块开窗之后，翻一次必然多出整轮——必然看得见。一轮里同类的调用合成一行、每行默认收着（`WorkStep`
+   * 收起时不渲染里面的调用），一轮四百次调用摊开也只是几十行。
    */
   // 三个布尔各取一次：取 `appearance` 整个对象的话，改字号也会把整段转录重新分一遍。
   const groupExplore = useApp((s) => s.settings?.appearance.groupExplore !== false);
   const groupTerminal = useApp((s) => s.settings?.appearance.groupTerminal !== false);
   const groupChanges = useApp((s) => s.settings?.appearance.groupChanges === true);
   const allBlocks = useMemo(
-    // 跑着的那一轮想过就有锚，见 `turnBlocks` 的 `thinking`。
-    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }, running && thought),
-    [allRuns, groupExplore, groupTerminal, groupChanges, running, thought],
+    // 跑着的那一轮从发出就按有过程分，见 `turnBlocks` 的 `live`。
+    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }, running),
+    [allRuns, groupExplore, groupTerminal, groupChanges, running],
   );
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   /*
@@ -492,7 +491,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
            *
            * 一轮读下来是「想 → 做 → 说」。前两步是过程——跑的时候你在看着它，跑完之后它挡在答案
            * 前面就只是噪音。`turnBlocks` 在 Run 那一层把这件事定下来（规则性的东西要能单独测），
-           * 这里只负责把有过程的一轮套进 `TurnWork`。
+           * 这里只负责把有过程的一轮交给 `TurnWork` 一行行摊开。
            */}
           <div className="flex flex-col gap-2.5" data-ly-transcript-rows>
           {blocks.map((block, at) => {
@@ -556,8 +555,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
              * 现在认得每一种 Run，断言也就没有存在的理由了。
              */
             /*
-             * 按开这一轮的那句话起名，不按锚下面第一行：推理不画时，还在想的那一轮锚下面是空的，第一行等它开口
-             * 才有（见 `turnBlocks` 的 `thinking`）。按第一行起名，开口那一下锚就卸掉重建。没有开口那句的
+             * 按开这一轮的那句话起名，不按锚下面第一行：跑着的那一轮刚发出时下面是空的，第一行等它开口
+             * 才有（见 `turnBlocks` 的 `live`）。按第一行起名，开口那一下整块就卸掉重建。没有开口那句的
              * （会话的第 0 轮）才退回第一行。
              */
             const opener = allBlocks[range.start + at - 1];
@@ -573,8 +572,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
             const drawn = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call.id) : []));
             // 建议另开的会话在这里留一行记录，折进过程里就没人看见，也画在外面；开始在环境卡片里。
             const suggestions = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "spawn_session").map(({ block: call }) => call) : []));
-            // 这一轮派出去的子智能体。收起之后锚的行尾还挂着它们的脸。
-            const delegated = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "task").map(({ block: call }) => call) : []));
             /*
              * 按**回合**算，不是按块的位置算：正文一开始流式输出，过程就不再排在末尾。
              */
@@ -583,14 +580,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
             return (
               <Fragment key={key}>
                 <TurnWork
-                  running={live}
-                  durationMs={live || block.woken ? undefined : computeTurnStats(messages, turnEnd(allBlocks, range.start + at, messages.length)).durationMs}
-                  stateKey={key}
-                  trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
-                  bare={block.woken}
                   entries={block.items.map((item) => ({
                     key: `${activeSessionId}:${item.key}`,
-                    fold: item.kind === "step" || item.fold,
                     // 正在做的那一段是这一轮的最后一行：后面有了别的（下一段活、一句话），它就做完了。
                     node: item.kind === "step" ? <WorkStep step={item.step} live={live && item === tail} draw={draw} drawCall={drawCall} /> : draw(item.run),
                   }))}
@@ -757,9 +748,4 @@ export function ConversationSkeleton() {
       <Composer />
     </div>
   );
-}
-
-/** 一轮里派出去的子智能体的脸：收起那一行的行尾。自己订阅这几条记录，整篇对话不跟着它重画。 */
-function TurnFaces({ calls }: { calls: Parameters<typeof useDispatches>[0] }) {
-	return <DispatchFaces dispatches={useDispatches(calls)} />;
 }

@@ -152,9 +152,6 @@ const card = (app: RunningApp) => app.evaluate<{ text: string; images: { natural
 
 async function expand(app: RunningApp) {
 	await until(app, `document.querySelector("main [data-ly-turn-process]")`);
-	if (!(await app.evaluate<boolean>(`document.querySelector("main [data-ly-turn-process]").hasAttribute("data-ly-turn-open")`))) {
-		await click(app, "main [data-ly-turn-process] > button");
-	}
 	await until(app, ROW);
 	await app.evaluate(`(() => { ${ROW}.querySelector("button[aria-expanded]")?.setAttribute("data-demo-row", ""); })()`);
 	if (await app.evaluate<boolean>(`document.querySelector("[data-demo-row]")?.getAttribute("aria-expanded") !== "true"`)) await click(app, "[data-demo-row]");
@@ -196,10 +193,9 @@ try {
 
 		// 生成中：行下面那块点阵画布，按请求的 1024x1024 占一个 240 的正方形，光斑在动。
 		const PENDING = `document.querySelector('main [data-ly-canvas="pending"]')`;
-		// 这一轮的过程默认收着，跑着也一样（见 `TurnProcess`）；画布画在它外面，不用点开就看得见。
-		const FOLDED = `!document.querySelector("main [data-ly-turn-process]")?.hasAttribute("data-ly-turn-open")`;
+		// 画布画在过程外面，不用点开那一行就看得见。
 		const appeared = await until(app, PENDING, 900).then(() => true, () => false);
-		check("生成中，过程收着也看得见画布", appeared && (await app.evaluate<boolean>(FOLDED)), null);
+		check("生成中，不用点开就看得见画布", appeared, null);
 		if (appeared) {
 			await pause(1200);
 			const mask = () => app!.evaluate<string>(`getComputedStyle(${PENDING}, "::before").maskPosition`);

@@ -136,10 +136,10 @@ try {
 	for (let i = 0; i < 300; i++) {
 		const now = (await steps()).map((item) => `${item.step}「${item.words}」`).join(" | ");
 		if (now && now !== seen.at(-1)) seen.push(now);
-		if (seen.length > 0 && (await app.evaluate<boolean>(`document.querySelector("main [data-ly-turn-process] > .ly-turn-anchor")?.disabled === false`))) break;
+		if (seen.length > 0 && (await app.evaluate<boolean>(`!document.querySelector('main button[aria-label="停止"]')`))) break;
 		await pause(40);
 	}
-	console.log("跑的过程中锚下面依次出现过：");
+	console.log("跑的过程中依次出现过：");
 	for (const line of seen) console.log("  ", line);
 	check("只读命令从出现起就在探索那一行里，下面没有先冒出一行", seen.length > 0 && seen.every((line) => line.split(" | ").length === 1), seen);
 	await pause(800);

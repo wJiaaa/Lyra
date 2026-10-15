@@ -137,9 +137,6 @@ const COPY = `${VIEWER} button[aria-label="复制图片"]`;
 
 async function expand(app: RunningApp) {
 	await until(app, `document.querySelector("main [data-ly-turn-process]")`);
-	if (!(await app.evaluate<boolean>(`document.querySelector("main [data-ly-turn-process]").hasAttribute("data-ly-turn-open")`))) {
-		await click(app, "main [data-ly-turn-process] > button");
-	}
 	await until(app, READ_ROW);
 	await app.evaluate(`(() => { ${READ_ROW}.querySelector("button[aria-expanded]")?.setAttribute("data-demo-read", ""); })()`);
 	if (await app.evaluate<boolean>(`document.querySelector("[data-demo-read]")?.getAttribute("aria-expanded") !== "true"`)) await click(app, "[data-demo-read]");
