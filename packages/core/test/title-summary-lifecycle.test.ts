@@ -6,7 +6,8 @@ import { test, type TestContext } from "node:test";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { AgentSession, type AgentSessionOptions } from "../src/runtime/session.ts";
-import { summarizeTitle } from "../src/runtime/title-summary.ts";
+import { summarizeTitle, THINKING_TITLE_MAX_TOKENS } from "../src/runtime/title-summary.ts";
+import { thinkingOptionsFor } from "../src/ai/thinking-options.ts";
 import { SessionStore, type SessionMeta, type SessionRecordInput } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type UserMessage } from "../src/types.ts";
 
@@ -241,3 +242,15 @@ for (const resumed of [false, true]) {
 		});
 	}
 }
+
+test("models that cannot turn thinking off get room to reason before the title", async () => {
+	const sent: Array<number | undefined> = [];
+	const stream: Parameters<typeof summarizeTitle>[0]["stream"] = async function* (_provider, _model, _context, streamOptions) {
+		sent.push(streamOptions?.maxTokens);
+		const message = reply("Title"); yield { type: "done", message }; return message;
+	};
+	const thinker: ModelConfig = { ...model, supportsThinking: true };
+	await summarizeTitle({ text: prompt, provider, model: thinker, stream });
+	await summarizeTitle({ text: prompt, provider, model: { ...thinker, thinkingOptions: thinkingOptionsFor(["low", "high", "max"]) }, stream });
+	assert.deepEqual(sent, [60, THINKING_TITLE_MAX_TOKENS]);
+});
