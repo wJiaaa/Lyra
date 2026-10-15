@@ -20,9 +20,9 @@ import { useDelayedOffer } from "./hover-offer.ts";
  * more than a couple of steps — and until now that list was only visible as one tool card among
  * dozens, immediately buried by the next one.
  *
- * Collapsed it is a single line naming what is happening right now, which is the answer most of
- * the time. Opened it is the whole plan, capped and scrolling, because a plan with forty steps
- * must not push the conversation off the screen.
+ * Opens showing the whole plan, capped and scrolling, because a plan with forty steps must not
+ * push the conversation off the screen. Folded it is a single line naming what is happening right
+ * now, for when the plan is in the way.
  */
 export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	const { t } = useI18n();
@@ -67,7 +67,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 						run: () => void send([{ type: "text", text: carryOnPrompt(null, todos.filter((todo) => todo.status !== "completed").length) ?? t("taskList.resumeDetail") }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined }),
 					};
 
-	const [open, setOpen] = useState(false);
+	// 默认展开：只看得见当前一步时，「还剩多少、接下来是什么」还得再点一下才知道。
+	const [open, setOpen] = useState(true);
 
 	const active = todos.find((todo) => todo.status === "in_progress");
 	const done = todos.filter((todo) => todo.status === "completed").length;
@@ -103,8 +104,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				{/*
 				 * What is happening now, not what the list is called.
 				 *
-				 * Collapsed, this row is the whole feature for most of a turn — a title saying
-				 * "任务" would spend that time telling you something you can see.
+				 * Folded, this row is the whole feature — a title saying "任务" would spend it
+				 * telling you something you can see.
 				 */}
 				<ScrollText
 					text={
