@@ -21,6 +21,8 @@ async function seed(home: string): Promise<void> {
 			providers: [],
 			mcpServers: [],
 			hooks: [],
+			// 推理默认不画；下面数推理行的断言要它在。
+			showThinking: true,
 			projects: [{ id: projectId, path: cwd, name: "Scroll QA", pinned: true, lastOpenedAt: 1 }],
 		}),
 	);
@@ -143,20 +145,21 @@ test("switching split reasoning and answers never accumulates orphan DOM rows", 
 		const opened = [];
 		for (let i = 0; i < 8; i++) {
 			await open(i % 2 ? "scroll-b" : "scroll-a");
-			process.push(currentPage().querySelectorAll("[data-ly-turn-process]").length);
+			process.push(currentPage().querySelectorAll("[data-ly-step]").length);
 			thinking.push(currentPage().querySelectorAll("[data-ly-thinking]").length);
-			currentPage().querySelector('[data-ly-turn-process] > button')?.click();
+			currentPage().querySelector('[data-ly-step] > button')?.click();
 			for (let n = 0; n < 20; n++) await frame();
 			opened.push(currentPage().querySelectorAll("[data-ly-thinking]").length);
-			currentPage().querySelector('[data-ly-turn-process] > button')?.click();
+			currentPage().querySelector('[data-ly-step] > button')?.click();
 			// Leave during the closing transition: Activity must release its cancelled body.
 			await frame();
 		}
 		return { process, thinking, opened };
 	})()`);
 	/*
-	 * Finished turns fold think+tools into one process row. The fixture still reasons twice —
-	 * once before the call, once before the answer — and both come back when that row is opened.
+	 * Reasoning and the read call share one step row, whose body is only mounted while it is open.
+	 * The fixture reasons twice — once before the call, once before the answer — and both are
+	 * counted once that row is opened.
 	 * Count the active page: retained hidden conversations deliberately keep their own rows.
 	 * The visible transcript must never acquire rows left over from another conversation.
 	 */
@@ -197,7 +200,7 @@ test("expanded history and disclosures return at the same reading position", asy
 		if (!earlier) throw new Error("fixture must have hidden history");
 		earlier.click();
 		for (let i = 0; i < 20; i++) await frame();
-		currentPage().querySelector('[data-ly-turn-process] > button')?.click();
+		currentPage().querySelector('[data-ly-step] > button')?.click();
 		for (let i = 0; i < 20; i++) await frame();
 		const think = currentPage().querySelector('[data-ly-thinking] > button');
 		if (!think) throw new Error("fixture must expose thinking after the process row opens");

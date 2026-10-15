@@ -1,5 +1,5 @@
 /* oxlint-disable no-console -- real-window verification prints measured evidence */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
@@ -20,7 +20,12 @@ let stopRecording: (() => Promise<void>) | undefined;
 const frames: Frame[] = [];
 const pause = (ms = 1000) => new Promise(resolve => setTimeout(resolve, ms));
 try {
-	app = await startApp({ port: 9746, seed: home => seedIssues(home, address.port) });
+	app = await startApp({ port: 9746, seed: async home => {
+		await seedIssues(home, address.port);
+		// 推理默认不画；这里要量它的开合，先打开。
+		const file = join(home, "settings.json");
+		await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), showThinking: true }));
+	} });
 	const page = app;
 	stopRecording = await startRecording(9746, frames);
 	await page.evaluate("document.fonts.ready");
@@ -52,21 +57,21 @@ try {
 	}
 	await click('[data-ly-row="issue-demo"] > button'); await pause();
 	for (let i = 0; i < (baseline ? 1 : 5); i++) {
-		motion(`process open ${i + 1}`, await sample('[data-ly-turn-process] > button', '[data-ly-turn-process] > div'));
+		motion(`step open ${i + 1}`, await sample('[data-ly-step] > button', '[data-ly-step] > .ly-reveal'));
 		await pause();
-		motion(`thinking open ${i + 1}`, await sample('[data-ly-thinking] > button', '[data-ly-thinking] > div'));
+		motion(`thinking open ${i + 1}`, await sample('[data-ly-thinking] > button', '[data-ly-thinking] > .ly-reveal'));
 		await pause();
-		motion(`thinking close ${i + 1}`, await sample('[data-ly-thinking] > button', '[data-ly-thinking] > div'));
+		motion(`thinking close ${i + 1}`, await sample('[data-ly-thinking] > button', '[data-ly-thinking] > .ly-reveal'));
 		await pause();
-		motion(`tools open ${i + 1}`, await sample('[data-ly-run] > button', '[data-ly-run] > div'));
+		motion(`tools open ${i + 1}`, await sample('[data-ly-tool] > button', '[data-ly-tool] > .ly-reveal'));
 		await pause();
-		motion(`tools close ${i + 1}`, await sample('[data-ly-run] > button', '[data-ly-run] > div'));
+		motion(`tools close ${i + 1}`, await sample('[data-ly-tool] > button', '[data-ly-tool] > .ly-reveal'));
 		await pause();
-		motion(`process close ${i + 1}`, await sample('[data-ly-turn-process] > button', '[data-ly-turn-process] > div'));
+		motion(`step close ${i + 1}`, await sample('[data-ly-step] > button', '[data-ly-step] > .ly-reveal'));
 		await pause();
 	}
 	if (!baseline) {
-		const rapid = await sample('[data-ly-turn-process] > button', '[data-ly-turn-process] > div', true);
+		const rapid = await sample('[data-ly-step] > button', '[data-ly-step] > .ly-reveal', true);
 		motion("rapid reversal remains animated", rapid);
 		check("rapid reversal settles closed", rapid.values.at(-1) === 0, rapid.values.at(-1)); await pause();
 	}

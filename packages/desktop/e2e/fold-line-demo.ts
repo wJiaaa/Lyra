@@ -1,10 +1,9 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * A turn's folded line under the default call chain, in a real window, recorded while it is checked.
+ * A turn's flat rows under the default call chain, in a real window, recorded while it is checked.
  *
  * Three things the unit tests cannot show, because they are about frames: the line glides while its
- * stretch's tools are running, a dropped connection's countdown stays on screen rather than inside the
- * fold, and once the turn is over the line is still and says what the work was.
+ * stretch's tools are running, a dropped connection's countdown stays on screen, and once the turn is over the line is still and says what the work was.
  *
  * The model is scripted: a batch of calls, a dropped connection, the resumed batch, then the answer.
  *
@@ -113,8 +112,7 @@ async function seed(home: string): Promise<void> {
 
 interface Sample {
 	running: boolean;
-	folds: string[];
-	/** Glides on a fold's own line. */
+	/** Glides on a row inside the turn's process. */
 	foldGlides: number;
 	glides: number;
 	/** The dropped connection's line, when one is on screen outside the fold. */
@@ -125,14 +123,13 @@ interface Sample {
 const SAMPLE = `(() => {
 	const shown = (el) => el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) && el.getBoundingClientRect().height > 0;
 	const drops = [...document.querySelectorAll("main [data-hiccup-trace]")];
-	const outside = drops.filter((el) => !el.closest("[data-ly-turn-process]") && shown(el));
+	const outside = drops.filter(shown);
 	return {
 		running: Boolean(document.querySelector('main button[aria-label="停止"]')),
-		folds: [...document.querySelectorAll("main [data-ly-turn-process]")].map((el) => el.dataset.lyTurnProcess),
-		foldGlides: document.querySelectorAll("main [data-ly-turn-process] > button .ly-glide:not([data-ly-scroll-dup])").length,
+		foldGlides: document.querySelectorAll("main [data-ly-turn-process] .ly-glide:not([data-ly-scroll-dup])").length,
 		glides: document.querySelectorAll("main .ly-glide:not([data-ly-scroll-dup])").length,
 		drop: outside.map((el) => el.innerText.replace(/\\s+/g, " ").trim()).join(" / "),
-		line: [...document.querySelectorAll("main [data-ly-turn-process] > button .ly-flow-summary")].map((el) => el.innerText.trim()).join(" / "),
+		line: [...document.querySelectorAll("main [data-ly-turn-process] button.ly-flow-row .ly-flow-summary")].map((el) => el.innerText.trim()).join(" / "),
 	};
 })()`;
 
@@ -164,23 +161,24 @@ async function main() {
 			await pause(120);
 		}
 
-		const working = samples.filter((s) => s.running && s.folds.includes("running"));
-		check("折叠行在这一段的工具跑的时候带着扫光", working.some((s) => s.foldGlides === 1), JSON.stringify(working.slice(0, 3)));
+		const working = samples.filter((s) => s.running);
+		check("过程行在工具跑的时候带着扫光", working.some((s) => s.foldGlides === 1), JSON.stringify(working.slice(0, 3)));
 		check("任何时候最多一处在扫光", samples.every((s) => s.glides <= 1), String(Math.max(...samples.map((s) => s.glides))));
 		const waiting = samples.filter((s) => /连接中断/.test(s.drop));
-		check("断线后的倒计时在折叠外面，看得见", waiting.length >= 5, `${waiting.length} 次采样里看得见`);
+		check("断线后的倒计时看得见", waiting.length >= 5, `${waiting.length} 次采样里看得见`);
 		const seconds = [...new Set(waiting.map((s) => Number(s.drop.match(/(\d+) 秒后/)?.[1] ?? NaN)).filter(Number.isFinite))];
 		check("倒计时在走", seconds.length >= 3, seconds.join(", ") || "（没有读数）");
 		const last = samples.at(-1);
 		check("这一轮结束后，什么都不再扫光", last !== undefined && last.glides === 0, JSON.stringify(last));
-		check("折叠行说的是做了什么", Boolean(last && /读取文件/.test(last.line)), last?.line ?? "");
+		check("跑完的过程行说的是做了什么", Boolean(last && /读取文件/.test(last.line)), last?.line ?? "");
 		await pause(1800);
 
-		console.log("【二】点开折叠行，看里面的每一步");
-		await d.click('main [data-ly-turn-process] > button');
+		console.log("【二】点开一行，看里面的每一步");
+		const before = await app.evaluate<number>(`document.querySelectorAll("main [data-ly-turn-process] [data-ly-tool]").length`);
+		await d.click('main [data-ly-turn-process] button.ly-flow-row[aria-expanded="false"]');
 		await pause(1600);
 		const opened = await app.evaluate<number>(`document.querySelectorAll("main [data-ly-turn-process] [data-ly-tool]").length`);
-		check("点开后每次调用各占一行", opened >= 4, `${opened} 行`);
+		check("点开一行后它里面的每次调用各占一行", opened > before, `${before} → ${opened} 行`);
 		await pause(1800);
 	} finally {
 		await stop();

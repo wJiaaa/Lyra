@@ -5,9 +5,9 @@
  * 模型是本地一个按剧本吐 SSE 的假服务：先想一下、列目录找文件，再想、读文件搜引用，说一句话、改一处，
  * 想一下、跑两条命令，最后给出回答。第二轮只想一下、跑一条命令。每块之间留够停顿，好让录像看得清。
  *
- * 要看的是 `TurnWork` 和 `WorkStep`：锚从第一步起就在；同一类连着做的合成一行，从第一次调用起就说
+ * 要看的是 `TurnWork` 和 `WorkStep`：过程一行行平铺，没有整轮的锚；同一类连着做的合成一行，从第一次调用起就说
  * 总的「思考 N 次 · …」，新的调用接在句尾、前面的字不动，末尾的推理接在句尾说「正在思考」；跑的时候
- * 已经出现的行一像素都不动、一行都不少；跑完不收，一行一行留着；点锚收起是动画不是硬切。
+ * 已经出现的行一像素都不动、一行都不少；跑完不收，一行一行留着，每一行自己点得开。
  *
  * 用法：node --experimental-strip-types e2e/tool-flow-demo.ts [标签] [输出目录]
  */
@@ -129,21 +129,20 @@ try {
 		const { data } = await app!.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 		await writeFile(join(OUT_DIR, `${STAMP}_${LABEL}_${String(++shot).padStart(2, "0")}_${name}.png`), Buffer.from(data, "base64"));
 	};
-	// 一轮（默认第一轮）：锚、锚下面每一行的位置和字、回答。位置都从锚的下沿量，转录自己滚动不算。
+	// 一轮（默认第一轮）：每一行的位置和字、回答。位置都从这一轮的上沿量，转录自己滚动不算。
 	const state = (which = 0) => app!.evaluate<{
-		anchor: string | null; expanded: string | null; disabled: boolean;
+		anchors: number; running: boolean;
 		items: { top: number; height: number; text: string; words: string | null; step: string | null }[];
 		glides: number;
 	}>(`(() => {
 		const all = document.querySelectorAll("main [data-ly-turn-process]");
 		const turn = all[${which} < 0 ? all.length + ${which} : ${which}];
-		const anchor = turn?.querySelector(":scope > .ly-turn-anchor");
-		const base = anchor?.getBoundingClientRect().bottom ?? 0;
+		const base = turn?.getBoundingClientRect().top ?? 0;
 		return {
-			anchor: anchor?.innerText.replace(/\\s+/g, " ").trim() ?? null,
-			expanded: anchor?.getAttribute("aria-expanded") ?? null,
-			disabled: Boolean(anchor?.disabled),
-			items: [...(turn?.querySelectorAll(":scope > .ly-freeze") ?? [])].map((item) => {
+			anchors: document.querySelectorAll('main .ly-turn-anchor, main [data-ly-turn-open], main button[aria-label="本轮过程"]').length,
+			// 停止键在就是还在跑。
+			running: Boolean(document.querySelector('main button[aria-label="停止"]')),
+			items: [...(turn?.querySelectorAll(":scope > div") ?? [])].map((item) => {
 				const box = item.getBoundingClientRect();
 				const row = item.querySelector(".ly-flow-row");
 				return { top: Math.round(box.top - base), height: Math.round(box.height), text: (row ?? item).innerText.replace(/\\s+/g, " ").trim().slice(0, 60), words: row?.querySelector(".ly-roll-words")?.textContent ?? null, step: item.querySelector("[data-ly-step]")?.getAttribute("data-ly-step") ?? null };
@@ -165,42 +164,13 @@ try {
 	 * 回答开始流式输出之后就停：那之后变的是回答自己的高度，不是过程。
 	 */
 	type Sample = Awaited<ReturnType<typeof state>>;
-	/*
-	 * 逐帧记每一段那一行行尾箭头的横坐标：句子变长时它是被推过去还是跳过去。
-	 *
-	 * 在每一帧 ResizeObserver 那一步的最后读，不在 rAF 里读。rAF 在布局之前：React 刚提交的那一帧，
-	 * 行尾的附注还没被 `FlowTrail` 钉回旧宽，读到的是一个从来没画到屏幕上的位置——量出过 44px 的「跳」，
-	 * 而逐帧看画出来的宽度是 0→5→9→…→44。每帧新建的观察者排在所有已有观察者后面，轮到它时钉宽已经做完。
-	 */
-	await app.evaluate(`(() => {
-		window.__chevron = 0; window.__chevronAt = null; let id = 0; const last = new Map();
-		const measure = () => {
-			for (const step of document.querySelectorAll("main [data-ly-step]")) {
-				const chevron = step.querySelector(":scope .ly-flow-row .ly-flow-chevron");
-				if (!chevron) continue;
-				// 按锚下面那一格认：一次调用的那一行换成合在一起的那一行时，格子还是那一格，换的那一下也要量。
-				const slot = step.closest(".ly-freeze") ?? step;
-				slot.dataset.probe ??= String(id++);
-				const x = chevron.getBoundingClientRect().left;
-				const before = last.get(slot.dataset.probe);
-				if (before !== undefined && Math.abs(x - before) > window.__chevron) { window.__chevron = Math.abs(x - before); window.__chevronAt = step.innerText.slice(0, 40); }
-				last.set(slot.dataset.probe, x);
-			}
-		};
-		const tick = () => {
-			const after = new ResizeObserver(() => { after.disconnect(); measure(); });
-			after.observe(document.body);
-			if (!window.__stopChevron) requestAnimationFrame(tick);
-		};
-		requestAnimationFrame(tick);
-	})()`);
 	const samples: Sample[] = [];
-	await d.until(`document.querySelector("main [data-ly-turn-process] > .ly-turn-anchor")`, 20000);
+	await d.until(`document.querySelector("main [data-ly-turn-process]")`, 20000);
 	let pictured = false;
 	for (let i = 0; i < 400; i++) {
 		const now = await state();
 		samples.push(now);
-		if (!now.disabled) break;
+		if (!now.running) break;
 		// 两条命令跑着的时候拍一张：「终端」那一行在扫光，上面几段已经做完。
 		if (!pictured && now.items.some((item) => item.step === "terminal")) {
 			pictured = true;
@@ -208,11 +178,9 @@ try {
 		}
 		await pause(60);
 	}
-	const live = samples.filter((sample) => sample.disabled);
+	const live = samples.filter((sample) => sample.running);
 	console.log(`运行中采样 ${live.length} 次`);
-	const ticks = [...new Set(live.map((sample) => sample.anchor))];
-	console.log("锚跑着时说过：", ticks);
-	check("锚从第一步起就在、不能点，跑着时秒数一直往上走", live.length > 10 && live.every((sample) => /已工作|工作中/.test(sample.anchor ?? "")) && ticks.filter((text) => /已工作 \d+ 秒/.test(text ?? "")).length >= 3, ticks);
+	check("整轮没有锚：跑着的每一次采样里都找不到", live.length > 10 && samples.every((sample) => sample.anchors === 0), samples.map((sample) => sample.anchors));
 
 	let moved: unknown = null;
 	let shrank: unknown = null;
@@ -227,19 +195,13 @@ try {
 	check("跑着的时候已经出现的行一行都没少", shrank === null, shrank);
 	check("跑着的时候已经出现的行一像素都没挪、没变高", moved === null, moved);
 
-	// 读代码那一行跑着时说过的每一句：后一句是前一句往后接的——数字原地变、一类只有一个时点名的文件换成个数，
-	// 除此之外前一句的每一截都还在原位。
-	const said = (step: string) => [...new Set(live.flatMap((sample) => sample.items.filter((item) => item.step === step && item.words).map((item) => item.words!)))];
-	const pieces = (text: string) => text.split(/ · |、/).map((part) => part.replace(/ .*$/, ""));
-	const grows = (texts: string[]) => texts.every((text, at) => at === 0 || pieces(texts[at - 1]).every((part, n) => pieces(text)[n] === part));
-	const explore = said("explore");
+	/*
+	 * 跑着时那一行说什么（最新一次调用、跑完再换成总的）归 `explore-head-demo.ts` 量；这里只守：
+	 * 同一类连着做的从头到尾只有一行，不是一次调用一行。
+	 */
+	const explore = [...new Set(live.flatMap((sample) => sample.items.filter((item) => item.step === "explore" && item.words).map((item) => item.words!)))];
 	console.log("读代码那一行跑着时说过：", explore);
-	check("列目录、找文件、读文件、搜索合成一行，一出来就说总的", live.every((sample) => sample.items.filter((item) => item.step === "explore").length <= 1) && explore.length >= 3 && /^思考 \d 次 · 列出目录/.test(explore[0]), explore);
-	check("跑着时新的调用接在句尾，前面的字不动", grows(explore) && grows(said("terminal")), { explore, terminal: said("terminal") });
-	await app.evaluate("window.__stopChevron = true");
-	const jump = await app.evaluate<{ px: number; at: string | null }>("({ px: Math.round(window.__chevron), at: window.__chevronAt })");
-	console.log("句子变长时行尾箭头一帧里最多挪了：", jump);
-	check("句子变长时行尾被推过去：箭头一帧里挪不到 20px", jump.px < 20, jump);
+	check("列目录、找文件、读文件、搜索合成一行，从头到尾只有一行", live.every((sample) => sample.items.filter((item) => item.step === "explore").length <= 1) && explore.length >= 3, explore);
 	check("末尾还在写的推理接在句尾，句子本身不换", live.some((sample) => sample.items.some((item) => item.step && /正在思考/.test(item.text) && item.words && !/正在思考/.test(item.words))), live.map((sample) => sample.items.map((item) => item.text)));
 	check("跑着的那一行在扫光", live.some((sample) => sample.glides > 0), live.map((sample) => sample.glides));
 
@@ -248,7 +210,7 @@ try {
 	const done = await state();
 	console.log("跑完：", done.items.map((item) => `${item.step ?? "-"} ${item.text}`));
 	await capture("跑完_一行一行留着");
-	check("跑完锚写「已工作 N 秒」，不自动收", /已工作 \d+ 秒/.test(done.anchor ?? "") && done.expanded === "true", done.anchor);
+	check("跑完不收、也没有锚：行都还在", done.anchors === 0 && done.items.filter((item) => item.height > 0).length >= 5, { anchors: done.anchors, items: done.items.length });
 	const visible = done.items.filter((item) => item.height > 0);
 	check("跑完是一行一行的：读代码、一句话、改文件、跑命令、回答", visible.length === 5 && visible.filter((item) => item.step).map((item) => item.step).join() === "explore,files,terminal" && /改好了/.test(visible[4].text), visible);
 	check("读代码那一行说想了几次、做了什么", /^思考 2 次 · 列出目录.*读取文件 one\.ts.*搜索内容/.test(done.items.find((item) => item.step === "explore")?.words ?? ""), done.items);
@@ -268,25 +230,6 @@ try {
 	await d.click('main [data-ly-step="explore"] > .ly-flow-row');
 	await pause(700);
 
-	/*
-	 * 收起锚的那一下逐帧量：回答从下面一路上来，中间有过渡，不是一帧跳过去。
-	 */
-	await app.evaluate(`(() => {
-		window.__fold = [];
-		const turn = document.querySelector("main [data-ly-turn-process]");
-		const anchor = turn.querySelector(".ly-turn-anchor");
-		const answer = [...turn.querySelectorAll(":scope > .ly-freeze")].at(-1);
-		const start = performance.now();
-		const tick = () => { window.__fold.push(Math.round(answer.getBoundingClientRect().top - anchor.getBoundingClientRect().bottom)); if (performance.now() - start < 900) requestAnimationFrame(tick); };
-		requestAnimationFrame(tick);
-	})()`);
-	await d.click("main [data-ly-turn-process] > .ly-turn-anchor");
-	await pause(1200);
-	const fold = await app.evaluate<number[]>("window.__fold");
-	const steps = new Set(fold);
-	console.log("收起时回答到锚的距离，逐帧：", fold.join(" "));
-	check("收起是动画：回答一路上来，中间至少经过 5 个位置", steps.size >= 5 && fold[fold.length - 1] < fold[0], fold);
-
 	// 第二轮：想一下、跑一条命令。推理算进命令那一行，不另起一行。
 	await d.type("再看一眼文件");
 	await pause(400);
@@ -296,8 +239,8 @@ try {
 	const single = await state(-1);
 	console.log("第二轮：", single.items);
 	await capture("第二轮");
-	check("一次推理加一次调用是一行「思考 1 次 · 执行命令」，跑完摊着", single.expanded === "true" && single.items.filter((item) => item.height > 0).length === 2 && single.items.some((item) => item.step === "terminal" && item.words === "思考 1 次 · 执行命令"), single.items);
-	check("点锚收起的那一轮还收着", (await state()).expanded === "false", (await state()).anchor);
+	check("一次推理加一次调用是一行「思考 1 次 · 执行命令」，跑完摊着", single.anchors === 0 && single.items.filter((item) => item.height > 0).length === 2 && single.items.some((item) => item.step === "terminal" && item.words === "思考 1 次 · 执行命令"), single.items);
+	check("第二轮开始后，第一轮的行一行没少", (await state()).items.length === done.items.length, (await state()).items.length);
 
 	// 设置 › 外观里不再有「调用链」这一行。
 	await openSettings(app, "外观");
