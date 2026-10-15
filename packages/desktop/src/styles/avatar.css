@@ -271,45 +271,93 @@
 }
 
 /*
- * 一摞脸（`AvatarPile`）：每张垫一枚圆底，后一枚压住前一枚的三成。外圈那道底色把它们剥开，
- * 颜色由所在的面说——`--ly-avatar-ring`，默认窗口底色。
+ * 一摞脸（`AvatarPile`）：每张垫一枚圆底，后一枚压住前一枚的三成。
  *
- * 指针进来时往右松开一点：挂在最近的 `.group/pile` 上，谁拿它当触发器谁就是那个 group。
- */
-/*
- * 右边那一截留白要算上「松开」挪出去的距离。
+ * 被压住的那枚在上一枚的位置挖掉一个圆洞——整枚圆底再外扩一道缝。洞是真的洞，缝里露出来的就是
+ * 这一摞所在的底。从前是用所在面的颜色画一道 2px 外圈、靠圆底的填色去盖，两样都不成立：填色是
+ * `--color-elevated`，前景色 10% 的薄纱，下面那张脸直接透上来；外圈要调用方说出底色，而底是半透明
+ * 的（`bg-card/60`）、悬停会变色、或是窗口毛玻璃时，它就成了一道压在下层脸上的弧线。洞没有颜色
+ * 可以说错。
  *
- * 指针进来时每张往右挪一点（见下面 `:hover` 那条），最后一张挪得最远。从前留白只够抵掉最后一张的
- * 负边距，挪出去的那几像素就压到了旁边的字上——「2 个子 Agent 运行中」的「2」被一张脸盖住半个。
- * 留白一直留着而不是悬停时才加：字跟着指针左右晃，比那几像素的空白难看得多。
+ * 指针进来时往右松开一点：挂在最近的 `.group/pile` 上。每枚每一档挪 `--ly-pile-spread`，洞的位置
+ * 也读同一个变量，所以洞跟着上一枚一起走，不会先跳到它的终点；注册这个变量，它才能过渡。
  */
-.ly-avatar-pile {
-	display: inline-flex;
-	flex-shrink: 0;
-	align-items: center;
-	padding-right: calc(var(--ly-pile-size) * 0.32 + (var(--ly-pile-n, 1) - 1) * 2px);
+@property --ly-pile-spread {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0;
 }
 
+/*
+ * 每枚都放进同一格，由 `transform` 按整像素的间距挪到位置上，而不是并排排开。
+ *
+ * 并排时每枚落在自己的小数 x 上（22px 的 0.68 是 14.96px），浏览器各自把圆底对齐到像素，于是
+ * 圆底和给它挖的洞最多能差将近一个像素：1 倍屏上一道缝量出来 1.3px，下一道 2.7px。放进同一格
+ * 后一起对齐一次，整像素的步长让它们都落在同一套网格上。
+ *
+ * 宽度也算上松开挪出去的距离。最后一枚挪得最远，只留静止时的宽度的话，那几像素就压到旁边的字上——
+ * 「2 个子 Agent 运行中」的「2」被一张脸盖住半个。留白一直留着而不是悬停时才加：字跟着指针左右晃，
+ * 比那几像素的空白难看得多。
+ */
+.ly-avatar-pile {
+	--ly-pile-step: round(var(--ly-pile-size) * 0.68, 1px);
+	--ly-pile-fan: 2px;
+	--ly-pile-gap: 2px;
+	/* 每道软边（圆底和洞都一样）的一半：合起来是一个设备像素。 */
+	--ly-pile-aa: 0.5px;
+	display: inline-grid;
+	flex-shrink: 0;
+	align-items: center;
+	width: calc(var(--ly-pile-size) + (var(--ly-pile-n, 1) - 1) * (var(--ly-pile-step) + var(--ly-pile-fan)));
+	transition: --ly-pile-spread var(--ly-t-base) var(--ly-e-out);
+}
+
+@media (min-resolution: 2dppx) {
+	.ly-avatar-pile {
+		--ly-pile-aa: 0.25px;
+	}
+}
+
+.group\/pile:hover .ly-avatar-pile,
+.group\/pile[aria-expanded="true"] .ly-avatar-pile {
+	--ly-pile-spread: var(--ly-pile-fan);
+}
+
+/*
+ * 圆底由遮罩画，不用 `border-radius`。
+ *
+ * 带遮罩的元素在 1 倍屏上画出来的圆边细约三分之一个像素（量出来边缘那一像素的覆盖率 16%，不带遮罩
+ * 的是 45%），带洞的几枚就比最上面那枚小一圈，旁边的缝也更宽——2.4px 对 2.1px。每一枚、包括最上面
+ * 那枚，都用同一个渐变圆，边缘就一样了。
+ */
 .ly-avatar-coin {
+	--ly-pile-disc: radial-gradient(circle closest-side, rgb(0 0 0) calc(100% - var(--ly-pile-aa)), transparent calc(100% + var(--ly-pile-aa)));
 	position: relative;
+	grid-area: 1 / 1;
 	display: inline-grid;
 	place-items: center;
 	width: var(--ly-pile-size);
 	height: var(--ly-pile-size);
-	margin-right: calc(var(--ly-pile-size) * -0.32);
-	border-radius: 9999px;
 	background: var(--color-elevated);
-	box-shadow: 0 0 0 2px var(--ly-avatar-ring, var(--color-shell));
-	transition: transform var(--ly-t-base) var(--ly-e-out);
+	transform: translateX(calc(var(--ly-pile-i) * (var(--ly-pile-step) + var(--ly-pile-spread))));
+	mask: var(--ly-pile-disc);
+}
+
+/* 下一枚的圆心在一个步长加一份松开距离之外。 */
+.ly-avatar-coin:not(:last-child) {
+	--ly-pile-hole: calc(var(--ly-pile-size) / 2 + var(--ly-pile-gap));
+	mask:
+		radial-gradient(
+			circle at calc(50% + var(--ly-pile-step) + var(--ly-pile-spread)) 50%,
+			transparent calc(var(--ly-pile-hole) - var(--ly-pile-aa)),
+			rgb(0 0 0) calc(var(--ly-pile-hole) + var(--ly-pile-aa))
+		),
+		var(--ly-pile-disc);
+	mask-composite: intersect;
 }
 
 .ly-avatar-coin-more {
 	font-size: var(--text-caption);
 	font-variant-numeric: tabular-nums;
 	color: var(--color-ink-muted);
-}
-
-.group\/pile:hover .ly-avatar-coin,
-.group\/pile[aria-expanded="true"] .ly-avatar-coin {
-	transform: translateX(calc(var(--ly-pile-i) * 2px));
 }

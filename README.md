@@ -192,10 +192,10 @@ The right-hand dock is a tab strip. Nine panes can stay open:
 | --- | --- | --- |
 | Files | ⌘P | File tree. Clicking a file opens File contents |
 | File contents | ⌥⌘P | Read-only, syntax-highlighted preview. The title is the file name, not "File contents" |
-| Terminal | ⌃` | A real pty, not echoed commands |
+| Terminal | ⌃` | A real pty, not echoed commands. Paste is Ctrl+V on Windows, Ctrl+Shift+V on Linux |
 | Git | ⌘⇧R | Workspace diff (flat or tree view), centered commit modal with branch switching & creation |
 | Side chat | ⌥⌘S | See above |
-| Sub-agents | ⌥⌘A | What each `task` worker is doing |
+| Sub-agents | ⌥⌘U | What each `task` worker is doing |
 | Tasks | ⌘J | The current todo list |
 | Trace | ⌘L | What this turn actually sent the model: tools, skills, injected context |
 | Browser | ⌘T | Built-in browser. Boundary in [Built-in capabilities](docs/guide/capabilities.md) |

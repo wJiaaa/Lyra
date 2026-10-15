@@ -7,6 +7,7 @@
  * at its destination and composites the movement, without reflowing every intermediate width.
  */
 
+import { useLayout } from "../../app/layout.tsx";
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
@@ -98,6 +99,7 @@ export function DockPane({
 	const edge = tile === "base" ? "0px" : margin.split(" ").map((side) => `${parseFloat(side) + 1}px`).join(" ");
 	const edgeRoom = (room?: number) => (room ? cardRoom(room) : room);
 	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
+	const { headerBar } = useLayout();
 
 	return (
 		<PaneSurface
@@ -164,6 +166,7 @@ export function DockPane({
 					insetEnd={edgeRoom(insetEnd)}
 					onToggleMaximized={onToggleMaximized}
 					onPopOut={onPopOut}
+					movesWindow={!headerBar}
 				/>}
 			</div> : null}
 		>

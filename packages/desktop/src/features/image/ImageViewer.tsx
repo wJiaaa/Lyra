@@ -29,13 +29,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { clampZoom, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas, STAGE_FIT } from "./AnnotateCanvas.tsx";
-import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
+import { AnnotateToolbar, BAR_SURFACE } from "./AnnotateToolbar.tsx";
 import { atRest, atThumbnail, paintedBox, type Box, type FlightKeyframe, type Thumb } from "./flight.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
 import { copyImage, notifyExportFailed, saveImage } from "./image-out.ts";
 import { portal } from "../../ui/overlay/portal.ts";
+import { holdScrim } from "../../ui/overlay/scrims.ts";
+import { useMovableBar } from "./useMovableBar.ts";
 
 /**
  * Longer than `--ly-t-base`, on purpose.
@@ -64,6 +66,8 @@ const FLIGHT = `transform ${DURATION}ms ${EASE}`;
 
 /** The backdrop and the controls: on the flight's clock, and faded in from nothing on arrival. */
 const FADE = `opacity ${DURATION}ms ${EASE}`;
+/** The backdrop's black, as `bg-black/72` draws it; the window's own buttons are dimmed by the same. */
+const BACKDROP_ALPHA = 0.72;
 
 const CENTRED: Point = { x: 0, y: 0 };
 
@@ -151,6 +155,9 @@ export function ImageViewer() {
 	 */
 	const [decodable, setDecodable] = useState(false);
 	const annotator = useAnnotator(decodable ? (image?.src ?? "") : "");
+	/** The zoom control, which the annotation toolbar keeps clear of wherever it is put. */
+	const zoomPill = useRef<HTMLDivElement>(null);
+	const bar = useMovableBar(zoomPill);
 
 	const resetView = useCallback(() => setView({ zoom: 1, offset: CENTRED }), []);
 
@@ -431,6 +438,12 @@ export function ImageViewer() {
 		};
 	}, [shown, editing, dismiss, annotator, step]);
 
+	/*
+	 * Windows draws minimise/maximise/close over this, outside the page; the backdrop cannot reach
+	 * them, so they are dimmed with it — and brighten as it starts to fade. See `scrims.ts`.
+	 */
+	useEffect(() => (shown && !leaving ? holdScrim("#000000", BACKDROP_ALPHA) : undefined), [shown, leaving]);
+
 	if (!shown || !image) return null;
 
 	const open = !leaving;
@@ -616,7 +629,8 @@ export function ImageViewer() {
 							className="absolute inset-0"
 							style={{ visibility: annotator.ready ? "visible" : "hidden", opacity: leaving ? 0 : 1, transition: FADE }}
 						>
-							<AnnotateCanvas annotator={annotator} zoom={zoom} className="w-full rounded-xl" />
+							{/* Both dimensions from the picture's box: the canvas's own pixels no longer match the picture's. */}
+							<AnnotateCanvas annotator={annotator} zoom={zoom} className="h-full w-full rounded-xl" />
 						</div>
 					)}
 				</div>
@@ -660,9 +674,13 @@ export function ImageViewer() {
 				 * Bottom left, clear of the annotation toolbar in the middle. Present in both modes:
 				 * zooming in to place a mark precisely is the same need as zooming in to read one.
 				 */}
-				<div className="pointer-events-auto absolute bottom-6 left-6 flex items-center gap-0.5 rounded-xl border border-white/12 bg-[#1c1c1e]/92 px-1.5 py-1 shadow-overlay backdrop-blur-xl">
-					<ViewerButton label={t("viewer.zoomOut")} small disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}>
-						<Minus size={14} strokeWidth={2} />
+				{/*
+				 * The same height as the annotation toolbar, which shares this edge with it: a 38pt pill
+				 * beside a 50pt bar read as two families of control, the smaller one an afterthought.
+				 */}
+				<div ref={zoomPill} data-ly-viewer-zoom="" className="pointer-events-auto absolute bottom-3 left-6 flex items-center gap-1 rounded-2xl border border-white/12 bg-[#1c1c1e]/92 px-2 py-1.5 shadow-overlay backdrop-blur-xl">
+					<ViewerButton label={t("viewer.zoomOut")} pill disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}>
+						<Minus size={16} strokeWidth={2} />
 					</ViewerButton>
 					<button
 						type="button"
@@ -670,15 +688,15 @@ export function ImageViewer() {
 						data-ly-tip-side="top"
 						aria-label={t("viewer.zoomIs", { percent: Math.round(zoom * 100) })}
 						onClick={resetView}
-						className="min-w-[46px] rounded-lg px-1 py-1 text-center text-detail text-white/75 tabular-nums transition-colors duration-[var(--ly-t-quick)] hover:bg-white/12 hover:text-white"
+						className="h-9 min-w-[54px] rounded-lg px-1.5 text-center text-label text-white/80 tabular-nums transition-colors duration-[var(--ly-t-quick)] hover:bg-white/12 hover:text-white"
 					>
 						{Math.round(zoom * 100)}%
 					</button>
-					<ViewerButton label={t("viewer.zoomIn")} small disabled={zoom >= ZOOM_MAX} onClick={() => zoomTo(zoom * ZOOM_STEP)}>
-						<Plus size={14} strokeWidth={2} />
+					<ViewerButton label={t("viewer.zoomIn")} pill disabled={zoom >= ZOOM_MAX} onClick={() => zoomTo(zoom * ZOOM_STEP)}>
+						<Plus size={16} strokeWidth={2} />
 					</ViewerButton>
-					<ViewerButton label={t("viewer.fit")} small onClick={resetView}>
-						<Maximize2 size={13} strokeWidth={2} />
+					<ViewerButton label={t("viewer.fit")} pill onClick={resetView}>
+						<Maximize2 size={15} strokeWidth={2} />
 					</ViewerButton>
 				</div>
 
@@ -694,7 +712,7 @@ export function ImageViewer() {
 								<ChevronRight size={18} strokeWidth={1.9} />
 							</ViewerButton>
 						</div>
-						<div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-detail text-white/85 tabular-nums">
+						<div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-detail text-white/85 tabular-nums">
 							{shown.index + 1} / {shown.images.length}
 						</div>
 					</>
@@ -702,8 +720,18 @@ export function ImageViewer() {
 			</div>
 
 			{editing && (
+				/*
+				 * Held by a fixed box of its own, placed in window coordinates, so it can be dragged anywhere
+				 * in the window — see `useMovableBar`, which also eases it into place when it settles, so a
+				 * bar let go on the zoom control slides off it.
+				 */
+				<div ref={bar.measure} data-annotate-bar="" className="pointer-events-none fixed z-[120]" style={bar.style}>
 				<AnnotateToolbar
 					annotator={annotator}
+					size="large"
+					onGrab={bar.startDrag}
+					grabbing={bar.dragging}
+					className={BAR_SURFACE}
 					canReplace={Boolean(image.onReplace)}
 					delivers={!image.onReplace && Boolean(image.onAttach)}
 					/*
@@ -755,6 +783,7 @@ export function ImageViewer() {
 						else save();
 					}}
 				/>
+				</div>
 			)}
 		</div>);
 }
@@ -763,13 +792,14 @@ function ViewerButton({
 	label,
 	onClick,
 	disabled,
-	small,
+	pill,
 	children,
 }: {
 	label: string;
 	onClick: () => void;
 	disabled?: boolean;
-	small?: boolean;
+	/** Inside the zoom pill, which is its background: no fill of its own, and the pill's height. */
+	pill?: boolean;
 	children: React.ReactNode;
 }) {
 	return (
@@ -781,7 +811,7 @@ function ViewerButton({
 			disabled={disabled}
 			onClick={onClick}
 			className={`flex items-center justify-center rounded-lg text-white/85 transition-colors duration-[var(--ly-t-quick)] hover:text-white disabled:opacity-30 ${
-				small ? "h-7 w-7 hover:bg-white/12" : "h-8 w-8 bg-black/45 hover:bg-black/65"
+				pill ? "h-9 w-9 hover:bg-white/12" : "h-8 w-8 bg-black/45 hover:bg-black/65"
 			}`}
 		>
 			{children}

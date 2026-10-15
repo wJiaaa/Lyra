@@ -4,6 +4,12 @@
  * **The bar moves the window.** The dock reaches the top edge, so if these bars do not move the
  * window, nothing up there does — losing this is what made the window undraggable for a while.
  *
+ * Except under a header bar (Windows and Linux, see `hasHeaderBar`). There the window has a strip
+ * of its own across the top that moves it, and these bars sit below it, in the middle of the
+ * window — where being the window's title bar meant Windows' title bar behaviour: a right-click
+ * opened the system menu (Restore, Move, Size, Minimise…) over the pane, a double-click maximised
+ * the whole window, and a drag towards the screen edge snapped it. `movesWindow` is false there.
+ *
  * `drag-region` on the bar, `no-drag` on everything you can press. Electron composites the two by
  * walking the document in order, so the holes have to come after the region they are cut out of —
  * which is the order they appear in below.
@@ -31,6 +37,7 @@ export function PaneHeader({
 	onToggleMaximized,
 	onPopOut,
 	after,
+	movesWindow = true,
 }: {
 	kind: PaneKind;
 	label: string;
@@ -78,6 +85,8 @@ export function PaneHeader({
 	onPopOut?: () => void;
 	/** Last in the row, after full screen: the toggle that folds the panel column away. */
 	after?: React.ReactNode;
+	/** Whether the bar outside its controls drags the window; false under a header bar, see above. */
+	movesWindow?: boolean;
 }) {
 	return (
 		<div
@@ -93,7 +102,7 @@ export function PaneHeader({
 			 * 里侧栏的 `margin-left` 同一套：硬切时点下去那一帧标题先跳约 170px、再随整栏滑回来，像闪了
 			 * 一下；同步过渡后两段位移叠成一段单向滑动。
 			 */
-			className="drag-region group/header relative flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
+			className={`${movesWindow ? "drag-region " : ""}group/header relative flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out`}
 		>
 			{/*
 			 * A panel may put a control here instead of its name — the terminal's tab strip does,

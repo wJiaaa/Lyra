@@ -25,7 +25,7 @@ export type TerminalKey = "copy" | "paste" | "app" | "find" | "shell";
  * The shortcuts that have to work with the terminal focused, as the letter pressed with Ctrl+Alt:
  * the conversation beside it, the open file, and the sub-agents (see `app/shortcuts.ts`).
  */
-const APP_WITH_CTRL_ALT = new Set(["s", "p", "a"]);
+const APP_WITH_CTRL_ALT = new Set(["s", "p", "u"]);
 
 /**
  * Decide a key, for a keyboard where Ctrl is both the shell's key and the app's.
@@ -41,7 +41,11 @@ const APP_WITH_CTRL_ALT = new Set(["s", "p", "a"]);
  *     interrupted the dev server. Ctrl+Shift+C always copies, as in every Linux terminal.
  *   - Ctrl+Shift+V is left to the browser's paste. xterm ignores it today; saying so here is what
  *     keeps it working if that changes.
- *   - Ctrl+Alt+S/P/A are the app's. The shell has no use for them, and xterm sent them as
+ *   - On Windows plain Ctrl+V is paste as well, as in Windows Terminal and every other console
+ *     there. It used to be the shell's ^V: PowerShell's PSReadLine happens to read the clipboard on
+ *     it, so the default shell looked fine, and cmd, Git Bash, WSL, ssh and every REPL printed ^V.
+ *     Linux keeps ^V for the shell — readline's quoted-insert — and Ctrl+Shift+V for paste.
+ *   - Ctrl+Alt+S/P/U are the app's. The shell has no use for them, and xterm sent them as
  *     ESC-prefixed control characters, so the panels could not be reached from a focused terminal.
  *     AltGr arrives as Ctrl+Alt on Windows and types letters on many layouts (Polish ś is AltGr+S),
  *     so a composing key stays the shell's.
@@ -63,10 +67,16 @@ export function terminalKey(event: KeyboardEvent, hasSelection: boolean, platfor
 		if (event.shiftKey && letter === "c") return "copy";
 		if (event.shiftKey && letter === "v") return "paste";
 		if (!event.shiftKey && letter === "c" && hasSelection) return "copy";
+		if (!event.shiftKey && letter === "v" && windowsKeyboard(platform)) return "paste";
 		return "shell";
 	}
 	if (!event.shiftKey && letter !== null && APP_WITH_CTRL_ALT.has(letter)) return "app";
 	return "shell";
+}
+
+/** A Windows keyboard, where Ctrl+V pastes in a console as it does everywhere else. */
+export function windowsKeyboard(platform = navigator.platform): boolean {
+	return /^Win/i.test(platform);
 }
 
 /**

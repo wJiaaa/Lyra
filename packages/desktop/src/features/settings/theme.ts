@@ -13,8 +13,9 @@
 
 import type { AppearanceSettings } from "@plume/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
+import { withHanFallback } from "../../lib/code/font-stack.ts";
+import { sendWindowColors } from "./window-tint.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
-import { bridge } from "../../services/index.ts";
 
 interface Rgb {
 	r: number;
@@ -177,7 +178,8 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 */
 		"--color-danger": dark ? "#f2555a" : "#c92a30",
 		"--ly-ui-font": appearance.uiFont,
-		"--ly-code-font": appearance.codeFont,
+		// With Chinese faces ahead of `monospace`, whichever stack was chosen — see `font-stack.ts`.
+		"--ly-code-font": withHanFallback(appearance.codeFont),
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
 		"--ly-code-size": `${appearance.codeFontSize}px`,
 		/*
@@ -300,7 +302,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * 那层底是 `--color-shell`。一个值服务两处的时候，Windows 的右上角就是一块比 header 浅一档的
 	 * 补丁——取的是这里算好的那个 token，而不是再算一遍，公式只此一处。
 	 */
-	bridge.setWindowTheme?.({
+	sendWindowColors({
 		color: toHex(background),
 		headerColor: tokens["--color-sidebar"],
 		symbolColor: text(0.6),

@@ -10,7 +10,8 @@ import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/co
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
 import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "./appearance-defaults.ts";
-import { CODE_FONTS, fontAvailable, matchCodeFont, queryInstalledFonts, type LocalFonts } from "./code-fonts.ts";
+import { withHanFallback } from "../../lib/code/font-stack.ts";
+import { codeFontMenu, fontAvailable, matchCodeFont, queryInstalledFonts, type LocalFonts } from "./code-fonts.ts";
 
 /** The sentinel the font menu uses for 「自定义…」; never stored as a font stack. */
 const CUSTOM_FONT = "__custom__";
@@ -76,9 +77,7 @@ export function AppearanceSettings() {
 	const inlineFgIsAuto = inlineFg.toUpperCase() === readableInk(inlineBg).toUpperCase();
 
 	const currentFont = matchCodeFont(appearance.codeFont);
-	const fontOptions = [...CODE_FONTS, ...(localFonts?.extra ?? [])];
-	// A face picked earlier and since uninstalled, or the list not back yet: still the selected row.
-	if (currentFont && !fontOptions.some((font) => font.stack === currentFont.stack)) fontOptions.push(currentFont);
+	const fontOptions = codeFontMenu(localFonts, currentFont);
 
 	return (
 		<div className="pt-2">
@@ -316,7 +315,8 @@ export function AppearanceSettings() {
 						lightTheme={findCodeTheme(appearance.codeLightTheme, "light")}
 						darkTheme={findCodeTheme(appearance.codeDarkTheme, "dark")}
 						type={{
-							fontFamily: appearance.codeFont,
+							// What the editor and the terminal draw, Chinese fallback included — see `font-stack.ts`.
+							fontFamily: withHanFallback(appearance.codeFont),
 							fontSize: appearance.codeFontSize,
 							lineHeight: appearance.codeLineHeight,
 							letterSpacing: appearance.codeLetterSpacing,
@@ -330,8 +330,8 @@ export function AppearanceSettings() {
 				 * The stored value is a CSS font stack either way — it has to be, because the first
 				 * choice may not be installed and something must catch that. What the menu removes is
 				 * having to write one by hand, quotes and fallbacks included, in order to change a
-				 * font. Faces that are not installed are marked rather than hidden, so the menu never
-				 * claims you are looking at something you are not.
+				 * font. Only faces this machine has are offered; the one in use stays even when it is not
+				 * installed, marked so, and the menu never claims you are looking at something you are not.
 				 */}
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 					<div className="flex-1 min-w-0">

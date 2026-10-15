@@ -68,6 +68,16 @@
     font-weight: var(--font-weight-medium);
   }
 
+  /*
+   * Windows has no medium Chinese face: YaHei is Regular and Bold, so the 500 above lands on
+   * Regular. Labels can take that — size and colour still rank them. `**bold**` cannot: it is the
+   * author's emphasis and has nothing else, and it was drawn in the very Regular face of the
+   * sentence around it. One step up is Bold. The platform mark comes from `preload.ts`.
+   */
+  html[data-ly-platform="win32"] .prose-dw strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
   .prose-dw ul,
   .prose-dw ol {
     padding-left: 1.35em;
@@ -212,6 +222,8 @@
    * 按钮常驻：它们一块只出现一次，不像文件链接那样满页重复。
    */
   .prose-dw .ly-code-block {
+    /* The positioning box of its sideways thumb, see `CodeBlock`. */
+    position: relative;
     background: var(--ly-code-bg, var(--color-card));
     color: var(--ly-code-fg, var(--color-ink));
     border: 1px solid color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 12%, transparent);
@@ -533,6 +545,12 @@
   .prose-dw .ly-math-block {
     overflow: auto hidden;
     padding: 2px 0;
+  }
+
+  /* A display formula's and a diagram's frame: what their sideways thumb is placed in. */
+  .prose-dw .ly-math-frame,
+  .prose-dw .ly-mermaid-frame {
+    position: relative;
   }
 
   .prose-dw .ly-math-raw {

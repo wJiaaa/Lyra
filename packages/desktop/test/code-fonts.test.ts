@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CODE_FONTS, matchCodeFont } from "../src/features/settings/code-fonts.ts";
+import { CODE_FONTS, codeFontMenu, matchCodeFont, type CodeFontOption } from "../src/features/settings/code-fonts.ts";
 
 test("every preset ends in a generic family", () => {
 	for (const font of CODE_FONTS) {
@@ -59,4 +59,18 @@ test("a preset stays the preset when its stack has the installed shape", () => {
 	// JetBrains Mono's preset is that same shape; the row must be the preset, not a lookalike.
 	const preset = CODE_FONTS.find((font) => font.family === "JetBrains Mono")!;
 	assert.equal(matchCodeFont(preset.stack), preset);
+});
+
+/*
+ * 菜单只列这台机器有的字体。Windows 上 SF Mono、Menlo、Monaco 三行画出来都是 Consolas；
+ * 正在用的那个即使没装也要留着，不然按钮上显示的就不是你在看的字体。
+ */
+test("the menu offers installed presets, the other installed faces, and the one in use", () => {
+	const windows = { families: new Set(["Consolas", "Cascadia Mono"]), extra: [matchCodeFont('"Cascadia Mono", ui-monospace, Menlo, "PingFang SC", monospace')!] };
+	const listed = (current: CodeFontOption | null) => codeFontMenu(windows, current).map((font) => font.family);
+	assert.deepEqual(listed(null), ["ui-monospace", "Consolas", "Cascadia Mono"]);
+	const menlo = CODE_FONTS.find((font) => font.family === "Menlo")!;
+	assert.deepEqual(listed(menlo), ["ui-monospace", "Menlo", "Consolas", "Cascadia Mono"], "picked on a Mac, still the selected row here");
+	// Without the list nothing is known to be missing, so nothing is hidden.
+	assert.equal(codeFontMenu(null, null).length, CODE_FONTS.length);
 });

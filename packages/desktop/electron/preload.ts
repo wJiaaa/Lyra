@@ -66,8 +66,24 @@ function markWindowKind(): void {
 	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
 }
 
+/**
+ * The operating system drawing this window, for the styles that answer to how it renders type
+ * (`markdown.css`: bold on Windows, where YaHei has no medium face).
+ *
+ * Marked here, before any renderer code runs, so the first frame is already drawn with the right
+ * type rules.
+ */
+function markPlatform(): void {
+	const apply = () => {
+		if (document.documentElement) document.documentElement.dataset.lyPlatform = process.platform;
+	};
+	apply();
+	if (!document.documentElement) document.addEventListener("readystatechange", apply, { once: true });
+}
+
 paintBootTheme();
 markWindowKind();
+markPlatform();
 
 /**
  * The renderer gets exactly this surface and nothing else — no `ipcRenderer`, no `require`.

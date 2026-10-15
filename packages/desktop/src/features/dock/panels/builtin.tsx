@@ -231,7 +231,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		kind: "subagents",
 		label: "subAgent.title",
 		icon: Bot,
-		shortcut: "⌥⌘A",
+		shortcut: "⌥⌘U",
 		unavailable: needsSession,
 		render: SubAgentPane,
 	},

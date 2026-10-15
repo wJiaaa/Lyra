@@ -8,6 +8,7 @@ import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { useSide, openScopedPanel } from "../dock/index.ts";
 import { useDockScope } from "../../app/session-scope.tsx";
 import { useFade } from "./FadeText.tsx";
+import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -129,9 +130,15 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 
 	// 正在输出的代码块，新来的字和正文一样淡入，见 `FadeText`。不在输出的块不记出现时刻。
 	const { settled, style } = useFade(fade ? Array.from(code).length : 0);
+	/*
+	 * The block's own sideways thumb. Native bars are hidden everywhere, so a long line simply ran
+	 * off the right edge: a trackpad could swipe to it, a Windows mouse could only Shift+wheel, and
+	 * nothing on screen said there was more. Shown while the pointer is over this block, as a table's is.
+	 */
+	const viewport = useRef<HTMLPreElement>(null);
 
 	return (
-		<div className="ly-code-block" data-wrap={wrap || undefined}>
+		<div className="ly-code-block ly-hscroll-own" data-wrap={wrap || undefined}>
 			<div className="ly-code-head">
 				<look.Icon size={14} strokeWidth={1.9} className="shrink-0" style={{ color: iconColour(look) }} />
 				<span className="min-w-0 flex-1 truncate">{label}</span>
@@ -162,7 +169,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 					{copied ? <Check size={14} strokeWidth={2} className="text-ok" /> : <Copy size={14} strokeWidth={1.9} />}
 				</CodeAction>
 			</div>
-			<pre>
+			<pre ref={viewport}>
 				{fade ? (
 					fading(tokens ?? [{ text: code, className: "" }], settled, style)
 				) : (
@@ -181,6 +188,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 					</code>
 				)}
 			</pre>
+			<OverlayScrollbar viewport={viewport} orientation="horizontal" />
 		</div>
 	);
 }

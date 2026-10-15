@@ -26,7 +26,7 @@ import { useApp } from "../../store/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind, sideIdOfPanel } from "../../lib/panel-instance.ts";
-import { baseName } from "../../lib/paths.ts";
+import { baseName, canonicalPath, samePath } from "../../lib/paths.ts";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
@@ -315,7 +315,9 @@ function inMain(kind: PanelKind, target: string | undefined) {
  * - 读到了才开出那一格；读不到在这里说一声，说清读的是哪儿。从不 reject：调用方十来处，从前各自
  *   `.catch(notify)`，有一半没接。
  */
-export function openFilePane(path: string, target?: string): Promise<void> {
+export function openFilePane(given: string, target?: string): Promise<void> {
+	// 同一个文件只开一格，不管路径怎么写：`C:/…`、`c:/…` 和 `C:\…` 在 Windows 上是同一个文件，见 `samePath`。
+	const path = canonicalPath(given);
 	const file = { path, name: baseName(path) || path };
 	if (inPanelWindow()) {
 		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ ...inMain("file", target), file });
@@ -331,8 +333,14 @@ export function openFilePane(path: string, target?: string): Promise<void> {
 		const open = openFileOf(files, fileSlot(scope, kind));
 		return open.opening ?? open.path;
 	};
+	const same = panes.find((each) => {
+		const shown = showing(each);
+		return shown !== null && samePath(shown, file.path);
+	});
+	// 已经开着的那格用它原来的写法，免得同一格换一种拼写重读一遍。
+	if (same) file.path = showing(same)!;
 	const kind =
-		panes.find((each) => showing(each) === file.path) ??
+		same ??
 		panes.find((each) => !showing(each)) ??
 		nextPanelKind("file", (each) => has(tree, each));
 	/*

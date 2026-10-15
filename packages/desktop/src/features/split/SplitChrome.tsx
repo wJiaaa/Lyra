@@ -13,6 +13,7 @@
  */
 
 import { Folder, MoreHorizontal, X } from "../../ui/icons/index.ts";
+import { useLayout } from "../../app/layout.tsx";
 import { PanelMenu } from "../../app/window/WindowToolbar.tsx";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
@@ -43,6 +44,9 @@ export function SplitChrome({
 	/** Last among the tools: the toggle that brings a folded panel column back. */
 	after?: React.ReactNode;
 }) {
+	// 在有 header bar 的平台上它位于窗口中部，拖动窗口会连带 Windows 标题栏的行为——右键弹系统菜单、
+	// 双击最大化。见 `PaneHeader`。
+	const { headerBar } = useLayout();
 	return (
 		<header
 			// One screen answers to the old single-screen selector; several each answer to their own.
@@ -54,7 +58,7 @@ export function SplitChrome({
 				paddingRight: insetEnd + 6,
 			}}
 			// 让位跟侧栏同一段滑动，见 `PaneHeader`。
-			className="drag-region flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
+			className={`${headerBar ? "" : "drag-region "}flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out`}
 		>
 			<ScreenTitle sessionId={sessionId} screen={screen} />
 			<ScreenTools sessionId={sessionId} screen={screen} after={after} />

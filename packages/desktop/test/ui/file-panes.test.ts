@@ -73,3 +73,17 @@ test("从「+」开出来还空着的那格先用上", async () => {
 	assert.deepEqual(fileTabs(), ["file"]);
 	assert.equal(shown("file"), "/repo/a.ts");
 });
+
+test("同一个 Windows 文件换三种写法，只开一个标签，用系统的写法", async () => {
+	await openFilePane("C:/plume/app/README.md");
+	await openFilePane("C:\\plume\\app\\README.md");
+	await openFilePane("c:/plume/app/README.md");
+	assert.deepEqual(fileTabs(), ["file"]);
+	assert.equal(shown("file"), "C:\\plume\\app\\README.md");
+});
+
+test("macOS 和 Linux 上大小写不同就是两个文件", async () => {
+	await openFilePane("/work/App/a.md");
+	await openFilePane("/work/app/a.md");
+	assert.equal(fileTabs().length, 2);
+});

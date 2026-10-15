@@ -145,13 +145,31 @@ function isMonospace(ctx: CanvasRenderingContext2D, family: string): boolean {
  * Whether this face is actually installed.
  *
  * Read from the installed list rather than `document.fonts.check`, which answers true for any
- * name it has no web font for — installed or not — so the 「未安装」 mark never showed. Without a
+ * name it has no web font for — installed or not — so the 「本机不可用」 mark never showed. Without a
  * list there is nothing to go on, and offering the face is better than hiding it.
  */
 export function fontAvailable(option: CodeFontOption, local: LocalFonts | null): boolean {
 	// A generic keyword always resolves to something.
 	if (option.family.startsWith("ui-")) return true;
 	return local ? local.families.has(option.family) : true;
+}
+
+/**
+ * The rows of the code font menu: the presets this machine has, then the other monospace faces it
+ * has, and the one in use even when it is not there — the caller marks that one, so the menu never
+ * claims you are looking at something you are not.
+ *
+ * A preset that is not installed is left out rather than listed and marked. On Windows that was SF
+ * Mono, Menlo and Monaco: three rows offering fonts that would all draw as Consolas.
+ */
+export function codeFontMenu(local: LocalFonts | null, current: CodeFontOption | null): CodeFontOption[] {
+	const options = [
+		...CODE_FONTS.filter((font) => fontAvailable(font, local) || font.stack === current?.stack),
+		...(local?.extra ?? []),
+	];
+	// A face picked earlier and since uninstalled, or the list not back yet: still the selected row.
+	if (current && !options.some((font) => font.stack === current.stack)) options.push(current);
+	return options;
 }
 
 /** Which entry a stored stack corresponds to, or null when it was typed by hand. */
