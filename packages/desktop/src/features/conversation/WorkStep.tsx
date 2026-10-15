@@ -2,13 +2,14 @@
  * 一段连着做的活，画成一行（怎么分段见 `grouping.ts` 的 `Step`）。
  *
  * - **一次调用**：这一行就是那次调用自己，和从前的工具行一模一样。
- * - **几次调用，或者调用前想过**：跑着时这一行说的是最新那一次调用（「读取文件 safety.md」，模型给了
- *   `description` 就是它那句话），每来一次滚一下；这一段不再长了（后面接上了回答或别的活），再滚成总的
- *   「思考 2 次 · 读取文件 12 个、搜索内容 5 个」。点开是挂在一条竖线上的每一次调用和每一段推理。
+ * - **几次调用，或者调用前想过**：跑着时这一行说的是正在跑的那一次调用（「读取文件 safety.md」，模型给了
+ *   `description` 就是它那句话），换一次滚一下，每一句至少挂 650ms（`useHeldKey`）；这一段不再长了（后面
+ *   接上了回答或别的活），再滚成总的「思考 2 次 · 读取文件 12 个、搜索内容 5 个」。点开是挂在一条竖线上的
+ *   每一次调用和每一段推理。
  *
  *   从前跑着时就说总的、新的一次接在句尾：一段探索跑一分钟，人只看得到几个数在涨，不知道它此刻在看
- *   什么。更早试过跑着时换成最新一步，那时是硬换，每来一次整行跳一下；现在每一次换都是 `RollWords`
- *   的滚动，宽度缓过去，跳的那一下没有了。
+ *   什么。更早试过跑着时换成最新一步，那时是硬换，每来一次整行跳一下；之后改成 `RollWords` 的滚动，
+ *   可来一次就滚一次，连着的 read、grep 一两百毫秒一换，字没读完就滚走了——所以有了停留时长。
  *
  * 行首是这一段第一次调用的图标，和它只有一次调用时那一行是同一枚：从一次长到两次，换的只有字。
  * 不写类名（「终端 ·」「探索 ·」）：摘要本来就以动作开头，「终端 · 执行命令 7 个」把一件事说了两遍，
@@ -26,6 +27,7 @@ import { FlowRow } from "./FlowRow.tsx";
 import { LiveThought } from "./LiveThought.tsx";
 import { ToolIcon } from "./tool-icons.tsx";
 import { RollWords } from "../../ui/motion/RollWords.tsx";
+import { useHeldKey } from "../../ui/motion/held.ts";
 import { describeCalls, describeOne, diffOf } from "./call-words.ts";
 import { thinkingLive, type Call, type Run, type Step } from "./grouping.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
@@ -83,6 +85,9 @@ export function WorkStep({ step, live, draw, drawCall }: {
 	);
 }
 
+/** 这一行说的是总的那一句，而不是某一次调用。调用的 id 不会是它。 */
+const STEP = "step";
+
 function StepGroup({ step, thought, live, thinking, from, draw, drawCall }: {
 	step: Step;
 	/** 原地被它接替的那一行画出来的宽度；没有就是这一段刚出现。 */
@@ -102,16 +107,24 @@ function StepGroup({ step, thought, live, thinking, from, draw, drawCall }: {
 	const removed = useScopedFromToolRuns((runs) => calls.reduce((n, { block }) => n + diffOf(runs[block.id], "removed"), 0));
 	const failed = useScopedFromToolRuns((runs) => calls.some(({ block }) => runs[block.id]?.status === "error"));
 
-	// 跑着时说的那一次：bash 给人看的那句话只在记录的 `summary` 里，参数里是命令本身。
-	const last = calls[calls.length - 1].block;
-	const lastSummary = useScopedFromToolRuns((runs) => runs[last.id]?.summary);
+	/*
+	 * 跑着时说的那一次：第一个还在跑的调用，不是最后发出的那个。一次发出几个调用时它们各跑各的，最后那个
+	 * 可能早跑完了、前面那个还在跑。一个都没在跑（两批之间、下一个还没开跑）就说最后那个。
+	 */
+	const running = useScopedFromToolRuns((runs) => calls.find(({ block }) => runs[block.id]?.status === "running")?.block.id);
+	const want = live ? (running ?? calls[calls.length - 1].block.id) : STEP;
+	// 每一句至少挂 `HOLD_MS`：一两百毫秒来一次的 read、grep 不再来一次滚一次，字读完了才换。从跑着换成总的也一样等。
+	const held = useHeldKey(want);
+	const said = held === STEP ? null : (calls.find(({ block }) => block.id === held) ?? calls[calls.length - 1]).block;
+	// bash 给人看的那句话只在记录的 `summary` 里，参数里是命令本身。
+	const saidSummary = useScopedFromToolRuns((runs) => (said ? runs[said.id]?.summary : undefined));
 
 	// 哪样先来哪样在前：先有的那半句不能被后来的「思考 N 次」从前面挤开。
 	const parts = [describeCalls(calls)];
 	if (thought > 0) parts[step.members[0].kind === "thinking" ? "unshift" : "push"](translate("step.thinking", { n: thought }));
-	const words = live ? describeOne(last, lastSummary) : parts.join(translate("step.separator"));
+	const words = said ? describeOne(said, saidSummary) : parts.join(translate("step.separator"));
 	// 换一次调用、或者从跑着换成总的，就是换了一句话，滚一下；同一次调用的参数还在流进来，只缓宽度。
-	const rollKey = live ? `call-${last.id}` : "step";
+	const rollKey = said ? `call-${said.id}` : STEP;
 	// 一次调用的那一行后面只接上了推理：句子还是原地那一句，从旧宽度缓过来就够，不滚。
 	const sameWords = from !== null && calls.length === 1;
 

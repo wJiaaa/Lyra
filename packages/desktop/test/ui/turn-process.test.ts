@@ -7,13 +7,14 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createElement as h } from "react";
+import { act, createElement as h } from "react";
 import type { AssistantContent, Message, Settings } from "@plume/core";
 import { LiveToolCard, ToolRun } from "../../src/features/conversation/runs.tsx";
 import { TurnWork } from "../../src/features/conversation/TurnWork.tsx";
 import { WorkStep, type DrawCall } from "../../src/features/conversation/WorkStep.tsx";
 import type { Call, Run, Step } from "../../src/features/conversation/grouping.ts";
 import { useApp } from "../../src/store/index.ts";
+import { HOLD_MS } from "../../src/ui/motion/held.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 const inside = h("div", { "data-probe": "inside" }, "四百条过程");
@@ -38,6 +39,16 @@ function withRuns(calls: Call[], status: "running" | "done" = "done") {
 	});
 	return () => useApp.setState(previous, true);
 }
+
+/** 改几条调用记录的状态，就像它们开跑或跑完。 */
+const status = (next: Record<string, "running" | "done">) =>
+	act(async () => {
+		const runs = useApp.getState().toolRuns;
+		useApp.setState({ toolRuns: { ...runs, ...Object.fromEntries(Object.entries(next).map(([id, value]) => [id, { ...runs[id], status: value }])) } });
+	});
+
+/** 等过一段停留时长，连同到点时那一次换。 */
+const wait = (ms: number) => act(() => new Promise<void>((done) => setTimeout(done, ms + 50)));
 
 /** 和 `Conversation` 递进去的是同一个。 */
 const drawCall: DrawCall = ({ block, stopReason }, line) => h(LiveToolCard, { block, stopReason, ...line });
@@ -89,24 +100,31 @@ test("several calls of one kind are one line saying what they did, with the call
 	}
 });
 
-test("while it runs the line says the latest call, and rolls to the total once the stretch stops growing", async () => {
+test("while it runs the line says the call that is running, holds each for a moment, then rolls to the total", async () => {
 	const calls = [browse("b1", "browser_open", { url: "todo.html" }), browse("b2", "browser_screenshot")];
 	const more = [...calls, browse("b3", "browser_act")];
-	const restore = withRuns(more, "running");
+	const restore = withRuns(more);
+	await status({ b1: "running" });
 	const view = await mount(h(WorkStep, { step: step(calls), live: true, draw: () => null, drawCall }));
 	try {
 		const words = view.find(".ly-roll-words");
-		assert.equal(words.textContent, "截取网页", "跑着时说的是最新那一次，不是总数");
+		assert.equal(words.textContent, "打开网页 todo.html", "说的是还在跑的那一次，不是最后发出的那次");
 		assert.ok(words.querySelector(".ly-glide"), "正在跑的那一行在扫光，光挂在字上");
 
 		const said = words.firstElementChild;
+		await status({ b1: "done", b3: "running" });
 		await view.rerender(h(WorkStep, { step: step(more), live: true, draw: () => null, drawCall }));
+		assert.equal(words.textContent, "打开网页 todo.html", "上一句还没挂满，先不换");
+		await wait(HOLD_MS);
 		assert.equal(view.find(".ly-roll-words"), words, "还是同一个框，宽度从旧的缓过去");
-		assert.equal(words.textContent, "操作网页", "换成新来的那一次");
+		assert.equal(words.textContent, "操作网页", "挂满了，换成正在跑的那一次");
 		assert.notEqual(words.firstElementChild, said, "换了一句话：新的一层滚进来");
 		assert.ok(words.firstElementChild?.classList.contains("ly-roll-soft"));
 
+		await status({ b3: "done" });
 		await view.rerender(h(WorkStep, { step: step(more), live: false, draw: () => null, drawCall }));
+		assert.equal(words.textContent, "操作网页", "换成总的也要等这一句挂满");
+		await wait(HOLD_MS);
 		assert.equal(words.textContent, "打开网页 todo.html、截取网页、操作网页", "不再长了，滚成总的");
 		assert.ok(words.firstElementChild?.classList.contains("ly-roll-soft"), "换成总的也是滚过去，不是硬换");
 		assert.equal(words.querySelector(".ly-glide"), null, "停下的那一行不再扫光");
