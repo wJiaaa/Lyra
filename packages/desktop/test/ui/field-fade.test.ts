@@ -12,9 +12,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { act, createElement as h, useRef } from "react";
+import { act, createElement as h } from "react";
 
-import { CommandText } from "../../src/features/composer/CommandText.tsx";
 import { TextArea } from "../../src/ui/inputs/TextArea.tsx";
 import { mount } from "../helpers/mount.ts";
 
@@ -116,31 +115,6 @@ test("矮框里收得更浅，中间那几行还得能读", async () => {
 	await view.unmount();
 });
 
-test("主输入框的镜像层单独占一层，不和横向那条遮罩挤在一个元素上", async () => {
-	function Harness() {
-		const mirror = useRef<HTMLDivElement>(null);
-		return h(CommandText, {
-			value: "/compact 一段很长的参数",
-			decoration: { command: { start: 0, end: 8, hint: " 压缩上下文" } },
-			mirror,
-		});
-	}
-	const view = await mount(h(Harness));
-
-	const mirror = view.find("[data-command-mirror]");
-	const fading = mirror.parentElement;
-	assert.ok(fading?.classList.contains("ly-field-fade"), "镜像层外面要有一层专管上下渐隐的");
-	/*
-	 * 横向那条留在更外面。两者都是 `mask-image`，写在同一个元素上是同一个属性的两次声明——后来
-	 * 的整条替换掉前一条，不会合成。而它们真的会同时发生：一条带长参数的斜杠命令，右端要为提示
-	 * 文字化开，上下又因为装不下要化开。
-	 */
-	assert.ok(!fading?.classList.contains("ly-fade-edge"), "横向那条不该和上下这条同在一个元素上");
-	assert.ok(fading?.parentElement?.classList.contains("ly-fade-edge"), "横向那条在更外面那一层");
-
-	await view.unmount();
-});
-
 test("样式表里认的是同一个类名和同一对变量", () => {
 	/*
 	 * 这一条看着像在测 CSS，其实测的是两个文件之间那根看不见的线。组件挂 `.ly-field-fade`，样式
@@ -152,9 +126,8 @@ test("样式表里认的是同一个类名和同一对变量", () => {
 	assert.ok(css.includes("@property --ly-field-fade-top"), "两个长度要注册，不注册就不是 <length>");
 	assert.ok(css.includes("@property --ly-field-fade-bottom"));
 	/*
-	 * **可继承**，这是它们和 `--ly-fade-top` 那一族唯一实质的差别：主输入框的字有两层（textarea
-	 * 和画标记的镜像层），写在共同的外壳上继承下去，两层才读得到同一个数。改成 false，镜像层就
-	 * 永远是 0——一层淡了、另一层没淡。
+	 * **可继承**，这是它们和 `--ly-fade-top` 那一族唯一实质的差别：hook 写在外壳上，遮罩画在里面
+	 * 的 textarea 上，靠继承才读得到同一个数。改成 false，textarea 就永远是 0。
 	 */
 	const registrations = css.slice(css.indexOf("@property --ly-field-fade-top"), css.indexOf(".ly-field-fade {"));
 	assert.ok(!registrations.includes("inherits: false"), "两个长度必须可继承，镜像层靠继承读到它们");

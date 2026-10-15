@@ -179,77 +179,65 @@ export function CommandText({
 			aria-hidden
 			className={`pointer-events-none absolute inset-0 select-none overflow-hidden ${decoration.composing ? "z-10" : ""} ${commandHint ? "ly-fade-edge" : ""}`}
 		>
-			{/*
-			 * 上下化开自己占一层，横向那条留在外面。
-			 *
-			 * 两者都是 `mask-image`，写在同一个元素上是同一个属性的两次声明——后来的那条整个替换掉
-			 * 前一条，不会合成。而这两件事都真的会同时发生：打一条带长参数的斜杠命令，右端要为提示
-			 * 文字化开，上下又因为装不下要化开。叠成两层，遮罩就是相交而不是互相覆盖。
-			 *
-			 * `absolute inset-0` 是必须的：遮罩里的 `100% - fade-bottom` 算的是这一层自己的高度，
-			 * 而镜像里的字比可视区高得多。让它贴死外层，那个 100% 才是 textarea 看得见的那一段。
-			 */}
-			<div className="ly-field-fade absolute inset-0 overflow-hidden">
-				<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
-					{spans.map((s, idx) => {
-						const look = s.brackets ? tokenLook(s.name, s.kind) : null;
-						return s.className ? (
-							<span
-								key={idx}
-								className={s.className}
-								data-kind={s.kind}
-								data-bodiless={s.bodiless ? "" : undefined}
-								data-glyph={look ? "" : undefined}
-							>
-								{s.brackets && s.text.length > 2 ? (
-									/*
-									 * 底色只包图标和名字，收尾那个 `】` 不进胶囊。
-									 *
-									 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
-									 * 都会错位。图标、名字和底色在这 2em 里怎么挪，见 `misc.css` 的
-									 * `.ly-token-body`——只挪画面，字符格子一个都没动。
-									 */
-									<span className="ly-token-body">
-										<span className="ly-token-paint">
-											<span className="ly-token-bracket">
-												{s.text.slice(0, 1)}
-												{look && <TokenGlyph look={look} />}
-											</span>
-											<span className="ly-token-name">{s.text.slice(1, -1)}</span>
+			<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
+				{spans.map((s, idx) => {
+					const look = s.brackets ? tokenLook(s.name, s.kind) : null;
+					return s.className ? (
+						<span
+							key={idx}
+							className={s.className}
+							data-kind={s.kind}
+							data-bodiless={s.bodiless ? "" : undefined}
+							data-glyph={look ? "" : undefined}
+						>
+							{s.brackets && s.text.length > 2 ? (
+								/*
+								 * 底色只包图标和名字，收尾那个 `】` 不进胶囊。
+								 *
+								 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
+								 * 都会错位。图标、名字和底色在这 2em 里怎么挪，见 `misc.css` 的
+								 * `.ly-token-body`——只挪画面，字符格子一个都没动。
+								 */
+								<span className="ly-token-body">
+									<span className="ly-token-paint">
+										<span className="ly-token-bracket">
+											{s.text.slice(0, 1)}
+											{look && <TokenGlyph look={look} />}
 										</span>
-										<span className="ly-token-bracket">{s.text.slice(-1)}</span>
+										<span className="ly-token-name">{s.text.slice(1, -1)}</span>
 									</span>
-								) : s.avatar && s.text.startsWith("@") ? (
-									/*
-									 * 点名一个智能体：`@` 那一格画成它的脸。
-									 *
-									 * 字还得留着——这一层是镜像，`@` 在 textarea 里占着一格，删掉它后面整段都
-									 * 错位。所以 `@` 照样排版、只是透明，脸绝对定位盖在那一格上，一个像素都不挤。
-									 */
-									<>
-										<span className="ly-mention-face">
-											@
-											<AgentAvatar avatar={s.avatar} size={14} seed={s.text} interactive={false} />
-										</span>
-										{s.text.slice(1)}
-									</>
-								) : (
-									s.text
-								)}
-							</span>
-						) : (
-							<span key={idx}>{s.text}</span>
-						);
-					})}
-					{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
-					{value.endsWith("\n") && "\u200b"}
-					{commandHint && (
-						<span className="ly-command-hint text-ink-faint">
-							{value.length === decoration.command?.end ? " " : ""}
-							{commandHint}
+									<span className="ly-token-bracket">{s.text.slice(-1)}</span>
+								</span>
+							) : s.avatar && s.text.startsWith("@") ? (
+								/*
+								 * 点名一个智能体：`@` 那一格画成它的脸。
+								 *
+								 * 字还得留着——这一层是镜像，`@` 在 textarea 里占着一格，删掉它后面整段都
+								 * 错位。所以 `@` 照样排版、只是透明，脸绝对定位盖在那一格上，一个像素都不挤。
+								 */
+								<>
+									<span className="ly-mention-face">
+										@
+										<AgentAvatar avatar={s.avatar} size={14} seed={s.text} interactive={false} />
+									</span>
+									{s.text.slice(1)}
+								</>
+							) : (
+								s.text
+							)}
 						</span>
-					)}
-				</div>
+					) : (
+						<span key={idx}>{s.text}</span>
+					);
+				})}
+				{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
+				{value.endsWith("\n") && "\u200b"}
+				{commandHint && (
+					<span className="ly-command-hint text-ink-faint">
+						{value.length === decoration.command?.end ? " " : ""}
+						{commandHint}
+					</span>
+				)}
 			</div>
 		</div>
 	);
