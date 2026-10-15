@@ -2,6 +2,57 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.33](https://github.com/wJiaaa/Plume/releases/tag/v0.9.33) - 2026-10-15
+
+<!-- plume:notes en -->
+
+### New
+
+- **Plans open in a panel on the right, and you can comment on any part of them.** A plan used to be squeezed into the approval card above the composer: a long one meant scrolling inside a small box, and objecting to one step meant typing "about step two…" after "Revise" and hoping the model guessed which step. Now, when a plan comes in, a "Plan" tab opens on the right with the whole thing laid out. Select any text to leave a comment there. The approval card is two lines: the title with "Open plan", then Reject / Revise… / Accept. Esc revises, ⌘↵ presses the main button, ⇧⌘↵ accepts. In a narrow window the panel would cover the card, so the plan is shown in the card instead.
+- **Comments go along when you accept.** Accepting with comments used to drop them silently, though most of them were "watch out for this when you do it" rather than "rewrite the plan". They are now listed on the approval card, numbered, with a box to add more, and Accept carries them to the model as notes without another round of planning. Revise… sends them back as feedback with the quoted text attached.
+- **"Accept and turn on auto mode".** When the composer is set to "Ask for approval", the card has a fourth button that switches to "Auto approve" and then accepts the plan. It isn't offered if you're already on "Auto approve" or "Full access", so it never steps you down.
+- **The plan panel survives a restart.** Close the app or switch conversations and come back, and the plan is still there, with the notes it was approved with.
+
+### Changes
+
+- **Plans read as a write-up, not a checklist.** A plan used to be a list of steps copied straight into the task list on approval, so what you reviewed was a list of actions with no word on what things looked like before or how the change would be checked. A plan is now ordinary Markdown — usually a title, a summary, the main changes, how it will be tested, and the assumptions it makes, in three to five sections sized to the job. The model writes its own task list once it starts working.
+- **Plan mode asks before it submits.** It almost never asked anything; it now asks about intent, scope and trade-offs it can't find in the code, and if you skip a question it goes with its recommendation and records it as an assumption. This has only been tried against a scripted model, not a real one.
+- **Chats under a suggesting chat are indented further in the sidebar.** The "└" sat right under the parent's status dot and the child's dot almost touched the parent's title. Child titles now start 27 px in instead of 22 px.
+
+### Fixes
+
+- **The composer no longer teleports when you send your first message from the welcome page.** Its top edge jumped 261 px in one frame (1200×800 window) and only then stretched sideways along the bottom. It now slides down and widens in one movement; the biggest step between two frames is 44 px. With "Reduce motion" on it goes straight there.
+- **The line you're typing in the composer is no longer faded out.** After a line break the browser only scrolled the caret line into view, not the 14 px of padding below it, so the bottom fade stayed over the last line. The composer has no top or bottom fade any more; other multi-line boxes keep theirs.
+- **A suggested chat no longer shows up as a broken card while it is still being written.** An icon, an empty title and a Start button that did nothing appeared first. It is now one line, "Suggesting a chat · title", with the title filling in as it's written, and the full card appears once it's done.
+- **File links no longer flash a path or plain text before turning into a card.** Right after switching conversations, a relative path in inline code showed as the full raw path until the project info arrived. While a reply was streaming, a link's label appeared as text and then shrank to a card with just the file name. Both now show the card straight away.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **计划交上来时在右栏摊开，哪一段都能划线评论。** 从前整份计划挤在输入框上方的审批卡里：长计划要在小框里滚，想对某一步提意见，只能在「修改」后面手打一句「第二步那个……」，模型还得猜说的是哪一步。现在计划一交上来，右栏就开一个「计划」标签整份摊开，选中一段字就地留评论。审批卡改成两行：标题加「打开计划」，下面一排拒绝 / 修改… / 接受。Esc 是修改，⌘↵ 按主按钮，⇧⌘↵ 接受。窗口太窄时面板会盖住审批卡，这时不开面板，计划画在卡里。
+- **带着评论点「接受」，评论会一起交给模型。** 从前带着评论接受，评论悄悄作废，而多数评论是「做的时候注意一下」，不值得为它打回重写整份计划。现在评论按序号列在审批卡上，下面有个补充框；点「接受」时它们作为注意事项带过去，计划不重写。点「修改…」则连同被评的原文一起发回去。
+- **「接受并开启自动模式」。** 输入框的权限档在「请求批准」时，卡上多一颗按钮：先切到「帮我批准」再接受计划。已经是「帮我批准」或「完全访问」时不给，免得把档位降下来。
+- **计划面板重启后还在。** 关掉应用、换个会话再回来，计划还在，批准时带的注意事项也在。
+
+### 变化
+
+- **计划写成一份方案，不再是一张任务清单。** 从前计划是一串步骤，批准时原样抄进任务清单，你审到的是一串动作，看不出改之前是什么样、打算怎么验。现在计划就是一段 Markdown，通常是标题、概要、主要改动、测试、假设这几节，按事情大小写三到五节。任务清单由模型开始干活时自己列。
+- **计划模式交之前会先问。** 以前它几乎从不提问；现在代码里查不到的意图、范围、取舍，交计划之前先问清。你跳过不答，它就按自己推荐的走，并记成一条假设。这一点只在假模型上演练过，真实模型的提问效果还没验证。
+- **侧栏里子会话缩进更明显。** 「└」原来落在父会话状态点正下方，子会话的状态点几乎贴着父会话标题。子会话标题的缩进从 22px 改成 27px。
+
+### 修复
+
+- **在欢迎页发出第一条时，输入框不再一帧瞬移。** 原来顶边一帧跳 261px（1200×800 的窗口），然后才在底部横着拉开。现在它一边滑到底部一边变宽，一次做完，相邻两帧最多移动 44px。开了「减少动态效果」时直接到位。
+- **输入框里正在打的那一行不再被虚化。** 换行后浏览器只把光标所在行滚进可见区，底部那 14px 内衬没滚进来，下方的渐隐就一直压在最后一行上。主输入框去掉了上下渐隐，其他多行输入框不变。
+- **建议新会话还在写的时候，不再先冒出一张像坏了的卡片。** 原来会先出现图标、空标题和一颗按不动的「开始」。现在写的过程中只有一行「建议新会话 · 标题」，标题跟着写出来，写完才换成整张卡片。
+- **文件链接不再先露出路径或文字、闪一下才变成卡片。** 刚切到一个会话时，项目信息还没到，行内代码里的相对路径先画成一整段原始路径；回复流式输出时，链接的文字先露出来，再缩成只剩文件名的卡片。现在两种情况都直接出现卡片。
+
+</details>
+
 ## [0.9.32](https://github.com/wJiaaa/Plume/releases/tag/v0.9.32) - 2026-10-15
 
 <!-- plume:notes en -->
