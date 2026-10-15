@@ -39,13 +39,16 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 
 const PLAN = {
 	title: "登录改成 OAuth",
-	steps: [
-		{ what: "读现有的账号密码登录流程，列出调用点", files: ["src/auth/login.ts"] },
-		{ what: "加 OAuth 回调路由，换取 token 后写会话", files: ["src/auth/oauth.ts", "src/routes.ts"] },
-		{ what: "登录页把表单换成「用 GitHub 登录」按钮", files: ["src/pages/Login.tsx"] },
-		{ what: "旧的密码登录保留一个版本，打开开关才走", files: ["src/config.ts"] },
-		{ what: "补回调和会话写入的测试", files: ["test/oauth.test.ts"] },
+	current: "登录只有账号密码一条路：校验密码后写会话，登录页是一张表单。",
+	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮，旧的密码登录留在开关后面。",
+	changes: [
+		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
+		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
+		{ file: "src/pages/Login.tsx", what: "登录页把表单换成「用 GitHub 登录」按钮" },
+		{ file: "src/config.ts", what: "旧的密码登录保留一个版本，打开开关才走" },
+		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
 	],
+	verification: ["跑 oauth 的测试", "本地点一次「用 GitHub 登录」，走完回调后会话里有用户"],
 	risks: ["回调地址在本地和线上不同，配错了登录直接失败"],
 	unknowns: ["线上用的是哪个 OAuth 应用"],
 };
@@ -53,12 +56,12 @@ const PLAN = {
 /** 按评论改过的第二版：打回后模型重交的那一份。 */
 const REVISED = {
 	...PLAN,
-	steps: [
-		PLAN.steps[0]!,
-		{ what: "加 OAuth 回调路由，先校验 state 再换 token 写会话", files: ["src/auth/oauth.ts", "src/routes.ts"] },
-		PLAN.steps[2]!,
-		{ what: "删掉旧的密码登录", files: ["src/auth/login.ts"] },
-		PLAN.steps[4]!,
+	changes: [
+		PLAN.changes[0]!,
+		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，先校验 state 再换 token 写会话" },
+		PLAN.changes[2]!,
+		{ file: "src/auth/login.ts", what: "删掉旧的密码登录" },
+		PLAN.changes[4]!,
 	],
 };
 
@@ -134,7 +137,7 @@ async function photo(name: string) {
 
 /** 面板与卡片此刻的样子，全从看得见的 DOM 和登记的高亮量。 */
 async function state() {
-	return app!.evaluate<{ pane: boolean; tabActive: boolean; h1: string; steps: number; hint: boolean; comments: string[]; numbers: string[]; marks: string[]; aligned: boolean; marked: number; draft: number; title: string; cardH2: number; options: number; actions: string[]; button: boolean; cardHeight: number }>(`(()=>{
+	return app!.evaluate<{ pane: boolean; tabActive: boolean; h1: string; changes: number; hint: boolean; comments: string[]; numbers: string[]; marks: string[]; aligned: boolean; marked: number; draft: number; title: string; cardH2: number; options: number; actions: string[]; button: boolean; cardHeight: number }>(`(()=>{
 		const pane=document.querySelector(${JSON.stringify(PANE)});
 		const visible=pane&&pane.checkVisibility({visibilityProperty:true});
 		const card=document.querySelector('[data-approval-card]');
@@ -142,7 +145,7 @@ async function state() {
 			pane:Boolean(visible),
 			tabActive:Boolean(document.querySelector('[data-dock-pane]:not([inert]) [data-panel-tab="plan"] [aria-selected="true"]')),
 			h1:pane?.querySelector('[data-plan-body] h1')?.textContent??"",
-			steps:pane?.querySelectorAll('[data-plan-body] ol > li').length??0,
+			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			hint:Boolean(pane?.querySelector('[data-plan-hint]')),
 			comments:[...(card?.querySelectorAll('[data-plan-comment-text]')??[])].map(e=>e.textContent),
 			numbers:[...(card?.querySelectorAll('[data-plan-comment-chip]')??[])].map(e=>e.firstElementChild?.textContent??""),
@@ -199,7 +202,7 @@ try {
 
 	const opened = await state();
 	check("计划交上来，右栏自己打开「计划」标签并摆在前台", opened.pane && opened.tabActive, opened);
-	check("面板按 Markdown 摊开整份计划：标题和五步", opened.h1 === PLAN.title && opened.steps === 5, { h1: opened.h1, steps: opened.steps });
+	check("面板按 Markdown 摊开整份计划：标题和五处改动", opened.h1 === PLAN.title && opened.changes === 5, { h1: opened.h1, changes: opened.changes });
 	check("面板顶上提示可以划线评论", opened.hint, opened.hint);
 	const waitingLine = await app.evaluate<string>(`document.querySelector('[data-ly-waiting]')?.textContent??""`);
 	check("对话底部那一行说的是「等你审批计划」", waitingLine === "等你审批计划", waitingLine);
@@ -255,7 +258,7 @@ try {
 	check("在补充框里写一句点「修订」，那句话和两条评论连着引文进了发给模型的工具结果", feedback.includes("另外拆成两次提交") && feedback.includes("加 OAuth 回调路由") && feedback.includes("回调里先校验 state") && feedback.includes("旧的密码登录保留一个版本") && feedback.includes("直接删掉"), feedback.slice(0, 400));
 
 	const after = await state();
-	check("打回后模型按评论重交第二版，面板换成新的那份，旧的划线和序号都撤了", after.pane && after.steps === 5 && after.marked === 0 && after.marks.length === 0, after);
+	check("打回后模型按评论重交第二版，面板换成新的那份，旧的划线和序号都撤了", after.pane && after.changes === 5 && after.marked === 0 && after.marks.length === 0, after);
 
 	// 第二版只留一条小意见，直接接受：评论作为注意事项带上，不再打回一轮。
 	await until(app, "document.querySelector('[data-approval-card]')", 1500);
@@ -283,7 +286,7 @@ try {
 		};
 	})()`);
 	check("面板显示已批准的第二版，末尾多一节「执行时注意」", done.status === "已批准" && done.notes, done);
-	check("任务清单列出第二版的五步", REVISED.steps.every((step) => done.tasks.includes(step.what)), done.tasks.slice(0, 200));
+	check("批准后计划不照搬进任务清单：清单由模型自己拆", !REVISED.changes.some((change) => done.tasks.includes(change.what)), done.tasks.slice(0, 200));
 	await photo("08_带评论接受后");
 	await pause(800);
 } catch (error) {

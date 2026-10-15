@@ -40,13 +40,16 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 
 const PLAN = {
 	title: "登录改成 OAuth",
-	steps: [
-		{ what: "读现有的账号密码登录流程，列出调用点", files: ["src/auth/login.ts"] },
-		{ what: "加 OAuth 回调路由，换取 token 后写会话", files: ["src/auth/oauth.ts", "src/routes.ts"] },
-		{ what: "登录页把表单换成「用 GitHub 登录」按钮", files: ["src/pages/Login.tsx"] },
-		{ what: "旧的密码登录保留一个版本，打开开关才走", files: ["src/config.ts"] },
-		{ what: "补回调和会话写入的测试", files: ["test/oauth.test.ts"] },
+	current: "登录只有账号密码一条路：校验密码后写会话，登录页是一张表单。",
+	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮，旧的密码登录留在开关后面。",
+	changes: [
+		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
+		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
+		{ file: "src/pages/Login.tsx", what: "登录页把表单换成「用 GitHub 登录」按钮" },
+		{ file: "src/config.ts", what: "旧的密码登录保留一个版本，打开开关才走" },
+		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
 	],
+	verification: ["跑 oauth 的测试", "本地点一次「用 GitHub 登录」，走完回调后会话里有用户"],
 	risks: ["回调地址在本地和线上不同，配错了登录直接失败"],
 	unknowns: ["线上用的是哪个 OAuth 应用"],
 };
@@ -197,12 +200,12 @@ try {
 			pre:card.querySelectorAll('pre').length,
 			actions:[...card.querySelectorAll('[data-plan-action]')].map(e=>e.getAttribute('data-plan-action')),
 			open:Boolean(card.querySelector('[data-approval-open-plan]')),
-			pane:document.querySelectorAll('[data-dock-content="plan"] [data-plan-body] ol > li').length,
+			pane:[...document.querySelectorAll('[data-dock-content="plan"] [data-plan-body] h2')].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			height:Math.round(card.getBoundingClientRect().height),
 		};
 	})()`);
 	check("卡片标题是「Plume 提出了一个计划」，右端「打开计划」", card.title === "Plume 提出了一个计划" && card.open, card.title);
-	check("计划正文在右栏的计划面板里按 Markdown 摊开（五步），卡片里没有 <pre>", card.pre === 0 && card.pane === 5, card);
+	check("计划正文在右栏的计划面板里按 Markdown 摊开（五处改动），卡片里没有 <pre>", card.pre === 0 && card.pane === 5, card);
 	check("一排动作：拒绝、修改、接受", card.actions.join("|") === "reject|revise|accept", card.actions);
 	check("卡片只有两行高", card.height <= 110, card.height);
 	await photo("04_审批计划");
@@ -214,10 +217,9 @@ try {
 	await pause(1200);
 	check("批准计划后 core 关掉计划模式，芯片跟着熄灭", (await chip()).state === "off", await chip());
 	check("批准之后的那次请求照常进行", requests.some((request) => request.tail.includes('"tool_result"')), requests.length);
-	// 批准的计划就是清单：不用等模型再写一次 `todo_write`，右上角就该列着那五步。
-	await until(app, "document.querySelector('[data-ly-task-list]')", 1200).catch(() => undefined);
+	// 计划是方案不是清单：批准不往清单里写，拆步是模型自己 `todo_write` 的事。
 	const listed = await app.evaluate<string>(`document.querySelector('[data-ly-task-list]')?.textContent ?? ""`);
-	check("批准后任务清单列出计划的五步", PLAN.steps.every((step) => listed.includes(step.what)), listed.slice(0, 200));
+	check("批准后计划不照搬进任务清单", !PLAN.changes.some((change) => listed.includes(change.what)), listed.slice(0, 200));
 	await photo("05_批准后自动关");
 	await stopRecording();
 	stopRecording = undefined;

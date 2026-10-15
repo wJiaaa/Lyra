@@ -205,13 +205,25 @@ const BOUNDARIES = [
 /**
  * 计划模式的规矩。规矩在提示词里，拦截在执行期（`runtime/plan-mode.ts`）：提示词让它少撞墙，
  * 墙本身不靠提示词。
+ *
+ * 提问那一段必须明说通用准则（「有合理理解就照做」）在这里不适用：不说的话两条一起读，模型照
+ * 准则把拿不准的地方塞进 `unknowns` 直接交，计划模式从来不问。
  */
 const PLAN_MODE_SECTION =
-	"\n\nPlan mode is on. You are investigating, not changing: read, search, list and reason. Tools that would change the workspace " +
-	"are held back and will refuse until the plan is approved. When you understand the task, call `submit_plan` with ordered steps " +
-	"(each naming the files it touches), the risks you can see, and what you could not determine from the code. The user approves it " +
-	"or asks for changes; after approval every tool is available again and the steps become your task list. Do not pad: three real " +
-	"steps beat ten vague ones. If the task is too small to need a plan, submit a one-step plan and say so.";
+	"\n\nPlan mode is on. You are planning a change, not making it. Tools that would change the workspace refuse until the user " +
+	"approves a plan; a request to do the work while plan mode is on is a request to plan it.\n\n" +
+	"Planning is when asking is cheapest: nothing is built yet, and a wrong guess about intent costs the whole plan. The general " +
+	"rule to take a reasonable reading and state the assumption does not apply here. Explore first: what the code can answer — " +
+	"where something lives, how it works now, what depends on it — find out yourself and do not ask. Then, for every choice about " +
+	"intent, scope or a trade-off that would change the plan and that the code cannot settle, ask with `ask_user` before you " +
+	"submit: the real options, what each one means, and the one you recommend. Several questions are fine when each one matters. " +
+	"Do not leave such a choice to the approval card or put it in `unknowns`: the card approves a plan, it is not where decisions " +
+	"get made. If the user skips a question, go with your recommendation and say so in `unknowns`.\n\n" +
+	"When the implementer would have nothing left to decide, call `submit_plan`: how the part you are changing works now (`current`; " +
+	"leave it out only for something wholly new), the approach, each file to change and what changes in it, how to verify the result, " +
+	"the risks, and what you could not settle. The plan is the approach, not a checklist: do not write it as a sequence of actions, " +
+	"and do not put it in `todo_write`. Keep it as short as the change allows. If the user sends it back, submit a complete " +
+	"replacement. Once it is approved every tool is available again; that is when you break the work into a task list.";
 
 export async function buildSystemPrompt(input: SystemPromptInput): Promise<string> {
 	return (await buildPromptContext(input)).systemPrompt;

@@ -238,10 +238,22 @@ export interface CompactionContext {
 	plan?: ApprovedPlan;
 }
 
-/** 计划模式里交上去、被人批准的那份计划。字段和内置 `plan` 子代理的输出一致。 */
+/**
+ * 计划模式里交上去、被人批准的那份计划。字段和内置 `plan` 子代理的输出一致。
+ *
+ * 计划是方案，不是清单：没有「步骤」。怎么拆成几步是执行时模型自己用 `todo_write` 记的账，
+ * 拿计划的步骤直接当清单，计划就得写成执行粒度，人审的时候看到的是一串动作而不是做法。
+ */
 export interface ApprovedPlan {
 	title?: string;
-	steps: { what: string; files?: string[] }[];
+	/** 改动前那一块现在是怎么工作的。改已有行为时必写；全新的东西没有现状。 */
+	current?: string;
+	/** 打算怎么做。 */
+	approach: string;
+	/** 要动的文件，每个写清改什么。 */
+	changes: { file: string; what: string }[];
+	/** 做完以后怎么确认它是对的。 */
+	verification: string[];
 	risks: string[];
 	unknowns: string[];
 	/** 人批准时附上的注意事项（多是在计划上划线留的评论）：不改计划，执行时照着做。 */

@@ -1,6 +1,4 @@
 import { errorResult } from "./result.ts";
-import { SUBMIT_PLAN_TOOL_NAME } from "../runtime/plan-view.ts";
-import type { ApprovedPlan } from "../types/message.ts";
 import type { Message, Tool, ToolContext, ToolResult } from "../types.ts";
 
 export interface TodoItem {
@@ -29,34 +27,11 @@ export function todosFromLog(messages: Message[]): TodoItem[] {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role === "user" && message.clearsTaskPlan === true) return [];
-		const todos = todosOf(message);
-		if (todos) return todos;
+		if (message.role !== "toolResult" || message.toolName !== todoTool.name || message.isError) continue;
+		const details = message.details as { kind?: string; todos?: TodoItem[] } | undefined;
+		if (details?.kind === "todo" && Array.isArray(details.todos)) return details.todos;
 	}
 	return [];
-}
-
-/** 批准的计划变成的清单：每一步一项，全部未开始。 */
-export function planTodos(steps: ApprovedPlan["steps"]): TodoItem[] {
-	return steps.map((step) => ({ content: step.what, status: "pending" }));
-}
-
-/**
- * 这条工具结果写下的整张清单；没写清单的返回 `null`。
- *
- * 写清单的有两处：`todo_write`，和被批准的 `submit_plan`——批准时步骤直接成了清单，结果里只带计划本身，
- * 清单要从步骤推出来。只认 `todo_write` 时，批准后的清单在撤回、恢复时整份丢掉。
- */
-export function todosOf(message: Message): TodoItem[] | null {
-	if (message.role !== "toolResult" || message.isError) return null;
-	if (message.toolName === todoTool.name) {
-		const details = message.details as { kind?: string; todos?: TodoItem[] } | undefined;
-		return details?.kind === "todo" && Array.isArray(details.todos) ? details.todos : null;
-	}
-	if (message.toolName === SUBMIT_PLAN_TOOL_NAME) {
-		const details = message.details as { kind?: string; plan?: ApprovedPlan } | undefined;
-		return details?.kind === "plan" && Array.isArray(details.plan?.steps) ? planTodos(details.plan.steps) : null;
-	}
-	return null;
 }
 
 interface TodoArgs {

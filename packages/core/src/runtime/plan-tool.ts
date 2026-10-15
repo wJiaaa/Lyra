@@ -1,12 +1,13 @@
 /**
- * `submit_plan`：计划模式的出口。模型交计划，人批准或打回；批准那一刻开关关掉、步骤进清单。
+ * `submit_plan`：计划模式的出口。模型交计划，人批准或打回；批准那一刻开关关掉。
  *
- * schema 沿用内置 `plan` 子代理的那份（步骤带文件、风险、未知项），不另造一种计划格式。
+ * 计划是方案（现状、做法、改哪些文件、怎么验），不是清单：批准时不往任务清单里写，怎么拆步由模型
+ * 执行时自己记。曾经把步骤直接当清单，计划于是写成了一串动作，人审的是动作而不是做法。
+ * schema 和内置 `plan` 子代理的输出是同一份，不另造一种计划格式。
  * 审批走 `ask_user` 同一条交互式通道：它在三档权限下都会问人，full 档也不例外。
  */
 
 import { errorResult } from "../tools/result.ts";
-import { planTodos, TODOS_KEY } from "../tools/todo.ts";
 import type { ApprovedPlan } from "../types/message.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { inPlanMode, PLAN_MODE_KEY } from "./plan-mode.ts";
@@ -18,7 +19,10 @@ export const PLAN_REVISE = "要改";
 
 interface SubmitPlanArgs {
 	title?: string;
-	steps: { what: string; files?: string[] }[];
+	current?: string;
+	approach: string;
+	changes: { file: string; what: string }[];
+	verification: string[];
 	risks?: string[];
 	unknowns?: string[];
 }
@@ -26,34 +30,37 @@ interface SubmitPlanArgs {
 export const submitPlanTool: Tool<SubmitPlanArgs> = {
 	name: SUBMIT_PLAN_TOOL_NAME,
 	description:
-		"Submit the plan for the user to approve. Available in plan mode only. Ordered steps, each a change somebody could make without " +
-		"asking a follow-up question and naming the files it touches; the risks you can see; what you could not determine from the code. " +
-		"Approval turns plan mode off and puts the steps on the task list. If the user asks for changes, revise and submit again.",
+		"Submit the plan for the user to approve. Available in plan mode only. A plan is the approach, complete enough that whoever " +
+		"carries it out has nothing left to decide: how things work now, what you will do, each file and what changes in it, how to " +
+		"verify it. It is not a task list. Approval turns plan mode off. If the user asks for changes, submit a complete replacement.",
 	parameters: {
 		type: "object",
 		properties: {
 			title: { type: "string", description: "One line naming the change." },
-			steps: {
+			current: { type: "string", description: "How the part being changed works now, as found in the code. Required when changing existing behaviour; omit only for something wholly new." },
+			approach: { type: "string", description: "What you will do and why this way. Markdown." },
+			changes: {
 				type: "array",
 				minItems: 1,
 				items: {
 					type: "object",
-					required: ["what"],
+					required: ["file", "what"],
 					properties: {
-						what: { type: "string", description: "The change, concretely." },
-						files: { type: "array", items: { type: "string" }, description: "Project-relative paths this step touches." },
+						file: { type: "string", description: "Project-relative path." },
+						what: { type: "string", description: "What changes in this file, concretely." },
 					},
 				},
 			},
+			verification: { type: "array", minItems: 1, items: { type: "string" }, description: "How to confirm the change works: the checks to run and what to observe." },
 			risks: { type: "array", items: { type: "string" }, description: "What could go wrong, and where. Empty is a valid answer." },
-			unknowns: { type: "array", items: { type: "string" }, description: "What you could not determine from the code and would need to ask about." },
+			unknowns: { type: "array", items: { type: "string" }, description: "What is still unsettled after you asked, e.g. a question the user skipped and the recommendation you went with. Not for questions you could ask now: ask them first." },
 		},
-		required: ["steps"],
+		required: ["approach", "changes", "verification"],
 	},
 	executionMode: "sequential",
 	// 只有会话本身能交计划：子代理的计划是报告，不是闸门。
 	sessionOnly: true,
-	summarize: (args) => `Plan: ${String(args.title ?? args.steps?.[0]?.what ?? "").slice(0, 40)}`,
+	summarize: (args) => `Plan: ${String(args.title ?? args.approach ?? "").slice(0, 40)}`,
 	async execute(args, ctx: ToolContext): Promise<ToolResult> {
 		if (!ctx.requestApproval) return errorResult("This host cannot ask the user, so no plan can be approved.");
 		if (!inPlanMode(ctx.state)) return errorResult("Plan mode is off; there is nothing to approve. Do the work.");
@@ -72,10 +79,8 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 			const approved: ApprovedPlan = { ...plan, ...(notes ? { notes } : {}), approvedAt: Date.now() };
 			// 开关就地关掉：这一轮剩下的调用走的是同一张工具表，包着的 `execute` 从此放行。
 			ctx.state.set(PLAN_MODE_KEY, false);
-			// 步骤就是清单。批准的计划是正本，之后 `todo_write` 改的是它的状态。
-			ctx.state.set(TODOS_KEY, planTodos(plan.steps));
 			return {
-				content: [{ type: "text", text: `The user approved the plan${notes ? " with notes" : ""}. Plan mode is off; every tool is available again.\n\n${notes ? renderPlan(approved) : rendered}\n\nThe steps are now the task list. Start with step 1 and keep the list in step with the plan.${notes ? " The notes are the user's comments on this plan: follow them as you carry it out." : ""}` }],
+				content: [{ type: "text", text: `The user approved the plan${notes ? " with notes" : ""}. Plan mode is off; every tool is available again.\n\n${notes ? renderPlan(approved) : rendered}\n\nCarry it out now. If it takes three or more steps, break it into a task list with \`todo_write\` alongside your first action.${notes ? " The notes are the user's comments on this plan: follow them as you carry it out." : ""}` }],
 				details: { kind: "plan", plan: approved },
 			};
 		}

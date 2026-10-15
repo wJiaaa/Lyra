@@ -7,8 +7,7 @@
  * that they are a different clock.
  */
 
-import type { AgentEvent } from "@plume/core";
-import { writtenTodos } from "../lib/todos.ts";
+import type { AgentEvent, TodoItem } from "@plume/core";
 import type { AppState } from "./index.ts";
 
 type State = Pick<AppState, "toolRuns" | "todos">;
@@ -66,8 +65,10 @@ case "tool_start":
       },
     });
     // The task list arrives as the result of writing it; nothing else announces it.
-    const todos = writtenTodos(event.toolName, event.result.details, event.isError);
-    if (todos) set({ todos });
+    const written = event.result.details as { kind?: string; todos?: TodoItem[] } | undefined;
+    if (!event.isError && written?.kind === "todo" && Array.isArray(written.todos)) {
+      set({ todos: written.todos });
+    }
     break;
   }
 }

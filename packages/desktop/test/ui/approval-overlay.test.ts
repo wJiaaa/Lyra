@@ -304,7 +304,7 @@ test("a pending question replaces the thinking mutter with the dashed waiting li
  * 计划模式交上来的计划：标题说的是「审批计划」，正文按 Markdown 画，选项和自由输入仍是业务提问那一套。
  * 正文画成 `<pre>` 时，人读到的是一堆 `##` 和 `-`。
  */
-const PLAN_DETAIL = "# 登录换成 OAuth\n\n## 步骤\n1. 读登录模块\n2. 换成 OAuth\n3. 补测试";
+const PLAN_DETAIL = "# 登录换成 OAuth\n\n## 方案\n换成 OAuth\n\n## 改动\n- `src/login.ts`：读登录模块\n- `src/oauth.ts`：换成 OAuth\n- `test/oauth.test.ts`：补测试";
 const planApproval = (id = "plan") => ({ id, kind: "interactive" as const, subject: "submit_plan", title: "审批计划", detail: PLAN_DETAIL, options: ["批准，开始执行", "要改"], allowCustomInput: true, selectionMode: "single" as const, allowSkip: false });
 
 async function planCard(id: string, permissionMode: "ask" | "auto") {
@@ -423,8 +423,8 @@ test("in a compact window a submitted plan stays drawn in the card as markdown",
 	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay, { renderPlan: planMarkdown }) }));
 	try {
 		assert.equal(view.all("pre").length, 0, "计划不是一段原样文本");
-		assert.equal(view.find(".ly-approval-scroll h2").textContent, "步骤");
-		assert.equal(view.all(".ly-approval-scroll ol li").length, 3);
+		assert.equal(view.find(".ly-approval-scroll h2").textContent, "方案");
+		assert.equal(view.all(".ly-approval-scroll ul li").length, 3);
 		assert.ok(view.find('[data-plan-action="revise"]'), "打回时能写一句为什么");
 		assert.equal(opened.length, 0);
 	} finally {

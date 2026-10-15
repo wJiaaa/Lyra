@@ -33,11 +33,14 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 
 const PLAN = {
 	title: "登录改成 OAuth",
-	steps: [
-		{ what: "读现有的账号密码登录流程，列出调用点", files: ["src/auth/login.ts"] },
-		{ what: "加 OAuth 回调路由，换取 token 后写会话", files: ["src/auth/oauth.ts"] },
-		{ what: "补回调和会话写入的测试", files: ["test/oauth.test.ts"] },
+	current: "登录只有账号密码一条路：校验密码后写会话。",
+	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话。",
+	changes: [
+		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
+		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
+		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
 	],
+	verification: ["跑 oauth 的测试"],
 	risks: ["回调地址在本地和线上不同"],
 	unknowns: [],
 };
@@ -107,12 +110,12 @@ async function closeMenu() {
 }
 
 async function pane() {
-	return app!.evaluate<{ shown: boolean; h1: string; steps: number; status: string; hint: boolean }>(`(()=>{
+	return app!.evaluate<{ shown: boolean; h1: string; changes: number; status: string; hint: boolean }>(`(()=>{
 		const pane=document.querySelector(${JSON.stringify(PANE)});
 		return {
 			shown:Boolean(pane&&pane.checkVisibility({visibilityProperty:true})),
 			h1:pane?.querySelector('[data-plan-body] h1')?.textContent??"",
-			steps:pane?.querySelectorAll('[data-plan-body] ol > li').length??0,
+			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			status:pane?.querySelector('[data-plan-status]')?.textContent??"",
 			hint:Boolean(pane?.querySelector('[data-plan-hint]')),
 		};
@@ -142,7 +145,7 @@ try {
 	await until(app, `document.querySelector(${JSON.stringify(`${PANE} [data-plan-body]`)})`, 600);
 	await pause(1200);
 	const approved = await pane();
-	check("点开就是会话历史里那份计划：标题、三步、标「已批准」，没有评论提示", approved.shown && approved.h1 === PLAN.title && approved.steps === 3 && approved.status === "已批准" && !approved.hint, approved);
+	check("点开就是会话历史里那份计划：标题、三处改动、标「已批准」，没有评论提示", approved.shown && approved.h1 === PLAN.title && approved.changes === 3 && approved.status === "已批准" && !approved.hint, approved);
 	await photo("03_重开后的计划面板_已批准");
 
 	await openSession(app, "plan-declined");
@@ -151,7 +154,7 @@ try {
 	await until(app, `document.querySelector(${JSON.stringify(`${PANE} [data-plan-status]`)})`, 600);
 	await pause(1200);
 	const declined = await pane();
-	check("打回过的计划也读得到，标「未批准」", declined.shown && declined.steps === 3 && declined.status === "未批准", declined);
+	check("打回过的计划也读得到，标「未批准」", declined.shown && declined.changes === 3 && declined.status === "未批准", declined);
 	await photo("04_打回过的计划_未批准");
 	await closeTab(app, "plan");
 	await pause(600);

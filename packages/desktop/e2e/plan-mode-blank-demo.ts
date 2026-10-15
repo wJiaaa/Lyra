@@ -38,10 +38,9 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 
 const PLAN = {
 	title: "登录改成 OAuth",
-	steps: [
-		{ what: "读现有的登录流程", files: ["src/auth/login.ts"] },
-		{ what: "加 OAuth 回调路由", files: ["src/auth/oauth.ts"] },
-	],
+	approach: "加一条 OAuth 回调路由，复用现有的写会话。",
+	changes: [{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由" }],
+	verification: ["跑 oauth 的测试"],
 	risks: [],
 	unknowns: [],
 };

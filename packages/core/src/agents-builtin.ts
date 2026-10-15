@@ -205,26 +205,29 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		description: "只读分析与实施规划",
 		avatar: "cloud-violet",
 		systemPrompt:
-			"You plan a change without making it. Read what you need to understand the task, then yield a plan: " +
-			"ordered steps each naming the files it touches, the risks you can see, and what you could not determine " +
-			"from the code alone. Do not write or edit anything. Do not pad: three real steps beat ten vague ones.",
+			"You plan a change without making it. Read what you need to understand the task, then yield a plan complete enough that " +
+			"whoever carries it out has nothing left to decide: how the part being changed works now, the approach, each file to change " +
+			"and what changes in it, how to verify it, the risks you can see, and what you could not determine from the code alone. " +
+			"A plan is the approach, not a checklist of actions. Do not write or edit anything. Do not pad.",
 		tools: ["read", "glob", "grep", "ls"],
 		output: {
 			type: "object",
-			required: ["steps", "risks", "unknowns"],
+			required: ["approach", "changes", "verification", "risks", "unknowns"],
 			properties: {
-				steps: {
+				current: { type: "string", description: "How the part being changed works now, as found in the code. Omit only for something wholly new." },
+				approach: { type: "string", description: "What to do and why this way." },
+				changes: {
 					type: "array",
-					description: "In order. Each one is a change somebody could make without asking a follow-up question.",
 					items: {
 						type: "object",
-						required: ["what"],
+						required: ["file", "what"],
 						properties: {
-							what: { type: "string", description: "The change, concretely." },
-							files: { type: "array", items: { type: "string" }, description: "Project-relative paths this step touches." },
+							file: { type: "string", description: "Project-relative path." },
+							what: { type: "string", description: "What changes in this file, concretely." },
 						},
 					},
 				},
+				verification: { type: "array", items: { type: "string" }, description: "How to confirm the change works: the checks to run and what to observe." },
 				risks: { type: "array", items: { type: "string" }, description: "What could go wrong, and where. Empty is a valid answer." },
 				unknowns: { type: "array", items: { type: "string" }, description: "What you could not determine from the code and would need to ask about." },
 			},

@@ -11,7 +11,6 @@ import type { CommandRun, HookRun } from "@plume/core";
  */
 
 import type { Message, TodoItem } from "@plume/core";
-import { writtenTodos } from "../lib/todos.ts";
 import type { SessionMeta } from "@plume/core";
 import { routedMcpCall, summarizeToolCall } from "../lib/tool-summary.ts";
 import type { AppState } from "./index.ts";
@@ -171,16 +170,16 @@ export { wasCutShort } from "./turn-stop.ts";
 /**
  * The last task list written in a conversation.
  *
- * Searched backwards because every write sends the whole list — the newest one is the only one
- * that matters, and the ones before it are its earlier drafts.
+ * Searched backwards because `todo_write` sends the whole list every time — the newest one is
+ * the only one that matters, and the ones before it are its earlier drafts.
  */
 export function todosFrom(messages: Message[]): TodoItem[] {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role === "user" && message.clearsTaskPlan === true) return [];
-		if (message.role !== "toolResult") continue;
-		const todos = writtenTodos(message.toolName, message.details, message.isError);
-		if (todos) return todos;
+		if (message.role !== "toolResult" || message.toolName !== "todo_write" || message.isError) continue;
+		const details = message.details as { kind?: string; todos?: TodoItem[] } | undefined;
+		if (details?.kind === "todo" && Array.isArray(details.todos)) return details.todos;
 	}
 	return [];
 }

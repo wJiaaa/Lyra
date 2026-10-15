@@ -90,24 +90,26 @@ function approvalFixture(mode: "ask" | "auto" | "full" = "full") {
 	const ctx: ToolContext = { ...ctxWith(state), requestApproval: (request) => gate.request(request) };
 	return { gate, state, ctx };
 }
-const PLAN = { title: "改登录", steps: [{ what: "加 OAuth 回调", files: ["src/auth.ts"] }, { what: "补测试" }], risks: ["回调地址要配"], unknowns: [] };
+const PLAN = { title: "改登录", current: "只有密码登录", approach: "加一条 OAuth 回调路由", changes: [{ file: "src/auth.ts", what: "加 OAuth 回调" }, { file: "test/auth.test.ts", what: "补测试" }], verification: ["跑 auth 测试"], risks: ["回调地址要配"], unknowns: [] };
 
-test("approving the plan turns plan mode off and puts the steps on the task list", async () => {
+test("approving the plan turns plan mode off and leaves the task list to the model", async () => {
 	const { gate, state, ctx } = approvalFixture("full");
 	const pending = submitPlanTool.execute(PLAN, ctx);
 	const [request] = gate.list();
 	assert.ok(request, "full access does not approve a plan by itself");
 	assert.equal(request.request.subject, "submit_plan");
 	assert.deepEqual(request.request.options, [PLAN_APPROVE, PLAN_REVISE]);
-	assert.match(request.request.detail, /1\. 加 OAuth 回调（src\/auth\.ts）/);
+	assert.match(request.request.detail, /## 现状\n只有密码登录\n\n## 方案\n加一条 OAuth 回调路由\n\n## 改动\n- `src\/auth\.ts`：加 OAuth 回调/);
+	assert.match(request.request.detail, /## 验证\n- 跑 auth 测试/);
 	gate.resolve(request.id, { answer: PLAN_APPROVE });
 	const result = await pending;
 	assert.equal(result.isError, undefined);
 	assert.equal(inPlanMode(state), false);
-	assert.deepEqual(state.get(TODOS_KEY), [{ content: "加 OAuth 回调", status: "pending" }, { content: "补测试", status: "pending" }]);
-	const details = result.details as { kind: string; plan: { steps: unknown[]; approvedAt: number } };
+	assert.equal(state.get(TODOS_KEY), undefined, "the plan is the approach, not the task list");
+	assert.match(textOf(result), /todo_write/);
+	const details = result.details as { kind: string; plan: { changes: unknown[]; approvedAt: number } };
 	assert.equal(details.kind, "plan");
-	assert.equal(details.plan.steps.length, 2);
+	assert.equal(details.plan.changes.length, 2);
 	assert.ok(details.plan.approvedAt > 0);
 });
 
@@ -133,8 +135,10 @@ test("feedback sends the plan back without leaving plan mode; silence ends the t
 
 test("a malformed plan is refused with a reason, and plan mode off has nothing to approve", async () => {
 	const { ctx, state } = approvalFixture();
-	assert.match(textOf(await submitPlanTool.execute({ steps: [] }, ctx)), /at least one step/);
-	assert.match(textOf(await submitPlanTool.execute({ steps: [{ what: "  " }] }, ctx)), /nonempty `what`/);
+	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, approach: "  " }, ctx)), /`approach`/);
+	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, changes: [] }, ctx)), /`changes`/);
+	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, changes: [{ file: "a.ts", what: " " }] }, ctx)), /nonempty `file` and `what`/);
+	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, verification: [] }, ctx)), /`verification`/);
 	state.set(PLAN_MODE_KEY, false);
 	assert.match(textOf(await submitPlanTool.execute(PLAN, ctx)), /Plan mode is off/);
 });
@@ -181,9 +185,9 @@ test("the approved plan survives compaction beside the task list; feedback does 
 
 	assert.equal(taskContextFromHistory([feedback]).plan, undefined);
 	const context = taskContextFromHistory([feedback, approved]);
-	assert.equal(context.plan?.steps.length, 2);
+	assert.equal(context.plan?.changes.length, 2);
 	assert.match(formatTaskContext(context), /User-approved plan/);
-	assert.match(formatTaskContext(context), /2\. 补测试/);
+	assert.match(formatTaskContext(context), /- `test\/auth\.test\.ts`：补测试/);
 
 	const messages: Message[] = [{ role: "user", content: [{ type: "text", text: "改登录" }], timestamp: 1 }, approved, ...filler];
 	const first = await compactIfNeeded({ messages, model, provider, streamFn: stream, force: true });
@@ -191,7 +195,7 @@ test("the approved plan survives compaction beside the task list; feedback does 
 	const second = await compactIfNeeded({ messages: [...first.messages, ...filler], model, provider, streamFn: stream, force: true });
 	assert.ok(second);
 	const text = second.messages.flatMap((m) => m.content).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-	assert.match(text, /1\. 加 OAuth 回调（src\/auth\.ts）/);
+	assert.match(text, /- `src\/auth\.ts`：加 OAuth 回调/);
 	assert.deepEqual(taskContextFromHistory(second.messages).plan, context.plan);
 });
 
@@ -202,19 +206,17 @@ test("the system prompt explains plan mode only while it is on", async () => {
 });
 
 test("renderPlan leaves out empty sections", () => {
-	const rendered = renderPlan({ steps: [{ what: "只有一步" }], risks: [], unknowns: [] });
-	assert.equal(rendered, "## 步骤\n1. 只有一步");
+	const rendered = renderPlan({ approach: "直接改", changes: [], verification: [], risks: [], unknowns: [] });
+	assert.equal(rendered, "## 方案\n直接改");
 });
 
-test("an approved plan is the task list the log restores, until a todo_write replaces it", () => {
-	const at = (toolName: string, details: unknown, isError = false) =>
-		({ role: "toolResult", toolCallId: `${toolName}-${Math.random()}`, toolName, content: [], isError, details, timestamp: 1 }) as Message;
+test("an approved plan writes no task list into the log; only todo_write does", () => {
+	const at = (toolName: string, details: unknown) =>
+		({ role: "toolResult", toolCallId: `${toolName}-${Math.random()}`, toolName, content: [], isError: false, details, timestamp: 1 }) as Message;
 	const approved = at("submit_plan", { kind: "plan", plan: { ...PLAN, approvedAt: 1 } });
-	assert.deepEqual(todosFromLog([approved]), [{ content: "加 OAuth 回调", status: "pending" }, { content: "补测试", status: "pending" }]);
+	assert.deepEqual(todosFromLog([approved]), []);
 	const ticked = [{ content: "加 OAuth 回调", status: "completed" as const }];
-	assert.deepEqual(todosFromLog([approved, at("todo_write", { kind: "todo", todos: ticked })]), ticked);
-	assert.deepEqual(todosFromLog([at("submit_plan", { kind: "plan-feedback", feedback: "no reason given" })]), []);
-	assert.deepEqual(todosFromLog([at("submit_plan", { kind: "plan", plan: { ...PLAN, approvedAt: 1 } }, true)]), []);
+	assert.deepEqual(todosFromLog([at("todo_write", { kind: "todo", todos: ticked }), approved]), ticked, "approving a plan does not replace the list either");
 });
 
 test("currentPlan reads the last submitted plan off the log, approved or not", () => {
@@ -233,7 +235,7 @@ test("currentPlan reads the last submitted plan off the log, approved or not", (
 	const approved = [...declined, call("b", second), result("b", { kind: "plan", plan: { ...second, approvedAt: 1 } })];
 	assert.deepEqual(currentPlan(approved), { plan: second, status: "approved", toolCallId: "b" });
 	// 被工具当场退回的那次人没见过，不算。
-	assert.equal(currentPlan([...approved, call("c", { steps: [] }), result("c", undefined, true)])?.toolCallId, "b");
+	assert.equal(currentPlan([...approved, call("c", { ...PLAN, changes: [] }), result("c", undefined, true)])?.toolCallId, "b");
 	assert.equal(currentPlan([...approved, call("d", PLAN), result("d", undefined, true)])?.toolCallId, "b");
 	// 压缩以后调用不在了，读快照里批准的那份。
 	const compacted = { role: "user", synthetic: true, content: [], timestamp: 2, compactionContext: { plan: { ...PLAN, approvedAt: 1 } } } as unknown as Message;

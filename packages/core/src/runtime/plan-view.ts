@@ -15,31 +15,37 @@ export type PlanDraft = Omit<ApprovedPlan, "approvedAt">;
 export function renderPlan(plan: PlanDraft): string {
 	const lines: string[] = [];
 	if (plan.title) lines.push(`# ${plan.title}`, "");
-	lines.push("## 步骤");
-	plan.steps.forEach((step, index) => {
-		const files = step.files?.length ? `（${step.files.join("、")}）` : "";
-		lines.push(`${index + 1}. ${step.what}${files}`);
-	});
+	if (plan.current) lines.push("## 现状", plan.current, "");
+	lines.push("## 方案", plan.approach);
+	if (plan.changes.length) lines.push("", "## 改动", ...plan.changes.map((change) => `- \`${change.file}\`：${change.what}`));
+	if (plan.verification.length) lines.push("", "## 验证", ...plan.verification.map((check) => `- ${check}`));
 	if (plan.risks.length) lines.push("", "## 风险", ...plan.risks.map((risk) => `- ${risk}`));
 	if (plan.unknowns.length) lines.push("", "## 未确定", ...plan.unknowns.map((unknown) => `- ${unknown}`));
 	if (plan.notes) lines.push("", "## 执行时注意", plan.notes);
 	return lines.join("\n");
 }
 
+const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+const texts = (value: unknown): string[] => (Array.isArray(value) ? value.flatMap((item) => text(item) ?? []) : []);
+
 /** 模型交上来的参数整理成计划；不成形时返回说给模型听的那句错误。 */
 export function normalizePlan(args: Record<string, unknown>): PlanDraft | string {
-	if (!Array.isArray(args.steps) || args.steps.length === 0) return "Provide at least one step.";
-	const steps: PlanDraft["steps"] = [];
-	for (const step of args.steps as unknown[]) {
-		if (typeof step !== "object" || step === null) return "Every step needs a nonempty `what`.";
-		const { what, files } = step as { what?: unknown; files?: unknown };
-		if (typeof what !== "string" || !what.trim()) return "Every step needs a nonempty `what`.";
-		const kept = Array.isArray(files) ? files.filter((file): file is string => typeof file === "string" && file.trim() !== "") : undefined;
-		steps.push({ what: what.trim(), ...(kept?.length ? { files: kept } : {}) });
+	const approach = text(args.approach);
+	if (!approach) return "Describe the approach in `approach`.";
+	if (!Array.isArray(args.changes) || args.changes.length === 0) return "List the files you will change in `changes`.";
+	const changes: PlanDraft["changes"] = [];
+	for (const change of args.changes as unknown[]) {
+		const { file, what } = (typeof change === "object" && change !== null ? change : {}) as { file?: unknown; what?: unknown };
+		const path = text(file);
+		const edit = text(what);
+		if (!path || !edit) return "Every change needs a nonempty `file` and `what`.";
+		changes.push({ file: path, what: edit });
 	}
-	const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim()) : []);
-	const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
-	return { ...(title ? { title } : {}), steps, risks: strings(args.risks), unknowns: strings(args.unknowns) };
+	const verification = texts(args.verification);
+	if (verification.length === 0) return "Say how you will verify the change in `verification`.";
+	const title = text(args.title);
+	const current = text(args.current);
+	return { ...(title ? { title } : {}), ...(current ? { current } : {}), approach, changes, verification, risks: texts(args.risks), unknowns: texts(args.unknowns) };
 }
 
 export interface CurrentPlan {
@@ -69,7 +75,7 @@ export function currentPlan(messages: readonly Message[]): CurrentPlan | null {
 			const kind = (message.details as { kind?: string } | undefined)?.kind;
 			results.set(message.toolCallId, message.isError ? "error" : kind === "plan" ? "approved" : "declined");
 			const approved = (message.details as { plan?: ApprovedPlan } | undefined)?.plan;
-			if (!message.isError && kind === "plan" && approved && Array.isArray(approved.steps)) {
+			if (!message.isError && kind === "plan" && approved && Array.isArray(approved.changes)) {
 				const { approvedAt: _approvedAt, ...plan } = approved;
 				approvedPlans.set(message.toolCallId, plan);
 			}
