@@ -1,4 +1,4 @@
-import { scratchTarget } from "../resources/handlers.ts";
+import { scratchTarget, skillTarget } from "../resources/handlers.ts";
 import { parseResourceUrl } from "../resources/router.ts";
 import type { ToolContext } from "../types.ts";
 
@@ -17,4 +17,20 @@ export async function scratchFile(ctx: ToolContext, input: string): Promise<stri
 	if (url?.scheme !== "scratch" || url.range) return null;
 	// The literal path, not its realpath: the tools canonicalize it themselves, after a boundary check that compares spellings.
 	return scratchTarget(url, { cwd: ctx.cwd, sessionId: ctx.sessionId, scratchDir: ctx.scratchDir, state: ctx.state });
+}
+
+/**
+ * `skill://<name>/<path>` as the path it names on disk, or null for anything else.
+ *
+ * Not folded into `scratchFile`: `edit` and `write` take that one, and a skill must stay read-only.
+ * Only `ls` needs this — without it `ls skill://x/references` was joined onto the workspace as
+ * `<cwd>/skill:/x/references` and reported "not found" for a directory that exists.
+ */
+export async function skillPath(ctx: ToolContext, input: string): Promise<string | null> {
+	if (!ctx.resources?.canResolve(input)) return null;
+	const url = parseResourceUrl(input);
+	// A bare `skill://` is the index of skills, which is not a directory on disk.
+	if (url?.scheme !== "skill" || url.range || url.segments.length === 0) return null;
+	const { target } = await skillTarget(url, { cwd: ctx.cwd, sessionId: ctx.sessionId, scratchDir: ctx.scratchDir, state: ctx.state });
+	return target;
 }

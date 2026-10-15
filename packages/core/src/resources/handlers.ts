@@ -6,7 +6,7 @@
  * counts as escaping.
  */
 
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expandSkillPaths, type Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
@@ -32,37 +32,34 @@ const skillResource: ResourceHandler = {
 	 * nobody had mentioned, then fell back to guessing filenames on disk. Naming the bare form
 	 * first, explicitly, is the difference between three affordances and one guess.
 	 */
-	describe: "`skill://<名字>` 是技能正文本身；`skill://<名字>/` 列出它的目录里有什么；`skill://<名字>/<文件名>` 读目录里的某个文件",
+	describe: "`skill://<名字>` 是技能正文本身；`skill://<名字>/` 列出它的目录里有什么（子目录同样以 `/` 结尾，如 `skill://<名字>/references/`）；`skill://<名字>/<文件名>` 读目录里的某个文件",
 
 	async resolve(url: ParsedUrl, ctx: ResourceContext): Promise<Resource> {
-		const skills = (ctx.state.get(SKILLS_KEY) as Skill[] | undefined) ?? [];
-		const [name, ...rest] = url.segments;
-		const skill = skills.find((s) => s.name === name);
-		if (!skill) {
-			const available = skills.map((s) => s.name).join("、");
-			throw new ResourceError(`没有叫“${name}”的技能。现有的是：${available || "（一个都没有）"}`);
-		}
+		const { skill, rest, target } = await skillTarget(url, ctx);
+		const where = rest.join("/");
 
 		/*
-		 * A trailing slash asks what is in the directory, not what the skill says.
+		 * A trailing slash asks what is in the directory, not what the skill says — at any depth.
 		 *
 		 * Without this the address space has no answer to "what files does this skill have", and a
 		 * model that wants one falls back to walking the filesystem — which it did, and guessed the
 		 * wrong extension on the way. An address space that covers reading but not listing sends
-		 * people back to paths for half their questions, which is most of the value gone.
+		 * people back to paths for half their questions, which is most of the value gone. Only the
+		 * top level used to list, so `skill://x/references/` fell through to `readFile` on a
+		 * directory and answered "没有 references/" about a folder that was right there.
 		 */
-		if (rest.length === 0 && url.path.endsWith("/")) {
-			const { readdir } = await import("node:fs/promises");
-			const entries = await readdir(skill.dir, { withFileTypes: true }).catch(() => []);
-			const listing = entries
-				.map((entry) => `- skill://${skill.name}/${entry.name}${entry.isDirectory() ? "/" : ""}`)
-				.join("\n");
+		if (url.path.endsWith("/")) {
+			const entries = await readdir(target, { withFileTypes: true }).catch(() => null);
+			if (!entries) throw new ResourceError(`技能“${skill.name}”里没有 ${where}/ 这个目录。`);
+			const prefix = `skill://${[skill.name, ...rest].join("/")}/`;
+			const listing = entries.map((entry) => `- ${prefix}${entry.name}${entry.isDirectory() ? "/" : ""}`).join("\n");
+			const empty = rest.length === 0 ? `（技能“${skill.name}”的目录里没有别的文件）` : `（技能“${skill.name}”的 ${where}/ 是空的）`;
 			return {
 				url: url.raw,
-				content: listing || `（技能“${skill.name}”的目录里没有别的文件）`,
+				content: listing || empty,
 				contentType: "text/markdown",
-				label: `技能“${skill.name}”目录里的全部文件`,
-				meta: { name: skill.name, dir: skill.dir },
+				label: rest.length === 0 ? `技能“${skill.name}”目录里的全部文件` : `技能“${skill.name}”的 ${where}/ 里的全部文件`,
+				meta: { name: skill.name, dir: target },
 			};
 		}
 
@@ -77,17 +74,13 @@ const skillResource: ResourceHandler = {
 			};
 		}
 
-		const target = resolveInside(skill.dir, rest.join("/"));
-		if (!target) throw new ResourceError(`\`${url.raw}\` 指到了技能目录外面。`);
-		if (!(await stillInside(skill.dir, target))) throw new ResourceError(`\`${url.raw}\` 经过软链后指到了技能目录外面。`);
-
 		const content = await readFile(target, "utf8").catch(() => null);
-		if (content === null) throw new ResourceError(`技能“${name}”里没有 ${rest.join("/")}。`);
+		if (content === null) throw new ResourceError(`技能“${skill.name}”里没有 ${where}。`);
 		return {
 			url: url.raw,
 			content,
 			contentType: "text/plain",
-			label: `技能“${name}”目录里 ${rest.join("/")} 的完整内容`,
+			label: `技能“${skill.name}”目录里 ${where} 的完整内容`,
 			meta: { name: skill.name, file: target },
 		};
 	},
@@ -130,6 +123,26 @@ const scratchResource: ResourceHandler = {
 		return entries.filter((e) => e.isFile()).map((e) => ({ value: `scratch://${e.name}` }));
 	},
 };
+
+/**
+ * 技能目录里的一条路径，字面和真实落点都得在目录里。`skill://<名字>` 本身落在技能目录上。
+ *
+ * `ls` 也走这里：读和列认同一个落点、守同一道边界，`ls skill://x/references` 才和
+ * `read skill://x/references/` 指的是同一处，而不是被当成相对路径拼成 `<cwd>/skill:/x/references`。
+ */
+export async function skillTarget(url: ParsedUrl, ctx: ResourceContext): Promise<{ skill: Skill; rest: string[]; target: string }> {
+	const skills = (ctx.state.get(SKILLS_KEY) as Skill[] | undefined) ?? [];
+	const [name, ...rest] = url.segments;
+	const skill = skills.find((s) => s.name === name);
+	if (!skill) {
+		const available = skills.map((s) => s.name).join("、");
+		throw new ResourceError(`没有叫“${name}”的技能。现有的是：${available || "（一个都没有）"}`);
+	}
+	const target = resolveInside(skill.dir, rest.join("/"));
+	if (!target) throw new ResourceError(`\`${url.raw}\` 指到了技能目录外面。`);
+	if (!(await stillInside(skill.dir, target))) throw new ResourceError(`\`${url.raw}\` 经过软链后指到了技能目录外面。`);
+	return { skill, rest, target };
+}
 
 /**
  * 临时目录里的一条路径，字面和真实落点都得在目录里。

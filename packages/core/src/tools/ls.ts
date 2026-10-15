@@ -5,7 +5,7 @@ import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { displayPath } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
-import { scratchFile } from "./scratch-file.ts";
+import { scratchFile, skillPath } from "./scratch-file.ts";
 
 const MAX_ENTRIES = 400;
 
@@ -33,16 +33,23 @@ export const lsTool: Tool<LsArgs> = {
 	async execute(args, ctx): Promise<ToolResult> {
 		let absolute = ctx.cwd;
 		if (args.path) {
-			// 和 read/edit/write 认同一个 `scratch://`：不换成真实目录，它会被当成相对路径拼成 `<cwd>/scratch:/`。
+			// 和 read/edit/write 认同一个 `scratch://`、`skill://`：不换成真实目录，它会被当成相对路径拼成 `<cwd>/scratch:/`。
 			let scratch: string | null;
+			let skill: string | null;
 			try {
 				scratch = await scratchFile(ctx, args.path);
+				skill = scratch ? null : await skillPath(ctx, args.path);
 			} catch (error) {
 				return errorResult(error instanceof Error ? error.message : String(error));
 			}
-			const authorized = await authorizeRead(ctx, scratch ?? args.path);
-			if (!authorized.ok) return errorResult(authorized.message);
-			absolute = authorized.absolute;
+			if (skill) {
+				// 和 `read skill://` 一样不问：落点已由 `skillTarget` 限在已加载技能的目录里，问一次只是让人替它点头。
+				absolute = skill;
+			} else {
+				const authorized = await authorizeRead(ctx, scratch ?? args.path);
+				if (!authorized.ok) return errorResult(authorized.message);
+				absolute = authorized.absolute;
+			}
 		}
 
 		let entries: Dirent[];

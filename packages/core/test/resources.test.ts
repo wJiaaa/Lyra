@@ -74,6 +74,8 @@ before(async () => {
 	await mkdir(scratchDir, { recursive: true });
 	await writeFile(join(skillDir, "SKILL.md"), "# PDF 技能\n");
 	await writeFile(join(skillDir, "template.txt"), "模板内容\n");
+	await mkdir(join(skillDir, "references"), { recursive: true });
+	await writeFile(join(skillDir, "references", "03-guide.md"), "# 指南\n");
 	await writeFile(outside, "不该被读到\n");
 	await symlink(outside, join(skillDir, "escape.txt")).catch(() => {});
 });
@@ -167,6 +169,18 @@ test("a symlink out of the skill directory is refused", async () => {
 
 test("an unknown skill names the ones that exist", async () => {
 	await assert.rejects(() => router().resolve("skill://nope", ctx()), /现有的是：pdf/);
+});
+
+test("a trailing slash lists a skill directory at any depth, not only the top", async () => {
+	const top = await router().resolve("skill://pdf/", ctx());
+	assert.match(top.content, /^- skill:\/\/pdf\/references\/$/m, "a subdirectory is marked so it can be listed next");
+
+	// 只有顶层会列时，这里落到 readFile 上，回答的是“没有 references/”。
+	const sub = await router().resolve("skill://pdf/references/", ctx());
+	assert.equal(sub.content, "- skill://pdf/references/03-guide.md");
+
+	await assert.rejects(() => router().resolve("skill://pdf/nope/", ctx()), /没有 nope\/ 这个目录/);
+	await assert.rejects(() => router().resolve("skill://pdf/../../", ctx()), /技能目录外面/);
 });
 
 // ---------------------------------------------------------------------------
@@ -318,6 +332,21 @@ test("read resolves an address, and matches reading the file directly", async ()
 
 	const viaPath = await readTool.execute({ path: join(skillDir, "template.txt") } as never, toolCtx());
 	assert.match(textOf(viaPath), /模板内容/);
+});
+
+test("ls takes a skill address, and stays inside the skill directory", async () => {
+	// 这条是真实会话里的那一步：目录明明在，`ls` 却把地址拼成 `<cwd>/skill:/…` 报了找不到。
+	const sub = await lsTool.execute({ path: "skill://pdf/references" } as never, toolCtx());
+	assert.equal(sub.isError, undefined, textOf(sub));
+	assert.match(textOf(sub), /03-guide\.md/);
+
+	const top = await lsTool.execute({ path: "skill://pdf" } as never, toolCtx());
+	assert.match(textOf(top), /^references\/$/m);
+	assert.match(textOf(top), /template\.txt/);
+
+	const climbed = await lsTool.execute({ path: "skill://pdf/../../" } as never, toolCtx());
+	assert.ok(climbed.isError);
+	assert.match(textOf(climbed), /技能目录外面/);
 });
 
 test("read falls through to the filesystem for a scheme nobody owns", async () => {
