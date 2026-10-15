@@ -364,6 +364,10 @@ export async function startApp({
 	const evaluate = <T>(expression: string) => evaluateRenderer<T>(target, expression);
 	try {
 		await waitForShell(evaluate);
+		// A window launched in the background never gets OS focus while the user works elsewhere, and
+		// `Page.bringToFront` cannot take it: clicks into an iframe then do nothing and
+		// `document.hasFocus()` stays false. The override is per session, hence the held connection.
+		await heldCall(target, "Emulation.setFocusEmulationEnabled", { enabled: true });
 	} catch (error) {
 		await stopProcessGroup(app);
 		if (!reuseHome) await rm(home, { recursive: true, force: true });
