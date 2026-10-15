@@ -3,6 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
+import { displayPath } from "./paths.ts";
 import { gitListedFiles } from "./project-files.ts";
 import { authorizeRead } from "./read-access.ts";
 
@@ -73,10 +74,11 @@ export const globTool: Tool<GlobArgs> = {
 		const limit = Math.min(args.limit ?? MAX_RESULTS, MAX_RESULTS);
 		const found: string[] = [];
 		let total = 0;
-		const consider = (rel: string): void => {
-			if (!regex.test(rel)) return;
+		// 模式按搜索目录匹配（`path: "src"` 配 `**/*.tsx`），记下的是绝对路径，报出去时再相对工作区根写。
+		const consider = (full: string): void => {
+			if (!regex.test(relative(root, full).split(sep).join("/"))) return;
 			total++;
-			if (found.length < SORT_CAP) found.push(rel);
+			if (found.length < SORT_CAP) found.push(full);
 		};
 
 		const walk = async (dir: string): Promise<void> => {
@@ -97,18 +99,18 @@ export const globTool: Tool<GlobArgs> = {
 					continue;
 				}
 				if (!entry.isFile()) continue;
-				consider(relative(root, full).split(sep).join("/"));
+				consider(full);
 			}
 		};
 
 		const listed = await gitListedFiles(root);
-		if (listed) for (const full of listed) consider(relative(root, full).split(sep).join("/"));
+		if (listed) for (const full of listed) consider(full);
 		else await walk(root);
 		const matches: { path: string; mtime: number }[] = [];
 		for (let at = 0; at < found.length; at += 64) {
 			const batch = found.slice(at, at + 64);
-			const infos = await Promise.all(batch.map((rel) => stat(join(root, rel)).catch(() => null)));
-			batch.forEach((rel, index) => matches.push({ path: rel, mtime: infos[index]?.mtimeMs ?? 0 }));
+			const infos = await Promise.all(batch.map((full) => stat(full).catch(() => null)));
+			batch.forEach((full, index) => matches.push({ path: displayPath(ctx.cwd, full), mtime: infos[index]?.mtimeMs ?? 0 }));
 		}
 		matches.sort((a, b) => b.mtime - a.mtime);
 		const shown = matches.slice(0, limit);

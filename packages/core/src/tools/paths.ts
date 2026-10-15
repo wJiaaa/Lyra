@@ -101,9 +101,17 @@ export async function resolveFilePath(
 	return target;
 }
 
+/**
+ * 给模型看的路径：相对工作区根，出了工作区写绝对路径。`read`/`edit` 按工作区根解析相对路径，
+ * 所以 `grep`/`glob` 报出来的也必须这样写——相对搜索目录写过一次，`path: "src"` 搜出的
+ * `pages/a.tsx` 拿去读就是 File not found。
+ */
 export function displayPath(cwd: string, absolute: string): string {
 	const rel = relative(cwd, absolute);
-	return rel === "" ? "." : rel.startsWith("..") ? absolute : rel;
+	if (rel === "") return ".";
+	// `..x/a.ts` 是工作区里一个以 `..` 开头的目录，不是上一级。
+	if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return absolute;
+	return rel.split(sep).join("/");
 }
 
 const IMAGE_EXTENSIONS: Record<string, string> = {

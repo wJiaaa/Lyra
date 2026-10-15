@@ -1,14 +1,14 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createInterface } from "node:readline";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 import type { Readable } from "node:stream";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
 import { gitListedFiles, insideGitWorkTree } from "./project-files.ts";
 import { formatMatchWindow, formatMatchWindowAt, utf8ByteOffsetToIndex, type MatchOptions } from "./long-line.ts";
-import { looksBinary } from "./paths.ts";
+import { displayPath, looksBinary } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
 
 const MAX_MATCHES = 200;
@@ -117,13 +117,7 @@ export const grepTool: Tool<GrepArgs> = {
 			if (!authorized.ok) return errorResult(authorized.message);
 			root = authorized.absolute;
 		}
-		/*
-		 * 结果里的路径相对谁写。搜一个文件时 ripgrep 报的是传进去的绝对路径，按 `root` 去剥前缀剥不掉，
-		 * 每一行都顶着整条绝对路径；按它所在的目录剥，就和兜底扫描器一样只剩文件名。
-		 */
-		const base = (await stat(root).catch(() => null))?.isFile() ? dirname(root) : root;
-
-		const viaRipgrep = await runRipgrep(normalizedArgs, root, base, ctx);
+		const viaRipgrep = await runRipgrep(normalizedArgs, root, ctx);
 		if (viaRipgrep) return viaRipgrep;
 
 		/*
@@ -136,7 +130,7 @@ export const grepTool: Tool<GrepArgs> = {
 		 * JavaScript for a query ripgrep answers in milliseconds.
 		 */
 		if (!compiles(normalizedArgs.pattern)) {
-			const literally = await runRipgrep(normalizedArgs, root, base, ctx, true);
+			const literally = await runRipgrep(normalizedArgs, root, ctx, true);
 			if (literally) return literally;
 		}
 		return runFallback(normalizedArgs, root, ctx);
@@ -162,14 +156,14 @@ function ripgrepCommand(): string {
 	return process.env.PLUME_RIPGREP?.trim() || "rg";
 }
 
-async function runRipgrep(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
+async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
 	// 仓库里看到的文件和 `glob`、兜底是同一份：git 列的，隐藏的也在内。见 `project-files.ts`。
 	const scope = (await insideGitWorkTree(root)) ? ["--hidden", "--glob", "!.git"] : [];
-	if (args.files_only) return runRipgrepText(args, root, base, ctx, literal, limit, true, scope);
-	const fromJson = await runRipgrepJson(args, root, base, ctx, literal, limit, scope);
+	if (args.files_only) return runRipgrepText(args, root, ctx, literal, limit, true, scope);
+	const fromJson = await runRipgrepJson(args, root, ctx, literal, limit, scope);
 	if (fromJson) return fromJson;
-	return runRipgrepText(args, root, base, ctx, literal, limit, false, scope);
+	return runRipgrepText(args, root, ctx, literal, limit, false, scope);
 }
 
 /**
@@ -177,7 +171,7 @@ async function runRipgrep(args: GrepArgs, root: string, base: string, ctx: ToolC
  * beat searching the formatted line again — a lookaround or engine mismatch
  * used to drop us back on the line head.
  */
-async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, scope: string[]): Promise<ToolResult | null> {
+async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, scope: string[]): Promise<ToolResult | null> {
 	// `--crlf` so `$` matches before a `\r\n`: without it `foo$` never matched a line of a CRLF file.
 	const argv = ["--json", "--crlf", "--max-count", String(limit), ...scope];
 	if (literal) argv.push("--fixed-strings");
@@ -208,7 +202,7 @@ async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: T
 		if (!keep) return true;
 		const raw = (event.data?.lines?.text ?? "").replace(/\r?\n$/, "");
 		const lineNo = event.data?.line_number ?? 0;
-		const rel = pathText.startsWith(`${base}${sep}`) ? pathText.slice(base.length + 1) : pathText;
+		const rel = displayPath(ctx.cwd, pathText);
 		const byteStart = event.type === "match" ? event.data?.submatches?.[0]?.start : undefined;
 		const matchAt = typeof byteStart === "number" ? utf8ByteOffsetToIndex(raw, byteStart) : undefined;
 		lines.push(shortenLine(`${rel}:${lineNo}:${raw}`, args.pattern, { literal, ignoreCase: args.case_insensitive }, matchAt));
@@ -217,7 +211,15 @@ async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: T
 	return run && ripgrepResult(run, args, limit, literal, completed, capped);
 }
 
-async function runRipgrepText(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean, scope: string[]): Promise<ToolResult | null> {
+/**
+ * 文本模式里的 `displayPath`。一行是 `路径:行号:内容`，路径里可能有冒号，拆不开，只能按前缀剥：
+ * ripgrep 报的路径以传进去的 `root` 打头，`root` 在工作区里就以工作区根打头。
+ */
+function shownPath(text: string, cwd: string): string {
+	return text.startsWith(`${cwd}${sep}`) ? text.slice(cwd.length + 1) : text;
+}
+
+async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean, scope: string[]): Promise<ToolResult | null> {
 	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--crlf", "--max-count", String(limit), ...scope];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
@@ -227,7 +229,7 @@ async function runRipgrepText(args: GrepArgs, root: string, base: string, ctx: T
 	argv.push("--", args.pattern, root);
 	const run = await collectRipgrep(argv, ctx, (line, lines, keep) => {
 		if (!keep) return true;
-		const shown = line.startsWith(`${base}${sep}`) ? line.slice(base.length + 1) : line;
+		const shown = shownPath(line, ctx.cwd);
 		lines.push(shortenLine(shown, args.pattern, { literal, ignoreCase: args.case_insensitive }));
 		return true;
 	}, limit);
@@ -350,7 +352,7 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		if (lines.length >= limit) return;
 		const buffer = await readFile(path).catch(() => null);
 		if (!buffer || looksBinary(buffer)) return;
-		const rel = relative(root, path).split(sep).join("/") || basename(path);
+		const rel = displayPath(ctx.cwd, path);
 		/*
 		 * Lines as ripgrep (with `--crlf`) sees them: `\r\n` ends a line and a leading UTF-8 BOM is
 		 * not text. Split on `\n` alone, every line of a CRLF file kept its `\r` — shown to the model,
