@@ -2,6 +2,89 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.32](https://github.com/wJiaaa/Plume/releases/tag/v0.9.32) - 2026-10-15
+
+<!-- plume:notes en -->
+
+### New
+
+- **A suggested chat gets its own card in the conversation, and can report back.** It used to leave a single "Suggested a chat" line at the end of the turn, and starting it meant finding the environment card in the top right. The chat it opened sat in the sidebar next to this one as if the two were unrelated, and its result had no way back. The card now stands where the model suggested it, on its own line; once started it shrinks to one line that shimmers while the chat runs. In the sidebar the new chat hangs under the one that suggested it. "Report back" is off by default — the model can turn it on, and you can change it on the card. When it's on, the reply that ends the new chat's first turn comes back here, marked "From chat · title". Only the first turn reports back, and not if you stopped it.
+- **Previews fold to one line, like tool calls.** A preview could be resized but never folded away. It now has an icon, a title and an arrow; fold it and open it again and the page keeps its state and height.
+- **Closing a side chat that has something in it asks first.** Closing a side chat deletes it, along with anything typed and not sent, and its ✕ looks just like the ones that only hide a panel. It now asks when there's a conversation, a reply in progress, or text or an attachment in the box. "Don't ask again" is only remembered if you go ahead and close it. An empty side chat, or one holding only a quoted selection, still closes straight away.
+
+### Changes
+
+- **The subagent panel shortcut is now ⌥⌘U (Ctrl+Alt+U on Windows).** ⌥⌘A is the screenshot key in QQ and TIM on Windows.
+- **The code font menu only lists fonts installed on this machine.** A font that's in use but missing is marked "(not available here)".
+- **Previews use the full width of the conversation.** The 22 px indent they inherited from tool details is gone.
+- **The spinner on a running project uses the theme's accent colour.** It used the pale grey of the chat count and was easy to miss.
+- **Dialog buttons in the light theme no longer look washed out.** Danger buttons used the red brightened for dark backgrounds, #f2555a, which measured 2.98:1 on its own pink tint. Light now uses #c92a30, 4.59:1 on the same tint. Cancel uses the body text colour instead of muted grey.
+
+### Fixes
+
+- **The gallery opens without a 300 ms skeleton first.** The first visit waited on a code chunk from local disk, and React holds a skeleton for at least 300 ms once it shows one. Those chunks are now fetched while the app is idle. Coming back to the gallery no longer re-renders an album whose list hasn't changed.
+- **Images in the file panel refit when you resize it.** "Fit to panel" was worked out once, when the image loaded. After the panel grew from 396 px to 678 px, a 1600×900 image stayed at 23% in the middle with empty space all round.
+- **The task list above the composer no longer jumps 12 px the wrong way when the subagent bar opens or closes.** The composer's top margin switched in one frame while the bar grew over 340 ms; the two now move together.
+- **Code blocks, formulas and Mermaid diagrams wider than the column get a thin scrollbar on hover** that you can drag.
+- **Image annotations are sharp on Retina, and the toolbar can be dragged out of the way.** Lines and text are sized in screen points, and the canvas is drawn at screen resolution.
+- **Stacked subagent avatars no longer let the face underneath show through.**
+- **`glob` understands `[abc]`, `[a-z]` and `[!x]`.** `glob src/**/*[Pp]review*` answered "No files match" while `PreviewCard.tsx` was right there, and the model spent two more rounds switching between grep and glob.
+- **`grep` on a path that doesn't exist says so.** A `path` of `ToolCall.tsx` (the file is `ToolCard.tsx`) came back as "No matches", and the model concluded the file didn't contain what it was looking for.
+- **`ls skill://…` lists skill directories.** `ls skill://huashu-art-motion/references` said "Not a directory or not found" although the directory was there, and `read skill://x/references/` with a trailing slash said there was no `references/`.
+- **Windows:**
+  - After maximising or restoring, the title bar's buttons on the right are no longer covered by the system buttons.
+  - Panels and split view no longer get a system title bar.
+  - A dialog's backdrop dims the system buttons too, and nothing under it can drag the window.
+  - Ctrl+V pastes in the terminal.
+  - Opening the same file through two spellings of its path opens it once.
+  - The window remembers being maximised and no longer grows a few pixels each launch.
+  - Ctrl+M no longer minimises the window.
+  - Shortcut hints say Win and Backspace.
+  - Bold Markdown uses semibold, and the code font falls back to Microsoft YaHei for Chinese.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **建议的新会话在对话里自成一张卡片，跑完可以交回结果。** 从前一轮末尾只留一句「建议了新会话」，要开始得去右上角的环境卡片里找；开出来的会话在侧栏里和提建议的对话并排，看着像两件不相干的事，结果也没法拿回来。现在卡片就站在模型提建议的位置、自成一行，开始以后缩成一行，在跑的时候有一道扫光。侧栏里新会话挂在提建议的那个会话下面。「交回这里」默认关，模型可以打开，你在卡片上也能改；打开时，新会话第一轮最后那段回复会送回这里，标着「来自新会话 · 标题」。只交第一轮，被你停下的不交。
+- **预览能像工具行一样收成一行。** 从前预览只能调高度，收不起来。现在有图标、标题和展开箭头，收起再展开，网页的状态和高度都还在。
+- **关掉有内容的侧边聊天之前先问一句。** 关侧边聊天就是删掉它，连同框里没发出去的字；而它的 ✕ 和别处只收起面板的 ✕ 长得一样。现在里面有对话、正在回答，或者框里打了字、贴了附件时，点 ✕ 先弹确认框。「不再询问」只在你真的关掉时才记住。空的侧边聊天，或者只挂着一段划词引文的，照旧一点就关。
+
+### 变化
+
+- **子智能体面板的快捷键改成 ⌥⌘U（Windows 上 Ctrl+Alt+U）。** ⌥⌘A 在 Windows 上是 QQ、TIM 的截图键。
+- **代码字体菜单只列这台机器装了的字体。** 正在用却没装的那个，标「本机不可用」。
+- **预览占满对话的宽度。** 从工具详情沿用过来的 22px 左缩进去掉了。
+- **项目运行中的加载圆环用主题强调色。** 原来跟着会话计数用淡灰色，不仔细看注意不到。
+- **浅色主题下弹窗按钮不再发虚。** 危险按钮沿用了给深色底提亮的 #f2555a，压在它自己的浅粉底上只有 2.98:1；浅色现在单独用 #c92a30，同样的底上 4.59:1。取消按钮的字从次要灰换成正文色。
+
+### 修复
+
+- **第一次打开画廊不再先挂 300ms 骨架。** 第一次进要等本机磁盘上的一个分包，而 React 一旦露出骨架，至少留它 300ms。现在这些分包在空闲时先取好。再次进入画廊时，列表没变的相册不再整本重新渲染。
+- **拖宽拖窄文件面板，图片跟着重新适配。** 「适应面板」只在图片载入那一刻算一次：面板从 396px 变成 678px 后，1600×900 的图还按 23% 缩在中间，四周大片空白。
+- **子智能体条展开收起时，输入框上方的任务清单不再先反向跳 12px。** 输入框的上边距一帧就切过去，而条要 340ms 才长出来；现在两者合成一次移动。
+- **代码块、公式、Mermaid 图比栏宽时，指针移上去有一条能拖的细滚动条。**
+- **图片标注在 Retina 上不再发虚，工具栏能拖开。** 线和字按屏幕点数定大小，画布按屏幕分辨率画。
+- **叠在一起的子智能体头像，下面那张脸不再透上来。**
+- **`glob` 认得 `[abc]`、`[a-z]`、`[!x]`。** `glob src/**/*[Pp]review*` 答「No files match」，而 `PreviewCard.tsx` 就在那里，模型在 grep 和 glob 之间来回又多走两轮。
+- **`grep` 搜不存在的路径时直说找不到。** `path` 写成 `ToolCall.tsx`（实际叫 `ToolCard.tsx`），交回去的是「No matches」，模型据此以为文件里没有要找的东西。
+- **`ls skill://…` 能列技能目录。** `ls skill://huashu-art-motion/references` 目录明明在，却报「Not a directory or not found」；`read skill://x/references/` 带尾斜杠时说没有 `references/`。
+- **Windows：**
+  - 最大化、还原以后，标题栏右侧的按钮不再被系统按钮盖住。
+  - 面板和分屏不再带系统标题栏。
+  - 弹窗的遮罩把系统按钮也压暗，遮罩下面拖不动窗口。
+  - 终端里 Ctrl+V 能粘贴。
+  - 同一个文件换一种路径写法，不再开出第二格。
+  - 窗口记得自己是最大化的，也不再每次启动长大几像素。
+  - Ctrl+M 不再把窗口最小化。
+  - 快捷键提示写 Win、Backspace。
+  - Markdown 加粗用 semibold，代码字体的中文回退到微软雅黑。
+
+</details>
+
 ## [0.9.31](https://github.com/wJiaaa/Plume/releases/tag/v0.9.31) - 2026-10-15
 
 <!-- plume:notes en -->
