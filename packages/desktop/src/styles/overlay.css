@@ -491,12 +491,11 @@ div.ly-field {
 
 .ly-dialog-action-secondary {
 	background: var(--color-card);
-	color: var(--color-ink-muted);
+	color: var(--color-ink);
 }
 
 .ly-dialog-action-secondary:hover {
 	background: var(--color-card-hover);
-	color: var(--color-ink);
 }
 
 .ly-dialog-action-danger {

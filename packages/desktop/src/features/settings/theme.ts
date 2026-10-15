@@ -170,6 +170,12 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-ink-muted": text(0.7),
 		"--color-ink-faint": text(dark ? 0.56 : 0.52),
 		"--color-accent": accent,
+		/*
+		 * 浅色单独一档更深的红。tokens.css 里的 #f2555a 是为深色底提亮过的，原样放到白底上，红字
+		 * 压在它自己 10% 的浅粉底（危险按钮、错误字段）上只有 3.0:1，整颗按钮读起来发虚。
+		 * #c92a30 在同样的底上是 4.6:1。
+		 */
+		"--color-danger": dark ? "#f2555a" : "#c92a30",
 		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
