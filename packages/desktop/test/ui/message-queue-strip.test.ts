@@ -86,12 +86,13 @@ test("删掉的那一行先收起来，收完才真的没有", async () => {
 	assert.equal(leaving.getAttribute("data-leaving"), "true", "但行还在，正在收");
 	assert.equal(useApp.getState().dropQueued("a", id), null);
 
-	await settle(DURATION.base + 40);
+	// 测试环境里没有过渡、等不到 transitionend，走的是兜底的定时器。
+	await settle(DURATION.base * 2 + 40);
 	assert.equal(view.all("[data-queue-row]").length, 0, "收完之后才真的没有");
 	await view.unmount();
 });
 
-test("自动出队的那一行，也要走完同一段退场", async () => {
+test("自动出队的那一行当帧离开，不播收起", async () => {
 	useApp.getState().enqueue("a", entry("轮到我了"));
 	const view = await mount(strip());
 
@@ -101,11 +102,9 @@ test("自动出队的那一行，也要走完同一段退场", async () => {
 		useApp.getState().applyEvent("a", { type: "agent_end", reason: "done" });
 	});
 	await act(async () => {});
-	assert.equal(view.find("[data-queue-row]").getAttribute("data-leaving"), "true", "被送走的行也要收，而不是凭空消失");
 	assert.deepEqual(prompted.map((one) => one.text), ["轮到我了"]);
-
-	await settle(DURATION.base + 40);
-	assert.equal(view.all("[data-queue-row]").length, 0);
+	// 它这时已经在转录里了；条再慢慢收，贴底的转录会被往回拖一截。
+	assert.equal(view.all("[data-queue-row]").length, 0, "送出去的那一行和转录里的新消息同一帧交接");
 	await view.unmount();
 });
 
@@ -207,18 +206,18 @@ test("一条都不排的时候，条本身不占位置", async () => {
 });
 
 test("successive removals retain their original DOM and complete despite a new enqueue", async () => {
-	const first = useApp.getState().enqueue("a", entry("first"));
-	const second = useApp.getState().enqueue("a", entry("second"));
+	useApp.getState().enqueue("a", entry("first"));
+	useApp.getState().enqueue("a", entry("second"));
 	const view = await mount(strip());
 	try {
 		const original = view.all("[data-queue-row]");
-		await act(async () => { useApp.getState().dropQueued("a", first); });
+		await click(original[0]!.querySelector("[data-queue-remove]")!);
 		assert.equal(view.all("[data-queue-row]").find(row => row.textContent === "first"), original[0]);
 		await settle(30);
-		await act(async () => { useApp.getState().dropQueued("a", second); });
+		await click(original[1]!.querySelector("[data-queue-remove]")!);
 		assert.equal(view.all("[data-queue-row]").find(row => row.textContent === "second"), original[1]);
 		await act(async () => { useApp.getState().enqueue("a", entry("new")); });
-		await settle(DURATION.base + 80);
+		await settle(DURATION.base * 2 + 80);
 		assert.deepEqual(view.all("[data-queue-row]").map(row => row.textContent), ["new"]);
 	} finally { await view.unmount(); }
 });

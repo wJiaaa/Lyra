@@ -107,9 +107,13 @@
 .ly-queue-row {
   display: grid;
   grid-template-rows: 1fr;
-  animation: ly-queue-in var(--ly-t-base) var(--ly-e-out);
   /* 让位的那几条走这条；被拖着的那一条在下面把它关掉。 */
   transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+/* 只在刚挂上时播，播完由 `QueuedMessages` 摘掉这个属性——理由见那边的 `entering`。 */
+.ly-queue-row[data-entering] {
+  animation: ly-queue-in var(--ly-t-base) var(--ly-e-out);
 }
 
 /* 收到 0fr 的时候，里面的东西要被裁掉而不是溢出来。 */
@@ -134,18 +138,23 @@
     opacity var(--ly-t-quick) var(--ly-e-in);
 }
 
-/* 拖着的那一条紧跟指针，不补间——补间的是给它让开的那几条。 */
+/*
+ * 拖着的那一条紧跟指针，不补间——补间的是给它让开的那几条。
+ *
+ * 不在这里写 `animation: none`：进场动画只挂在 `data-entering` 上，一放开拖动它会被当成新动画重播。
+ */
 .ly-queue-row[data-dragging] {
   position: relative;
   z-index: 1;
-  animation: none !important;
   transition: none !important;
   cursor: grabbing;
 }
 
-/* 刚刚落定的那一帧关掉过渡，避免坐标对冲带来的瞬间二次回弹跳动 */
+/*
+ * 换位落定的那一帧关掉过渡：新顺序和 transform 归零同时生效，补间的话行会从新位置再偏出去一截、
+ * 滑回来。只关过渡，不碰 animation——那会让进场动画在恢复时重播。
+ */
 .ly-queue-row[data-settling] {
-  animation: none !important;
   transition: none !important;
 }
 .ly-queue-row[data-dragging] [data-queue-grip] {
@@ -174,22 +183,33 @@
   animation: ly-composer-catch var(--ly-t-slow) var(--ly-e-out);
 }
 
-/* The border and inter-control gap participate in the same size transition as the rows. */
+/*
+ * 卡片和输入框之间那道缝，跟行走同一条曲线：进场 e-out，收起 e-in，时长都是 base。
+ *
+ * 两者合起来才是输入框上方这一块长高的量，贴底的转录跟着它一起走。曾经缝一直用 e-in、行用 e-out，
+ * 进场先被行冲上去一截、半路慢下来、末尾又被缝加速补完，一次移动看着像两次。
+ *
+ * 描边用 outline 而不是 border：border 占布局，宽度会被取整到整像素，0→1px 的过渡画不出中间态，
+ * 只在最后一帧整个跳出来，卡片也跟着多长 2px。outline 不占高度，开合时淡入淡出。
+ */
 .ly-composer-queue {
 	margin-bottom: var(--ly-composer-in);
+	outline: 1px solid var(--color-line-soft);
+	outline-offset: -1px;
 	contain: layout style;
-	transition: margin-bottom var(--ly-t-base) var(--ly-e-in), border-width var(--ly-t-base) var(--ly-e-in);
+	transition: margin-bottom var(--ly-t-base) var(--ly-e-out), outline-color var(--ly-t-base) var(--ly-e-out);
 }
 
 .ly-composer-queue[data-empty] {
 	margin-bottom: 0;
-	border-block-width: 0;
+	outline-color: transparent;
+	transition: margin-bottom var(--ly-t-base) var(--ly-e-in), outline-color var(--ly-t-quick) var(--ly-e-in);
 }
 
 @starting-style {
 	.ly-composer-queue {
 		margin-bottom: 0;
-		border-block-width: 0;
+		outline-color: transparent;
 	}
 }
 

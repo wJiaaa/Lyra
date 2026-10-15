@@ -12,8 +12,10 @@
  *   编辑         这一条整份退回输入框——附件和引用一起——所以它先从条上消失，再落回输入框里。
  *   拖动         多条排着的时候，先后顺序是能改的，而改的过程要看得见：让位的那几条自己滑开。
  *
- * 离场都要走完动画再消失，包括不是人点走的那一次：这一轮结束时队首会被自动送出，行在同一瞬间没掉，
- * 而没掉的东西和送出去的东西在眼睛里不是一回事。所以走掉的那条会被留下来播完退场，见 `leaving`。
+ * 离场分两种。人拿走的（删除、编辑、拿去侧边聊天）留下来播完收起，见 `leaving`。送出去的（这一轮
+ * 结束时队首出队、「现在就发」）当帧消失：出队那一刻转录里已经多了这句话，条再慢慢收起，贴底的转录
+ * 会被一路往下拖，读起来是话落进对话、又被往回拽了一截（量过：先上跳近 200px，再往回漂 40px）。
+ * 转录里多出来的那一句本身就是「送出去了」，用不着条上再演一遍。
  */
 
 import { CornerDownLeft, GripVertical, MessageSquarePlus, MoreHorizontal, PencilLine, Trash2 } from "../../ui/icons/index.ts";
@@ -99,27 +101,47 @@ export function QueuedMessages({
 }
 
 /** 那条队，画出来。数据和动作由 `source` 给——主会话和侧边聊天各给各的。 */
-export function QueueList({ source, running, onEdit }: { source: QueueSource; running: boolean; onEdit: (entry: QueuedMessage) => void }) {
+export function QueueList({ source: given, running, onEdit }: { source: QueueSource; running: boolean; onEdit: (entry: QueuedMessage) => void }) {
 	const { t } = useI18n();
-	const items = source.items;
+	const items = given.items;
 	const [leaving, setLeaving] = useState<Leaving[]>([]);
 	const previous = useRef(items);
+	/** 人从条上拿走的那几条。只有它们播收起；不在这里面的离场都是被送出去了，见文件头。 */
+	const dismissed = useRef(new Set<string>());
+	const source: QueueSource = {
+		...given,
+		drop: (id) => {
+			dismissed.current.add(id);
+			return given.drop(id);
+		},
+		...(given.aside
+			? {
+					aside: (id: string) => {
+						dismissed.current.add(id);
+						given.aside?.(id);
+					},
+				}
+			: {}),
+	};
 
 	const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
-	const gone = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id));
+	const finish = (id: string) => setLeaving(current => current.filter(each => each.entry.id !== id));
+	const gone = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id) && dismissed.current.has(entry.id));
 	// Include departing rows in this render, before any effect: their DOM identity owns the transition.
 	const departures = [...leaving, ...gone].filter(({ entry }) => !items.some(each => each.id === entry.id));
 	const rows: { entry: QueuedMessage; leaving: boolean }[] = items.map(entry => ({ entry, leaving: false }));
 	for (const { entry, at } of departures) rows.splice(Math.min(at, rows.length), 0, { entry, leaving: true });
 	useLayoutEffect(() => {
-		const removed = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id));
+		const departed = previous.current.map((entry, at) => ({ entry, at })).filter(({ entry }) => !items.some(each => each.id === entry.id));
 		previous.current = items;
+		const removed = departed.filter(({ entry }) => dismissed.current.delete(entry.id));
 		if (!removed.length) return;
 		setLeaving(current => [...current, ...removed]);
+		// 正常由行自己的 `transitionend` 收走（`onGone`）；这里兜底没有过渡可等的时候：减弱动效、窗口在后台。
 		const timer = setTimeout(() => {
-			setLeaving(current => current.filter(each => !removed.some(one => one.entry.id === each.entry.id)));
+			for (const one of removed) finish(one.entry.id);
 			timers.current.delete(timer);
-		}, motionReduced() ? 0 : DURATION.base);
+		}, motionReduced() ? 0 : DURATION.base * 2);
 		timers.current.add(timer);
 	}, [items]);
 	useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer); }, []);
@@ -130,6 +152,7 @@ export function QueueList({ source, running, onEdit }: { source: QueueSource; ru
 			source={source}
 			rows={rows}
 			onEdit={onEdit}
+			onGone={finish}
 			label={t("composer.queueLabel")}
 			status={running ? t("composer.queueWaiting") : t("composer.queueHeld")}
 			nowLabel={running ? t("composer.queueNow") : t("composer.queueSendNow")}
@@ -154,6 +177,7 @@ function Rows({
 	source,
 	rows,
 	onEdit,
+	onGone,
 	label,
 	status,
 	nowLabel,
@@ -161,6 +185,8 @@ function Rows({
 	source: QueueSource;
 	rows: { entry: QueuedMessage; leaving: boolean }[];
 	onEdit: (entry: QueuedMessage) => void;
+	/** 走掉的那一行收完了。 */
+	onGone: (id: string) => void;
 	label: string;
 	/** 这一条在等什么，写在它的悬停说明里。 */
 	status: string;
@@ -256,7 +282,7 @@ function Rows({
 		 * `overflow-hidden` 是为了圆角：行的高亮要在角上被切住。它也顺手圈住了拖动——被拖的那行
 		 * 位移在下面按队伍长度夹过，甩不出这张卡片。
 		 */
-		<div ref={list} role="list" aria-label={label} data-composer-queue data-empty={rows.every(row => row.leaving) || undefined} className="ly-composer-queue overflow-hidden rounded-xl border border-line-soft bg-card/40">
+		<div ref={list} role="list" aria-label={label} data-composer-queue data-empty={rows.every(row => row.leaving) || undefined} className="ly-composer-queue overflow-hidden rounded-xl bg-card/40">
 			{rows.map((row, index) => (
 				<Row
 					key={row.entry.id}
@@ -271,6 +297,7 @@ function Rows({
 					status={status}
 					nowLabel={nowLabel}
 					onEdit={onEdit}
+					onGone={onGone}
 					onDragStart={startDrag}
 					onDragMove={moveDrag}
 					onDragEnd={endDrag}
@@ -293,6 +320,7 @@ function Row({
 	status,
 	nowLabel,
 	onEdit,
+	onGone,
 	onDragStart,
 	onDragMove,
 	onDragEnd,
@@ -309,6 +337,7 @@ function Row({
 	status: string;
 	nowLabel: string;
 	onEdit: (entry: QueuedMessage) => void;
+	onGone: (id: string) => void;
 	onDragStart: (index: number, id: string, event: React.PointerEvent) => void;
 	onDragMove: (event: React.PointerEvent) => void;
 	onDragEnd: () => void;
@@ -317,6 +346,12 @@ function Row({
 	const { t } = useI18n();
 	const more = usePopover();
 	const [recalled, setRecalled] = useState(false);
+	/*
+	 * 进场只在挂上的那一次播。动画挂在 `data-entering` 上，播完就摘掉：常驻在类上的话，拖动换位时
+	 * React 挪动 DOM 节点、或者 `animation` 被别的状态暂时置成 none 再放回来，浏览器都会把它当成新
+	 * 动画从 0fr 重播一遍——松手那一下两行先缩没、再长出来，量到偏离终点 68px。
+	 */
+	const [entering, setEntering] = useState(true);
 
 	const remove = () => source.drop(entry.id);
 	const edit = () => {
@@ -340,6 +375,14 @@ function Row({
 			inert={leaving}
 			data-dragging={dragging || undefined}
 			data-settling={settling || undefined}
+			data-entering={entering || undefined}
+			onAnimationEnd={(event) => {
+				if (event.target === event.currentTarget) setEntering(false);
+			}}
+			// 收完才真的拿走：按定时器拿，过渡是下一帧才起步的，末尾那一截（量到 10px）会被一刀切掉。
+			onTransitionEnd={(event) => {
+				if (leaving && event.target === event.currentTarget && event.propertyName === "grid-template-rows") onGone(entry.id);
+			}}
 			style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
 		>
 			{/* 折叠的那一层：`grid-template-rows` 收到 0fr 时，里面的东西要被它裁掉而不是溢出来。 */}
