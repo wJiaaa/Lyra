@@ -4,6 +4,7 @@ import { parseInvocation, parseSkillMention } from "@plume/core/commands-view";
 import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, GitFork, MessageSquare, Plus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
+import { DURATION, EASING } from "../../ui/motion/tokens.ts";
 import { ChangeBar, useUpstreamDistance } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
@@ -68,13 +69,15 @@ import { acceleratorLabel } from "../../ui/keyboard.ts";
 type Attachment = DraftAttachment;
 
 /*
- * 欢迎页的输入框刚被换下时有多宽。
+ * 欢迎页的输入框刚被换下时在哪、有多宽。
  *
- * 从欢迎页进入对话，输入框看上去是同一个，宽度用 150ms ease-out 从 672 过渡到对话那一栏。
- * 实际上欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下宽度，新的那个挂上时接着往下画。
+ * 从欢迎页进入对话，输入框看上去是同一个：从标题下面滑到底部，同时从 672 变宽到对话那一栏。
+ * 实际上欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下矩形，新的那个挂上时接着往下画。
+ * 只交接宽度的那一版，顶边一帧跳了 261px（1200×800 窗口实测），之后才在底部横着拉开，两段动作
+ * 看着就是生硬。
  * 只认一秒以内的交接：隔久了就不是「同一个框换了位置」，而是另一次打开。
  */
-let handoff: { width: number; at: number } | null = null;
+let handoff: { rect: DOMRect; at: number } | null = null;
 const HANDOFF_WINDOW = 1000;
 
 export function Composer({ centered = false }: {
@@ -122,18 +125,24 @@ export function Composer({ centered = false }: {
 		if (!el) return;
 		if (centered) {
 			return () => {
-				handoff = { width: el.getBoundingClientRect().width, at: performance.now() };
+				handoff = { rect: el.getBoundingClientRect(), at: performance.now() };
 			};
 		}
 		const from = handoff;
 		handoff = null;
 		if (!from || performance.now() - from.at > HANDOFF_WINDOW || motionReduced()) return;
-		const to = el.getBoundingClientRect().width;
-		if (Math.abs(to - from.width) < 1) return;
-		el.animate([{ maxWidth: `${from.width}px` }, { maxWidth: `${to}px` }], {
-			duration: 150,
-			easing: "cubic-bezier(0, 0, 0.2, 1)",
-		});
+		const to = el.getBoundingClientRect();
+		// 顶边对齐：欢迎页那个框带着刚打的字，可能比底部这个空框高，对齐顶边看上去才是「框往下走」。
+		const dx = from.rect.left + from.rect.width / 2 - (to.left + to.width / 2);
+		const dy = from.rect.top - to.top;
+		if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(to.width - from.rect.width) < 1) return;
+		el.animate(
+			[
+				{ maxWidth: `${from.rect.width}px`, transform: `translate(${dx}px, ${dy}px)` },
+				{ maxWidth: `${to.width}px`, transform: "none" },
+			],
+			{ duration: DURATION.base, easing: EASING.out },
+		);
 	}, [centered]);
 	const draftKey = activeSessionId
 		? activeSessionId
