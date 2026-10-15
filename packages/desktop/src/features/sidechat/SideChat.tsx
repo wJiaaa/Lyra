@@ -14,14 +14,17 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus } from "../../ui/icons/index.ts";
-import { useEffect } from "react";
-import { loadSide, sideOf, useSide } from "../dock/index.ts";
+import { useEffect, useState } from "react";
+import { loadSide, sideKey, sideOf, useSide } from "../dock/index.ts";
 import { sideDraftKey, useSideTarget } from "./target.ts";
 import { Conversation } from "../conversation/index.ts";
 import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { SessionScope } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
+import { Confirm } from "../../ui/overlay/Confirm.tsx";
+import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
+import { askBeforeClosing, showingSide, sideHasTranscript, useSideCloseQuestion } from "./close-guard.ts";
 import { SideComposer } from "./SideComposer.tsx";
 import { TaskStrip } from "./TaskStrip.tsx";
 
@@ -46,11 +49,10 @@ export function SideChat() {
 	/*
 	 * 有话可画才画转录。还没读进来的时候看记录里有没有：有就交给转录画它的加载，没有就是空的那一格。
 	 */
-	const said = useApp((s) => {
-		if (!side) return false;
-		const cached = s.sessionCache[side.id];
-		return cached ? cached.messages.length > 0 || cached.state?.running === true : side.messageCount > 0;
-	});
+	const said = useApp((s) => sideHasTranscript(s, side));
+	const key = sessionId ? sideKey(sessionId, sideId) : null;
+	useEffect(() => (key ? showingSide(key) : undefined), [key]);
+	const question = useSideCloseQuestion((state) => (key && state.asking?.key === key ? state.asking : null));
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -72,7 +74,27 @@ export function SideChat() {
 
 			<TaskStrip />
 			<SideComposer side={side} disabled={!sessionId} />
+			{question && <CloseQuestion answer={question.answer} />}
 		</div>
+	);
+}
+
+function CloseQuestion({ answer }: { answer: (close: boolean, dontAskAgain?: boolean) => void }) {
+	const [dontAskAgain, setDontAskAgain] = useState(false);
+	return (
+		<Confirm
+			title={translate("sideChat.closeConfirm")}
+			detail={translate("sideChat.closeConfirmDetail")}
+			confirmLabel={translate("sideChat.closeConfirmAction")}
+			onConfirm={() => answer(true, dontAskAgain)}
+			onCancel={() => answer(false)}
+		>
+			<label className="group flex w-fit cursor-pointer items-center gap-2 text-label text-ink select-none">
+				<input type="checkbox" className="sr-only" checked={dontAskAgain} onChange={(event) => setDontAskAgain(event.target.checked)} />
+				<ChoiceMark checked={dontAskAgain} kind="checkbox" />
+				{translate("sideChat.dontAskAgain")}
+			</label>
+		</Confirm>
 	);
 }
 
@@ -105,4 +127,20 @@ export function closeSideChat(scope: string, kind: string): void {
 	void useSide.getState().close(scope, sideId);
 	useSide.getState().clearDraftSeed(scope, sideId);
 	useApp.getState().setDraft(sideDraftKey(scope, sideId), null);
+}
+
+/**
+ * 关之前问一句，只在里面有东西时问——见 `close-guard.ts`。
+ *
+ * 写在这里而不是 `close-guard.ts`：量「有没有东西」要读 `dock` 的大门，那个文件 import 它会成环
+ * （`scope.ts` 开头那段）。这个文件本来就读它，`closeSideChat` 也在这里。
+ */
+export function confirmCloseSideChat(scope: string, kind: string): Promise<boolean> {
+	const sideId = sideIdOfPanel(kind);
+	if (!sideId) return Promise.resolve(true);
+	const app = useApp.getState();
+	const draft = app.drafts[sideDraftKey(scope, sideId)];
+	// 只挂着划进来的引文、会话引用不算：从屏幕上再划一下就回来了，为它拦一次不值。
+	const typed = !!draft && (draft.text.trim() !== "" || draft.attachments.length > 0);
+	return askBeforeClosing(sideKey(scope, sideId), typed || sideHasTranscript(app, sideOf(useSide.getState(), scope, sideId)));
 }

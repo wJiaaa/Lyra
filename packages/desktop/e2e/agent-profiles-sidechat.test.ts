@@ -373,7 +373,7 @@ test("sidechat model selection and its default use their actual providers and su
 	const stored = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")); assert.equal(stored.sideChatModelId, "secondary/model");
 	await click(app, "nav button", "返回工作区", "starts");
 	// 关掉就删：重开是空的，会话等下一问才建，建的时候用设置里的默认模型。
-	await closeTab(app, "chat"); await openSide();
+	await closeTab(app, "chat", "关闭侧边聊天"); await openSide();
 	await until(app, `!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`, 900);
 	assert.equal(await sideOfQaLong(), null);
 	// 还没开口时就写着设置里的默认，不写「跟随主会话」——答话的就是它。

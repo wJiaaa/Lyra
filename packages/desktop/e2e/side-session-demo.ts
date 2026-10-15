@@ -155,7 +155,8 @@ try {
 	console.log("5. 关掉标签，再开");
 	const listed = await app.evaluate<number>(`window.plume.sideChat.list('qa-short').then(l=>l.length)`);
 	check("关之前这个会话旁边有一个侧边聊天会话", listed === 1, listed);
-	await closeTab(app, "chat");
+	// 里面有对话，关之前会问一句。
+	await closeTab(app, "chat", "关闭侧边聊天");
 	await pause(600);
 	const after = await app.evaluate<number>(`window.plume.sideChat.list('qa-short').then(l=>l.length)`);
 	check("关掉标签，侧边聊天会话删掉了", after === 0, after);

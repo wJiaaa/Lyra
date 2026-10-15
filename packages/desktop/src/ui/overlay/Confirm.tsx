@@ -57,6 +57,8 @@ export interface ConfirmOptions {
 	 * 意思就是下次还问。
 	 */
 	onCancel?: () => void;
+	/** 说明和按钮之间的那一块，比如「不再询问」。大多数问题用不着。 */
+	children?: React.ReactNode;
 }
 
 /**
@@ -73,12 +75,14 @@ export function ConfirmBody({
 	tone = "danger",
 	onConfirm,
 	onCancel,
+	children,
 }: ConfirmOptions & { onCancel: () => void }) {
 	return (
 		<DialogFrame
 			icon={tone === "danger" ? <TriangleAlert size={20} className="shrink-0 text-danger" /> : <CircleHelp size={20} className="shrink-0 text-accent" />}
 			title={title}
 			detail={detail}
+			status={children}
 			actions={(
 				<>
 					{/*

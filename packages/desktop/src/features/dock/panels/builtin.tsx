@@ -15,7 +15,7 @@ import { SubAgentPanel } from "../../subagents/index.ts";
 import { FileActions } from "../../files/index.ts";
 import { FileTitle, FileTabTitle, closeFile } from "../../files/index.ts";
 import { DiffView, GitPanel } from "../../git/index.ts";
-import { SideChat, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
+import { SideChat, SideChatTitle, closeSideChat, confirmCloseSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane, TerminalTitle, closeTerminal, confirmCloseTerminal } from "../../terminal/index.ts";
 import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
@@ -244,6 +244,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		render: SideChat,
 		tabTitle: SideChatTitle,
 		onClose: closeSideChat,
+		confirmClose: confirmCloseSideChat,
 	},
 	{
 		kind: "terminal",

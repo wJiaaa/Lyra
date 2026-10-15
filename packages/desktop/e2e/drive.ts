@@ -213,13 +213,19 @@ export async function openPane(page: Page, label: string): Promise<void> {
 
 /**
  * 点面板标签上的 ✕ 关掉这一格，等它的标签从标签条上消失（最后一格要先滑出去）。`kind` 是标签的 `data-panel-tab`。
+ * 会弹确认框的，把要点的按钮名字传给 `confirm`。
  *
  * 每一格都画着同一条标签条，没在前台的那几格 `inert` 着、叠在后面，DOM 里却可能排在前面——只找前台那一格的。
  * 等的是标签而不是那一格本身：网页那一格要等主进程把网页关掉才卸下。
  */
-export async function closeTab(page: Page, kind: string): Promise<void> {
+export async function closeTab(page: Page, kind: string, confirm?: string): Promise<void> {
 	const tab = `[data-dock-pane]:not([inert]) [data-panel-tab="${kind}"]`;
 	await click(page, `${tab} button:not([role="tab"])`);
+	// 关之前会先问一句的（有内容的侧边聊天、跑着东西的终端）：`confirm` 是确认框里要点的那颗按钮。
+	if (confirm) {
+		await until(page, finder('[role="dialog"] button', confirm), 900);
+		await click(page, '[role="dialog"] button', confirm);
+	}
 	await until(page, `!document.querySelector(${JSON.stringify(tab)})`, 900);
 }
 
