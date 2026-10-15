@@ -111,6 +111,19 @@
     background: color-mix(in srgb, var(--color-accent) 35%, transparent);
   }
 
+  /* 计划面板里留过评论的段落、正在写评论的那一段，见 `plan-anchor.ts`。焦点进了评论框，原生选区就没了，
+     正在评的那段照选区的颜色标着，看上去还是「选中」；评过的淡一档，读正文时不抢眼。 */
+  ::highlight(ly-plan-draft) {
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+
+  ::highlight(ly-plan-comment) {
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    text-underline-offset: 3px;
+  }
+
   input,
   textarea,
   button {

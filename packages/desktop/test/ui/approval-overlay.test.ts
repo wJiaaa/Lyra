@@ -9,7 +9,7 @@ import { QuestionChoices } from "../../src/features/conversation/QuestionChoices
 import { RunningIndicator } from "../../src/features/conversation/RunningIndicator.tsx";
 import { translate } from "../../src/i18n/translate.ts";
 import { useApp } from "../../src/store/index.ts";
-import { click, fire, mount } from "../helpers/mount.ts";
+import { click, fire, mount, press } from "../helpers/mount.ts";
 
 test("approval bodies preserve full content once and omit whitespace-only reasons", async () => {
 	const previous = useApp.getState();
@@ -293,6 +293,10 @@ test("a pending question replaces the thinking mutter with the dashed waiting li
 		assert.equal(view.find("[data-ly-waiting]").getAttribute("data-ly-waiting"), "approval");
 		assert.match(view.text(), /等待你的批准/);
 		assert.equal(view.all(".ly-dash").length, 1);
+		// 计划审批也走提问通道，但这一行说的是计划，不是「回答」。
+		await act(async () => { useApp.setState({ approvals: [{ id: "plan", kind: "interactive", subject: "submit_plan", title: "审批计划", detail: "# 计划" }] }); });
+		assert.equal(view.find("[data-ly-waiting]").getAttribute("data-ly-waiting"), "plan");
+		assert.match(view.text(), /等你审批计划/);
 	} finally { await view.unmount(); useApp.setState(prior, true); }
 });
 
@@ -300,19 +304,100 @@ test("a pending question replaces the thinking mutter with the dashed waiting li
  * 计划模式交上来的计划：标题说的是「审批计划」，正文按 Markdown 画，选项和自由输入仍是业务提问那一套。
  * 正文画成 `<pre>` 时，人读到的是一堆 `##` 和 `-`。
  */
-test("a submitted plan is titled as a plan and its body is drawn as markdown", async () => {
+const PLAN_DETAIL = "# 登录换成 OAuth\n\n## 步骤\n1. 读登录模块\n2. 换成 OAuth\n3. 补测试";
+const planApproval = (id = "plan") => ({ id, kind: "interactive" as const, subject: "submit_plan", title: "审批计划", detail: PLAN_DETAIL, options: ["批准，开始执行", "要改"], allowCustomInput: true, selectionMode: "single" as const, allowSkip: false });
+
+async function planCard(id: string, permissionMode: "ask" | "auto") {
 	const { planMarkdown } = await import("../../src/features/conversation/rows.tsx");
+	const { providePlanOpener } = await import("../../src/app/plan-opener.ts");
+	const { DEFAULT_SETTINGS } = await import("@plume/core");
+	const answered: unknown[] = [];
+	const saved: unknown[] = [];
+	const opened: (string | undefined)[] = [];
+	Object.defineProperty(window, "plume", { configurable: true, value: { agent: { approve: async (_session: string, _id: string, decision: unknown) => { answered.push(decision); } } } });
+	providePlanOpener((screen) => opened.push(screen));
+	useApp.setState({ activeSessionId: "owner", approvals: [planApproval(id)], settings: { ...DEFAULT_SETTINGS, permissionMode }, saveSettings: async (settings) => { saved.push(settings.permissionMode); } });
+	const render = () => mount(h(LayoutProvider, { children: h(ApprovalOverlay, { renderPlan: planMarkdown }) }));
+	return { render, answered, saved, opened, release: () => providePlanOpener(null) };
+}
+
+/*
+ * 宽窗口里计划在右栏的计划面板里读：卡片只有标题、「打开计划」和一排动作，交上来时替人开一次面板。
+ */
+test("a submitted plan opens the plan pane once and is answered from one row of actions", async () => {
 	const previous = useApp.getState();
-	Object.defineProperty(window, "plume", { configurable: true, value: {} });
-	const detail = "## 计划\n\n1. 读登录模块\n2. 换成 OAuth\n3. 补测试";
-	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "plan", kind: "interactive", subject: "submit_plan", title: "审批计划", detail, options: ["批准，开始执行", "要改"], allowCustomInput: true, selectionMode: "single", allowSkip: false }] });
-	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay, { renderPlan: planMarkdown }) }));
+	const card = await planCard("plan", "auto");
+	let view = await card.render();
 	try {
 		assert.equal(view.find("[data-approval-title]").textContent, translate("plan.approvalTitle"));
+		assert.equal(view.all("h2").length, 0, "计划正文在右栏，不在卡片里再画一遍");
+		assert.equal(view.all("[data-ly-question-option]").length, 0, "不走业务提问的选项列表");
+		assert.deepEqual(view.all("[data-plan-action]").map((button) => button.getAttribute("data-plan-action")), ["reject", "revise", "accept"], "已经是自动档，不给「接受并开启自动模式」");
+		assert.equal(card.opened.length, 1, "交上来时替人打开计划面板");
+
+		// 同一份计划重新挂一次卡片（切走再回来），人关掉的面板不再追着开。
+		await view.unmount();
+		view = await card.render();
+		assert.equal(card.opened.length, 1);
+		await click(view.find("[data-approval-open-plan]"));
+		assert.equal(card.opened.length, 2, "「打开计划」随时能把面板叫回来");
+
+		await click(view.find('[data-plan-action="accept"]'));
+		assert.deepEqual(card.answered, [{ answer: "批准，开始执行" }]);
+	} finally { card.release(); await view.unmount(); useApp.setState(previous, true); }
+});
+
+test("修改 sends what was typed with the plan pane's comments; Esc opens it, ⌘↵ in ask mode accepts and turns on auto", async () => {
+	const { usePlanReview } = await import("../../src/store/plan-review.ts");
+	const previous = useApp.getState();
+	const card = await planCard("plan-revise", "ask");
+	const view = await card.render();
+	try {
+		assert.deepEqual(view.all("[data-plan-action]").map((button) => button.getAttribute("data-plan-action")), ["reject", "revise", "accept", "accept-auto"]);
+		await act(async () => { usePlanReview.getState().add("owner", { quote: "换成 OAuth", start: 0, end: 8, text: "先确认用哪个应用" }); });
+		assert.equal(view.find("[data-approval-plan-comments]").textContent, translate("plan.commentCount", { n: 1 }));
+
+		await press(view.find("[data-approval-card]"), "Escape");
+		const field = view.find<HTMLTextAreaElement>("[data-plan-revise-input]");
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "拆成两次");
+			field.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await click(view.find("[data-plan-send-revision]"));
+		assert.deepEqual(card.answered, [{ answer: "拆成两次\n\n> 换成 OAuth\n\n先确认用哪个应用" }]);
+	} finally { card.release(); await view.unmount(); useApp.setState(previous, true); }
+
+	const again = await planCard("plan-auto", "ask");
+	const second = await again.render();
+	try {
+		await press(second.find("[data-approval-card]"), "Enter", { metaKey: true });
+		assert.deepEqual(again.saved, ["auto"], "先换到自动档");
+		assert.deepEqual(again.answered, [{ answer: "批准，开始执行" }]);
+	} finally { again.release(); await second.unmount(); useApp.setState(previous, true); }
+});
+
+// 窄窗口右栏一次只摆一格，开面板会把卡片盖住：不替人开，计划照旧画在卡片里。
+test("in a compact window a submitted plan stays drawn in the card as markdown", async () => {
+	const { planMarkdown } = await import("../../src/features/conversation/rows.tsx");
+	const { providePlanOpener } = await import("../../src/app/plan-opener.ts");
+	const previous = useApp.getState();
+	const width = Object.getOwnPropertyDescriptor(window, "innerWidth");
+	Object.defineProperty(window, "innerWidth", { configurable: true, value: 700 });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
+	const opened: (string | undefined)[] = [];
+	providePlanOpener((screen) => opened.push(screen));
+	useApp.setState({ activeSessionId: "owner", approvals: [planApproval("plan-compact")] });
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay, { renderPlan: planMarkdown }) }));
+	try {
 		assert.equal(view.all("pre").length, 0, "计划不是一段原样文本");
-		assert.equal(view.find(".ly-approval-scroll h2").textContent, "计划");
+		assert.equal(view.find(".ly-approval-scroll h2").textContent, "步骤");
 		assert.equal(view.all(".ly-approval-scroll ol li").length, 3);
-		assert.deepEqual(view.all("[data-ly-question-label]").map((label) => label.textContent), ["批准，开始执行", "要改"]);
-		assert.ok(view.find("[data-ly-question-other]"), "打回时能写一句为什么");
-	} finally { await view.unmount(); useApp.setState(previous, true); }
+		assert.ok(view.find('[data-plan-action="revise"]'), "打回时能写一句为什么");
+		assert.equal(opened.length, 0);
+	} finally {
+		providePlanOpener(null);
+		await view.unmount();
+		if (width) Object.defineProperty(window, "innerWidth", width);
+		useApp.setState(previous, true);
+	}
 });

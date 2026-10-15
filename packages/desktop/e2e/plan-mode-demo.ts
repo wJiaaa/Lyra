@@ -1,6 +1,6 @@
 /* oxlint-disable no-console -- real-window verification prints measured evidence */
 /**
- * 计划模式在真窗口里走一遍：芯片的关与开、`/plan` 两种用法、计划审批卡片、批准后芯片自己熄掉。
+ * 计划模式在真窗口里走一遍：芯片的关与开、`/plan` 两种用法、计划审批卡片与右栏的计划面板、批准后芯片自己熄掉。
  *
  * 模型是本地起的假服务（照 `ask-user-card-demo.ts`）：收到 `PLAN_ME` 就调 `submit_plan` 交一份五步计划，
  * 收到那次调用的结果就说一句话收尾。它同时记下每次请求带了哪些工具——`submit_plan` 只在计划模式那一轮
@@ -190,36 +190,25 @@ try {
 	check("带话的 /plan 只发出后半句", bubble.includes("PLAN_ME 把登录改成 OAuth") && !bubble.includes("/plan"), bubble);
 	check("那一轮的工具表里有 submit_plan，之前的没有", requests.length >= 1 && requests[0]!.tools.includes("submit_plan"), requests.map((request) => request.tools.includes("submit_plan")));
 
-	const card = await app.evaluate<{ title: string; pre: number; h1: string; h2: string[]; steps: number; labels: string[]; other: boolean; overflow: number; content: number; card: number; viewport: number; covered: boolean }>(`(()=>{
+	const card = await app.evaluate<{ title: string; pre: number; actions: string[]; open: boolean; pane: number; height: number }>(`(()=>{
 		const card=document.querySelector('[data-approval-card]');
-		const view=card.querySelector('.ly-approval-scroll > .ly-scroll-view');
-		const submit=card.querySelector('button[type=submit]');
-		const scroll=card.querySelector('.ly-approval-scroll').getBoundingClientRect();
 		return {
 			title:card.querySelector('[data-approval-title]').textContent,
 			pre:card.querySelectorAll('pre').length,
-			h1:card.querySelector('.ly-approval-scroll h1')?.textContent??"",
-			h2:[...card.querySelectorAll('.ly-approval-scroll h2')].map(e=>e.textContent),
-			steps:card.querySelectorAll('.ly-approval-scroll ol > li').length,
-			labels:[...card.querySelectorAll('[data-ly-question-label]')].map(e=>e.textContent),
-			other:Boolean(card.querySelector('[data-ly-question-other] input')),
-			overflow:Math.round(view.scrollHeight-view.clientHeight),
-			content:Math.round(view.scrollHeight),
-			card:Math.round(card.getBoundingClientRect().height),
-			viewport:innerHeight,
-			covered:submit.getBoundingClientRect().top+1<scroll.bottom,
+			actions:[...card.querySelectorAll('[data-plan-action]')].map(e=>e.getAttribute('data-plan-action')),
+			open:Boolean(card.querySelector('[data-approval-open-plan]')),
+			pane:document.querySelectorAll('[data-dock-content="plan"] [data-plan-body] ol > li').length,
+			height:Math.round(card.getBoundingClientRect().height),
 		};
 	})()`);
-	check("卡片标题是「审批计划」", card.title === "审批计划", card.title);
-	check("计划正文按 Markdown 画：标题、小节、五条有序步骤，没有 <pre>", card.pre === 0 && card.h1 === PLAN.title && card.h2.join("|") === "步骤|风险|未确定" && card.steps === 5, card);
-	check("选项和自由输入照业务提问那一套", card.labels.join("|") === "批准，开始执行|要改" && card.other, card.labels);
-	check("五步计划（连风险、未确定）在卡片里最多再滚一行", card.overflow <= 24 && !card.covered, { overflow: card.overflow, content: card.content, card: card.card, viewport: card.viewport });
+	check("卡片标题是「Plume 提出了一个计划」，右端「打开计划」", card.title === "Plume 提出了一个计划" && card.open, card.title);
+	check("计划正文在右栏的计划面板里按 Markdown 摊开（五步），卡片里没有 <pre>", card.pre === 0 && card.pane === 5, card);
+	check("一排动作：拒绝、修改、接受", card.actions.join("|") === "reject|revise|accept", card.actions);
+	check("卡片只有两行高", card.height <= 110, card.height);
 	await photo("04_审批计划");
 
 
-	await click(app, "[data-ly-question-option]", "批准，开始执行");
-	await pause(500);
-	await click(app, '[data-ly-question-footer] button[type="submit"]');
+	await click(app, '[data-plan-action="accept"]');
 	await until(app, "!document.querySelector('[data-approval-card]')", 1200);
 	await until(app, `document.querySelector(${JSON.stringify(OFF)})`, 1200);
 	await pause(1200);
@@ -241,14 +230,11 @@ try {
 	await command("/plan PLAN_ME 把登录改成 OAuth");
 	await until(app, "document.querySelector('[data-approval-card]')", 1200);
 	await pause(1200);
-	const short = await app.evaluate<{ height: number; covered: boolean; submit: number; cardBottom: number; overflow: number; composer: number }>(`(()=>{
+	const short = await app.evaluate<{ height: number; cardBottom: number; composer: number }>(`(()=>{
 		const card=document.querySelector('[data-approval-card]');
-		const submit=card.querySelector('button[type=submit]').getBoundingClientRect();
-		const scroll=card.querySelector('.ly-approval-scroll').getBoundingClientRect();
-		const view=card.querySelector('.ly-approval-scroll > .ly-scroll-view');
-		return {height:innerHeight,covered:submit.top+1<scroll.bottom,submit:Math.round(submit.bottom),cardBottom:Math.round(card.getBoundingClientRect().bottom),overflow:Math.round(view.scrollHeight-view.clientHeight),composer:Math.round(document.querySelector("main textarea").closest("main").querySelector('button[aria-label="退出计划模式"]').getBoundingClientRect().bottom)};
+		return {height:innerHeight,cardBottom:Math.round(card.getBoundingClientRect().bottom),composer:Math.round(document.querySelector("main").querySelector('button[aria-label="退出计划模式"]').getBoundingClientRect().bottom)};
 	})()`);
-	check("矮窗口里计划正文自己滚，底栏按钮仍在卡片内、在窗口内", !short.covered && short.submit <= short.cardBottom && short.cardBottom <= short.height, short);
+	check("矮窗口里卡片在窗口内", short.cardBottom <= short.height, short);
 	check("矮窗口里输入框那一排没被卡片挤出窗口", short.composer <= short.height, { composer: short.composer, height: short.height });
 	await photo("06_矮窗口审批计划");
 } catch (error) {

@@ -7,7 +7,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { quotedIn, selectedText } from "../../src/features/conversation/quote.ts";
+import { quotedIn } from "../../src/features/conversation/quote.ts";
+import { selectedText } from "../../src/lib/selection.ts";
 
 /** 范围两端落在哪段字的第几个字上；比字符串而不是节点，断言失败时不去打印整棵 DOM。 */
 function ends(range: Range): string {

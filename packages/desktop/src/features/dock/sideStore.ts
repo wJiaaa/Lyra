@@ -44,6 +44,8 @@ export type PanelKind =
 	 * current contents. This one is only what the latest turn wrote.
 	 */
 	| "delivery"
+	/** 计划模式交上来的那份计划，读和划线评论。由审批卡打开，见 `panels/PlanPanel.tsx`。 */
+	| "plan"
 	| "browser"
 	| "tasks"
 	| "trajectory";

@@ -62,6 +62,37 @@ export async function click(page: Page, selector: string, name?: string, mode: N
 }
 
 /**
+ * 用真鼠标划一段字：从 `text` 第一个字的左沿按下，分几步拖到最后一个字的右沿松开。
+ *
+ * 划词菜单、评论框都挂在 `mouseup` 上，直接 `Selection.addRange` 设出来的选区不会触发它们。
+ * `text` 要落在 `selector` 里的同一个文字节点上。
+ */
+export async function selectText(page: Page, selector: string, text: string): Promise<void> {
+	const ends = await page.evaluate<{ from: Point; to: Point } | null>(`(()=>{
+		const root=${finder(selector)};const t=${JSON.stringify(text)};if(!root)return null;
+		const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+		for(let n=walker.nextNode();n;n=walker.nextNode()){
+			const i=n.data.indexOf(t);if(i<0)continue;
+			const r=document.createRange();r.setStart(n,i);r.setEnd(n,i+1);const a=r.getBoundingClientRect();
+			r.setStart(n,i+t.length-1);r.setEnd(n,i+t.length);const b=r.getBoundingClientRect();
+			return {from:{x:a.left+1,y:a.top+a.height/2},to:{x:b.right-1,y:b.top+b.height/2}};
+		}
+		return null;
+	})()`);
+	if (!ends) throw new Error(`没找到要划的字：${text}`);
+	const { from, to } = ends;
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...from });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...from, button: "left", clickCount: 1 });
+	for (let step = 1; step <= 8; step++) {
+		const at = { x: from.x + ((to.x - from.x) * step) / 8, y: from.y + ((to.y - from.y) * step) / 8 };
+		await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, button: "left", buttons: 1 });
+		await frames(page, 1);
+	}
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...to, button: "left", clickCount: 1 });
+	await frames(page, 3);
+}
+
+/**
  * 点 iframe 里的一处。框里的文档是另一个源，这一侧选不到里面的元素，只能按框内坐标点：
  * 框本身照 `click` 的规则停稳、确实在指针下，再从它的左上角量 `offset`。
  */

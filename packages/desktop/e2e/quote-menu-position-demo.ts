@@ -3,7 +3,7 @@
  * 划词菜单对着选中的那行字，而不是整栏：三击选中紧挨在代码块前面的一段，菜单的横中线要落在那行字上。
  *
  * 三击时终点落进代码块，`user-select: none` 的标题栏整个被包进选区，`getBoundingClientRect()` 量出
- * 整栏宽，菜单曾因此偏到栏中间（见 `quote.ts` 的 `selectedText`）。
+ * 整栏宽，菜单曾因此偏到栏中间（见 `lib/selection.ts` 的 `selectedText`）。
  *
  * 用法：node --experimental-strip-types e2e/quote-menu-position-demo.ts [输出目录]
  */

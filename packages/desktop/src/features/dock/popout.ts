@@ -19,6 +19,7 @@
 import { create } from "zustand";
 import { provideFileOpener } from "../../app/file-opener.ts";
 import { provideSideQuote } from "../../app/side-quote.ts";
+import { providePlanOpener } from "../../app/plan-opener.ts";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { translate } from "../../i18n/translate.ts";
@@ -355,6 +356,8 @@ export function openFilePane(given: string, target?: string): Promise<void> {
 
 // 会话里生成图的「在新标签页中打开」从这里进来，见 `provideFileOpener`。
 provideFileOpener(openFilePane);
+// 审批卡上的「打开计划」从这里进来，见 `providePlanOpener`。
+providePlanOpener((screen) => void openScopedPanel("plan", screen));
 
 /**
  * 工具栏那排按钮、快捷键、标签条的「+」和「⋮」菜单：能开好几个的（终端、侧边聊天、文件、网页）再开一个，

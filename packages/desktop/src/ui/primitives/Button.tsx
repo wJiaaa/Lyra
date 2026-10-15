@@ -1,5 +1,5 @@
 /**
- * The button, in the four shapes this application actually uses.
+ * The button, in the five shapes this application actually uses.
  *
  * There were 276 hand-written `<button>` in the renderer and at least eight heights among them —
  * 26, 28, 30, 32, 44 — none of them different on purpose. A row of controls that do not share a
@@ -10,7 +10,7 @@
  * a size for dense rows, and a loading state that every async action was reimplementing with a
  * disabled flag and a spinner beside it.
  *
- * Not a general-purpose button library. Four variants, two sizes, and no `style` prop — the point
+ * Not a general-purpose button library. Five variants, three sizes, and no `style` prop — the point
  * is that a caller cannot invent a ninth height.
  */
 
@@ -24,7 +24,7 @@ import type { ReactNode, MouseEvent } from "react";
  */
 export type DataAttributes = { [key: `data-${string}`]: string | boolean | undefined };
 
-export type ButtonVariant = "primary" | "ghost" | "subtle" | "danger";
+export type ButtonVariant = "primary" | "ghost" | "subtle" | "soft" | "danger";
 export type ButtonSize = "md" | "sm" | "xs";
 
 /**
@@ -61,6 +61,9 @@ const TONE: Record<ButtonVariant, string> = {
 	ghost: "border border-line text-ink hover:border-ink-faint hover:bg-card-hover disabled:opacity-45",
 	// No outline at all, for a row of actions that should not draw a grid on the panel.
 	subtle: "text-ink-muted hover:bg-card-hover hover:text-ink disabled:opacity-45",
+	// A fill without an outline, for a row of choices beside `primary` that must read as buttons before the pointer arrives —
+	// the plan card's 拒绝 / 修改 / 接受. `subtle` only shows its fill on hover, and its muted ink wins over a `text-ink` class.
+	soft: "bg-card text-ink hover:bg-card-hover disabled:opacity-45",
 	// Destructive. Coloured only on hover: a row of red buttons is a row nobody reads.
 	danger: "border border-line text-danger hover:border-danger/50 hover:bg-danger/10 disabled:opacity-45",
 };

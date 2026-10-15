@@ -5,7 +5,7 @@
  * which is exactly the property that lets a plugin replace one.
  */
 
-import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "../../../ui/icons/index.ts";
+import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListOrdered, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "../../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
 import { BrowserPanel, BrowserTabTitle, browserResidentsOf, closeBrowser, newBrowserPage, subscribeBrowserResidents } from "../../browser/index.ts";
@@ -18,7 +18,7 @@ import { DiffView, GitPanel } from "../../git/index.ts";
 import { SideChat, SideChatTitle, closeSideChat, confirmCloseSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane, TerminalTitle, closeTerminal, confirmCloseTerminal } from "../../terminal/index.ts";
-import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
+import { announceUndo, Markdown, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
 import { relativeTo } from "../../../lib/paths.ts";
@@ -32,6 +32,7 @@ import { closeNow } from "../pane-store.ts";
 import { openFilePane } from "../popout.ts";
 import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../../app/session-scope.tsx";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
+import { PlanPanel } from "./PlanPanel.tsx";
 
 /**
  * 子智能体面板，带着「把一份文件打开到旁边」这件事。
@@ -45,6 +46,11 @@ function SubAgentPane() {
 			openFile={(path) => void openFilePane(path)}
 		/>
 	);
+}
+
+/** 计划面板，正文的 `Markdown` 由这里交给它，理由见 `PlanPanel` 顶上。 */
+function PlanPane() {
+	return <PlanPanel renderPlan={(text) => <Markdown text={text} className="min-w-0 max-w-full break-words" />} />;
 }
 
 const needsWorkspace = (state: { workspace: boolean }) => (state.workspace ? undefined : "dock.needProject");
@@ -304,6 +310,21 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 * diff it then fetches comes from the main process. Undeclared, it popped out as an empty pane.
 		 */
 		detach: "self",
+	},
+	/*
+	 * 计划模式交上来的计划——由审批卡打开，不进「+」菜单：没有计划时它什么也没有。
+	 * 评论只在这个渲染进程的内存里（`store/plan-review.ts`），弹出去的窗口拿不到，所以不给弹出。
+	 */
+	{
+		kind: "plan",
+		label: "plan.title",
+		icon: ListOrdered,
+		shortcut: "",
+		listed: false,
+		ephemeral: true,
+		unavailable: needsSession,
+		detach: "none",
+		render: PlanPane,
 	},
 ];
 

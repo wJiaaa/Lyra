@@ -53,7 +53,11 @@ export function RunningIndicator() {
 	const retrying = useScopedRetrying();
 	const compactedAt = useScopedCompactedAt();
 	const waiting = useScopedApprovals()[0];
-	const waitingKind = !waiting ? null : waiting.kind === "interactive" || waiting.kind === "form" ? "question" : "approval";
+	/*
+	 * 交上来的计划单说一句：它走的也是提问通道，可上面那张卡问的不是一个问题，是「这份计划行不行」。
+	 * 「等待你的回答」放在计划卡下面，读着像还有一道题没看见。
+	 */
+	const waitingKind = !waiting ? null : waiting.kind === "interactive" && waiting.subject === "submit_plan" ? "plan" : waiting.kind === "interactive" || waiting.kind === "form" ? "question" : "approval";
 	const [now, setNow] = useState(() => Date.now());
 	/*
 	 * The phrase advances on its own clock, slower than the seconds.
@@ -176,7 +180,7 @@ export function RunningIndicator() {
 				className="ly-enter mt-2.5 flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-detail text-ink-muted whitespace-nowrap"
 			>
 				<StatusSpinner size={14} className="text-ink-muted" />
-				<span className="ly-fade-in">{waitingKind === "question" ? translate("running.waitingForAnswer") : translate("sessionStatus.waiting")}</span>
+				<span className="ly-fade-in">{waitingKind === "plan" ? translate("running.waitingForPlan") : waitingKind === "question" ? translate("running.waitingForAnswer") : translate("sessionStatus.waiting")}</span>
 			</div>
 		);
 	}
