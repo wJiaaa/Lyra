@@ -226,8 +226,8 @@ function SectionLabel({
 	 */
 	first?: boolean;
 	/**
-	 * 在所在块里吸顶，像项目名那样。`data-ly-head` 让它拿到同一层底色（`misc.css`）、毛玻璃下的
-	 * 淡出（`tabs.css`），以及滚动遮罩的避让（`useStickyFade`）。
+	 * 在所在块里吸顶，像项目名那样。`data-ly-head` 让它拿到同一层底色（`misc.css`）和毛玻璃下的
+	 * 淡出（`tabs.css`）。
 	 */
 	held?: boolean;
 	section: "pinned" | "projects" | "recent";

@@ -7,9 +7,8 @@
  * them is being drawn.
  *
  * The rows are held by `position: sticky`, so where they sit is the browser's job and not worth
- * asserting. What is worth asserting is everything around it: that the fade starts under them
- * rather than through them, that they cover what passes under them, and — the
- * one that cost the most to learn — that a pinned row does not move while the list scrolls under
+ * asserting. What is worth asserting is everything around it: that the list is not softened
+ * around them, that they cover what passes under them, and — the one that cost the most to learn — that a pinned row does not move while the list scrolls under
  * it. An earlier version placed these by hand from `scroll` events and lagged the compositor by a
  * frame, which is a row visibly jumping a wheel tick at a time.
  */
@@ -29,8 +28,7 @@ const DAY = 86_400_000;
  *
  * Length is load-bearing here rather than incidental. A list that only just overflows cannot be
  * scrolled far enough for a heading to reach the rail and be held there — every scroll lands in the
- * middle of one heading pushing out the next — and it bottoms out immediately, which takes the
- * lower fade with it. Both of those read as the feature being broken.
+ * middle of one heading pushing out the next. That reads as the feature being broken.
  */
 const PROJECTS = [
 	"alpha-project",
@@ -153,10 +151,8 @@ interface Pinned {
 
 interface State {
 	scrollTop: number;
-	/** Where the unsoftened band starts. Non-zero only while a row is on its way to its rail. */
-	holdTop: number;
-	/** How deep the mask is erasing the list — what the pinned rows are standing on. */
-	inset: number;
+	/** The scroller's computed `mask-image`. The sidebar has none: neither end softens. */
+	mask: string;
 	fadeTop: number;
 	fadeBottom: number;
 	/** Where the list begins in the scroller — below the destinations when they are in it. */
@@ -199,8 +195,7 @@ async function state(): Promise<State> {
 		const px = (name) => Number.parseFloat(style.getPropertyValue(name)) || 0;
 		return {
 			scrollTop: view.scrollTop,
-			holdTop: px("--ly-hold-top"),
-			inset: px("--ly-fade-inset"),
+			mask: style.maskImage,
 			fadeTop: px("--ly-fade-top"),
 			fadeBottom: px("--ly-fade-bottom"),
 			listInList: view.querySelector("[data-ly-list]").getBoundingClientRect().top - origin,
@@ -266,19 +261,14 @@ test("at rest nothing is erased", async () => {
 	}
 });
 
-test("a project name is held at the top, and the list is erased out from under it", async () => {
+test("a project name is held at the top, and the list is not softened at either end", async () => {
 	const found = await scrollUntilPinned();
 	assert.ok(found, "some scroll position holds a heading at the rail");
 	assert.ok(found.held.text.length > 0, "and it is a real heading with a name on it");
-	/*
-	 * The erased band, not the heading's fill. If the band stopped short of it, the rows below
-	 * would start softening while still under the project name — the first conversation in a
-	 * project, half drawn, every time.
-	 */
-	assert.ok(
-		found.at.inset >= found.held.y + found.held.height - 1,
-		`the erased band reaches the heading's underside (inset ${found.at.inset}, needs ${found.held.y + found.held.height})`,
-	);
+	// Mid-list, with rows hidden both above and below: the one place a fade would show.
+	assert.equal(found.at.mask, "none", "the sidebar scroller carries no mask");
+	assert.equal(found.at.fadeTop, 0, "and no top softening");
+	assert.equal(found.at.fadeBottom, 0, "and no bottom softening");
 });
 
 /*
@@ -357,12 +347,6 @@ test("a heading being pushed out is not overlapped by the next one", async () =>
 	assert.ok(seen > 0, "some scroll position catches a heading on its way out");
 });
 
-test("landed, the band starts at the top edge", async () => {
-	const found = await scrollUntilPinned();
-	assert.ok(found, "a heading is held");
-	assert.equal(found.at.holdTop, 0, "nothing above it to leave unsoftened, so the band starts at the edge");
-});
-
 test("scrolling on past a project hands the rail to the next one", async () => {
 	const first = await scrollUntilPinned();
 	assert.ok(first, "a heading is held to begin with");
@@ -373,10 +357,6 @@ test("scrolling on past a project hands the rail to the next one", async () => {
 	const later = await scrollUntilPinned(first.at.scrollTop + 40, 2600, 40, first.held.text);
 	assert.ok(later, "something is still held further down");
 	assert.notEqual(later.held.text, first.held.text, "and it is a different project than the one we started in");
-	assert.ok(
-		later.at.inset >= later.held.y + later.held.height - 1,
-		"with the band still erased to its underside",
-	);
 });
 
 /*

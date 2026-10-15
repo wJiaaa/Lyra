@@ -90,7 +90,6 @@ const probe = await call<{ result: { value: unknown } }>("Runtime.evaluate", {
 			scrollTop: Math.round(view.scrollTop),
 			stripY: strip ? Math.round(strip.getBoundingClientRect().top - origin) : null,
 			headY: head ? Math.round(head.getBoundingClientRect().top - origin) : null,
-			inset: cs.getPropertyValue("--ly-fade-inset").trim(),
 			inlineStyle: view.getAttribute("style"),
 			railRows: view.querySelectorAll("[data-ly-rail]").length,
 			stripExact: strip ? (strip.getBoundingClientRect().top - origin) : null,
@@ -98,7 +97,6 @@ const probe = await call<{ result: { value: unknown } }>("Runtime.evaluate", {
 			debug: window.__stickyDebug,
 			panes: document.querySelectorAll(".ly-sidebar-fill").length,
 			scrollers: document.querySelectorAll(".ly-sidebar-fill .ly-scroll-view").length,
-			allInsets: [...document.querySelectorAll(".ly-sidebar-fill .ly-scroll-view")].map((v) => v.style.getPropertyValue("--ly-fade-inset")),
 			replay: (() => {
 				const rows = [];
 				if (strip) { const r = strip.getBoundingClientRect(); rows.push({ t: r.top - origin, b: r.bottom - origin, rail: 0 }); }

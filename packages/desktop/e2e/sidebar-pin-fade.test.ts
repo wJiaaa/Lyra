@@ -3,10 +3,9 @@
  *
  * 没有毛玻璃时标题铺侧栏自己的底色（`misc.css`）；macOS 的毛玻璃下侧栏和标题都是透明的，改由会话行
  * 在滑进标题底下时自己淡没（`tabs.css` 的 `ly-under-head`），所以那里量的是每一行画出了多少，不是谁
- * 在最上层——透明的标题照样接得住命中测试，按命中测试判断，满亮度压字也是绿的。遮罩只在钉住的标题下沿往下做一段柔化，
- * 那条下沿由 `useStickyFade` 逐帧量出来。这一步停过一次：清理时取消了排着的那一帧却没把记号归零，
- * effect 重跑之后 `schedule` 永远以为「已经排上了」，测量停在第一帧。只有开发构建会重跑（StrictMode），
- * 所以两种构建各走一遍——只跑生产构建的话，这条用例在出事的时候是绿的。
+ * 在最上层——透明的标题照样接得住命中测试，按命中测试判断，满亮度压字也是绿的。
+ *
+ * 两种构建各走一遍：报上来的那次出在开发构建上（`audit-regression` 里的 `sidebar-pin-fade`）。
  *
  * 用真滚轮滚：程序改 `scrollTop` 和人滚动走的不是同一条路。
  */
@@ -68,10 +67,6 @@ interface Step {
 	scrollTop: number;
 	/** 此刻钉在顶上的标题有几个。 */
 	pinned: number;
-	/** 钉住的标题最低的下沿，相对滚动视口。 */
-	pinnedBottom: number;
-	/** `useStickyFade` 写给遮罩的那条线。测量停了它就停在第一帧的值。 */
-	inset: number;
 	/** 从钉住的标题底下透出来的行：重叠处最上面的不是标题。 */
 	showing: string[];
 	/** 紧挨着钉住的标题、却没画全的行——标题底下空出一截。 */
@@ -127,8 +122,6 @@ const MEASURE = `(() => {
 	return {
 		scrollTop: view.scrollTop,
 		pinned: heads.length,
-		pinnedBottom: heads.reduce((low, { box }) => Math.max(low, box.bottom - origin), 0),
-		inset: parseFloat(view.style.getPropertyValue("--ly-fade-inset")) || 0,
 		showing,
 		hidden,
 		heads: bad,
@@ -153,7 +146,7 @@ async function sweep(app: RunningApp, delta: number): Promise<Step[]> {
 }
 
 for (const build of ["生产构建", "开发构建"] as const) {
-	test(`${build}：侧栏滚动时，钉住的标题盖住底下的会话，不透字、不空一截，遮罩跟着标题走`, async () => {
+	test(`${build}：侧栏滚动时，钉住的标题盖住底下的会话，不透字、不空一截`, async () => {
 		const renderer = build === "开发构建" ? await startDevRenderer() : undefined;
 		let app: RunningApp | undefined;
 		try {
@@ -183,14 +176,6 @@ for (const build of ["生产构建", "开发构建"] as const) {
 				gaps.map((step) => `${step.scrollTop}px：${step.hidden.join("；")}`),
 				[],
 				"钉住的标题底下那一行没画全，空出一截",
-			);
-
-			// 测量没停：钉住的标题在哪，遮罩的柔化就从哪开始。停了的话它一直是第一帧的值。
-			const stale = held.filter((step) => Math.abs(step.inset - step.pinnedBottom) > 1.5);
-			assert.deepEqual(
-				stale.map((step) => `${step.scrollTop}px：线在 ${step.inset}，标题下沿在 ${step.pinnedBottom.toFixed(1)}`),
-				[],
-				"渐隐的线没有跟着钉住的标题走",
 			);
 		} finally {
 			await app?.stop();

@@ -3,16 +3,15 @@
  *
  * One list: the projects, and under 「最近」 the conversations that belong to none
  * (`sidebar/ProjectList`). Searching does not touch it — it opens over the window
- * (`sidebar/CommandPalette`). The current heading is held at the top by `position: sticky`;
- * the only part of that JavaScript owns is where the fade below it starts, which is
- * `sidebar/useStickyFade` and `sidebar/sticky.ts`. The archive is not here: it is 设置 › 已归档的聊天.
+ * (`sidebar/CommandPalette`). The current heading is held at the top by `position: sticky`.
+ * The archive is not here: it is 设置 › 已归档的聊天.
  *
  * Only the pane itself is here. Which conversations are listed and what a row does is
  * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping`.
  */
 
 import { ListFilter, SquarePen } from "../../ui/icons/index.ts";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -27,7 +26,6 @@ import { SidebarHead } from "./SidebarHead.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { SessionCarryGhost } from "../split/index.ts";
 import { useSidebarLists } from "./useSidebarLists.ts";
-import { useStickyFade } from "./useStickyFade.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /** Where the folded-project list is remembered. */
@@ -94,10 +92,6 @@ export function Sidebar() {
 		}
 	}, [collapsed, sort]);
 
-	const viewport = useRef<HTMLDivElement>(null);
-	// Headings rest against the top edge: nothing is held above them any more.
-	useStickyFade(viewport, 0, 0);
-
 	const { groups, actions } = useSidebarLists({ sort, onOpened: dismissNav });
 
 	/*
@@ -132,7 +126,7 @@ export function Sidebar() {
 			/*
 			 * Where headings come to rest: the top edge, now that no control row is held above them.
 			 * Kept as a variable so the rows stay plain `sticky top-[var(--ly-rail)]` — CSS holds them,
-			 * which is the only way they keep up with a wheel. See `sidebar/sticky.ts`.
+			 * which is the only way they keep up with a wheel.
 			 */
 			style={{ "--ly-rail": "0px" } as React.CSSProperties}
 		>
@@ -160,20 +154,17 @@ export function Sidebar() {
 			</nav>
 
 			{/*
-			 * Both ends soften.
+			 * Neither end softens, and no hairline either.
 			 *
-			 * This was a hairline on top and nothing at the bottom, on the reasoning that the nav
-			 * above and the settings row below are solid — content passes behind them rather than
-			 * dissolving into them, so a fade would leave half-lit rows hanging off an opaque block.
-			 * That was true of the fade we had, which painted a strip of `--color-sidebar` over the
-			 * list; on a pane whose fill is translucent that strip is a grey film with an edge of its
-			 * own, and the half-lit rows were it.
-			 *
-			 * A mask has no such problem — the rows genuinely thin out to nothing — and once they
-			 * really do, the argument turns around: a hard rule at the top of a list that runs on
-			 * says the list ended there. See `.ly-fade-y`.
+			 * Both ends used to fade, because a hairline at the top of a list that runs on says the
+			 * list ended there. That argument assumed the top edge was bare. It is not any more: the
+			 * current project heading is held there by `position: sticky` with a fill of its own, so
+			 * rows already pass behind something solid at the top, and the settings row does the same
+			 * at the bottom. A fade on top of that only greyed out the edge rows, and they looked
+			 * covered rather than continued. The mask also had to be told where the held headings
+			 * were on every frame of every scroll; that measuring went away with it.
 			 */}
-			<Scroller className="flex-1" contentClassName={`pb-2 ${pad}`} scrollRef={viewport}>
+			<Scroller className="flex-1" contentClassName={`pb-2 ${pad}`} top="none" bottom="none">
 				<DestinationNav onNavigate={dismissNav} />
 
 				{/* `pt-3` 是上面那截和列表之间的间距，列表的第一个标题不自带上间距。 */}

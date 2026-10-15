@@ -74,7 +74,7 @@ try {
 	await new Promise((resolve) => setTimeout(resolve, 1500));
 	for (const [name, top] of [
 		["top", 0],
-		["pinned", 300],
+		["middle", 300],
 	] as const) {
 		await app.evaluate(`(() => { ${view}.scrollTop = ${top}; return true; })()`);
 		await new Promise((resolve) => setTimeout(resolve, 500));
@@ -82,15 +82,12 @@ try {
 		await writeFile(`${out}-${name}.png`, Buffer.from(shot.data, "base64"));
 		const state = await app.evaluate(`(() => {
 			const el = ${view};
-			const origin = el.getBoundingClientRect().top;
 			const style = getComputedStyle(el);
 			return {
-				rail: style.getPropertyValue("--ly-rail").trim(),
-				inset: style.getPropertyValue("--ly-fade-inset").trim(),
-				strip: Math.round(el.querySelector("[data-ly-rail]").getBoundingClientRect().top - origin),
-				heads: [...el.querySelectorAll("[data-ly-head]")]
-					.map((h) => Math.round(h.getBoundingClientRect().top - origin))
-					.filter((y) => y < 400),
+				scrollTop: Math.round(el.scrollTop),
+				mask: style.maskImage === "none" ? "none" : style.maskImage.slice(0, 60),
+				fadeTop: style.getPropertyValue("--ly-fade-top").trim(),
+				fadeBottom: style.getPropertyValue("--ly-fade-bottom").trim(),
 			};
 		})()`);
 		process.stdout.write(`wrote ${out}-${name}.png ${JSON.stringify(state)}\n`);

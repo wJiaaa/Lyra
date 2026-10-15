@@ -277,178 +277,17 @@
   initial-value: 0;
 }
 
-/*
- * How far down the top the softening starts, rather than starting at the edge.
- *
- * For a list with rows pinned over it — `position: sticky`, so they are inside this element and the
- * mask applies to them too. Fading from the edge fades the pinned rows themselves; the first
- * version of this feature dodged that by placing them outside the mask entirely, and paid for it by
- * lagging the compositor a frame (`sidebar/sticky.ts` has the account). So instead the band they
- * occupy is left at full strength and the fade begins at their undersides, where the list starts.
- *
- * What hides the list *behind* a pinned row is the row's own fill, not this. This only decides
- * where the rows below it begin to soften.
- *
- * Left at zero — every other scroller in the app — every stop below collapses back onto the plain
- * two-ended fade this used to be.
- *
- * Never interpolated, unlike the two depths above. It tracks rows the browser is placing on the
- * compositor, so a transition would put the fade a frame behind the row it is supposed to start
- * under; and it does not need one, because it moves with the scroll rather than between states.
- */
-@property --ly-fade-inset {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-/*
- * Where the held band *starts*, for the stretch of list still above it.
- *
- * Zero for every scroller in the app and for the sidebar whenever a row has actually reached its
- * rail — the band runs to the top edge then, and every stop below collapses onto it. It is only
- * non-zero while a row is on its way in: the softening reaches a few dozen pixels down from the
- * top, a row travelling to its rail passes through exactly that, and without this the strip
- * dissolved on approach and snapped back the moment it landed. The list above it still fades; what
- * changed is that the fade now ends where the row begins instead of running through it.
- */
-@property --ly-hold-top {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-/*
- * How far the fade under the held band is allowed to reach, and where the second band is.
- *
- * Two rows can be held at once — the strip against the top edge, a project heading arriving at the
- * rail below it — and between them there is list, sliding up towards the strip. That stretch is
- * exactly what the fade is for, and treating the pair as one band from the first row's top to the
- * last one's bottom protected it too: the moment the strip landed, the rows under it stopped
- * dissolving and started sliding under it hard-edged. So the band below the strip is softened on
- * its own, and the row still on its way down keeps a band of its own.
- *
- * These three are *derived*, below, from the two raw measurements `sidebar/useStickyFade` writes
- * and the depth `Scroller` is asking for. They used to be written directly, and that is the whole
- * of the defect this replaced: a length computed in JavaScript cannot follow `--ly-fade-top` while
- * it animates, and the sidebar's mask never reads that property anywhere else — so the softening
- * stopped easing in and started appearing.
- */
-@property --ly-hold-gap {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-@property --ly-hold-next {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-@property --ly-hold-next-fade {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-/*
- * How much softening there is to go round, and the two measurements it gets divided by.
- *
- * Every stretch of list between two held rows is a full gradient of its own, transparent to opaque.
- * Giving each one the full depth is what made the softening jump: a heading reaching the point
- * where it counts as held is one frame, and in that frame a second gradient 36px deep appeared
- * under it out of nothing. Measured on the sidebar, scrolling one notch at a time — the soft band
- * went 4.5px → 63px between two adjacent 12px steps, and 41.5px → 0px twelve pixels later.
- *
- * So there is a budget instead, and it is the depth `Scroller` asked for. Whatever the list above
- * the first held row has already used comes off the top; the first stretch takes what it can up to
- * the next held row; the last stretch gets the remainder. The total stays put while the shape of
- * the pane changes underneath it, which is the only way a fade survives rows arriving at a rail.
- *
- * `--ly-hold-room` is that "up to the next held row" — the distance from the first run's underside
- * to the second one's top. Its initial value is a length no pane is tall enough to reach, which is
- * how a scroller with nothing held at all takes the whole budget in one stretch: every scroller in
- * the app but the sidebar, and the sidebar itself whenever only one run is held. `--ly-hold-run` is
- * where that second run ends, and zero — no second run — leaves `--ly-hold-next` at the end of the
- * first gradient, where the stops after it collapse and draw nothing.
- */
-@property --ly-hold-room {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 99999px;
-}
-
-@property --ly-hold-run {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
-@property --ly-hold-budget {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0;
-}
-
 .ly-fade-y {
-  /*
-   * Dividing the softening up, for every scroller in the app including the sidebar.
-   *
-   * Stated here rather than written per frame by `sidebar/useStickyFade`, and that is the fix
-   * rather than a tidy-up. `--ly-fade-top` is the depth `Scroller` asks for and it *animates* —
-   * that transition at the foot of this rule is what makes a fade ease in when a list first
-   * scrolls rather than snap on. Nothing in the mask below reads it directly; it reaches the
-   * gradient only through these four. So the moment a pixel length computed in JavaScript is
-   * written over any of them, the sidebar's softening stops easing and starts appearing — and it
-   * cannot follow a short pane either, where `scrollFade` asks for less than the full depth.
-   *
-   * What JavaScript still owns is the two things CSS cannot ask: where the held rows are
-   * (`--ly-hold-top`, `--ly-fade-inset`) and how far apart the two runs of them sit
-   * (`--ly-hold-room`, `--ly-hold-run`). Geometry measured, never depth decided.
-   */
-  --ly-hold-budget: max(0px, var(--ly-fade-top) - var(--ly-hold-top));
-  --ly-hold-gap: min(var(--ly-hold-room), var(--ly-hold-budget));
-  --ly-hold-next: max(var(--ly-hold-run), var(--ly-fade-inset) + var(--ly-hold-gap));
-  --ly-hold-next-fade: max(0px, var(--ly-hold-budget) - var(--ly-hold-gap));
   mask-image: linear-gradient(
     to bottom,
-    /* Above the held band: the list, softened into the top edge as it always was. Collapses to
-       nothing when `--ly-hold-top` is zero, which is every case except a row on its way in. */
     transparent 0,
-    rgb(0 0 0 / 0.06) calc(var(--ly-hold-top) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-hold-top) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-hold-top) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-hold-top) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-hold-top) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-hold-top) * 0.86),
-    /* The held band, kept at full strength: the rows held there are inside this element, so
-       softening it would fade the very rows it is supposed to start below. What hides the list
-       behind them is their own fill, not this. */ #000 var(--ly-hold-top),
-    #000 var(--ly-fade-inset),
-    /* The list between the two held runs, softened into the underside of the first — this is the
-       stretch that stopped fading the instant the strip landed. `--ly-hold-gap` is the full fade
-       depth when nothing is held below, and only as far as the next held row when there is. */
-    transparent var(--ly-fade-inset),
-    rgb(0 0 0 / 0.06) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.86),
-    #000 calc(var(--ly-fade-inset) + var(--ly-hold-gap)),
-    /* The second held run, kept whole for the same reason as the first. With one run this sits at
-       the stop above it and the pair below collapse onto it too — a zero-width transparent stop
-       draws nothing, which is what folds this half of the mask away. */
-    #000 var(--ly-hold-next),
-    transparent var(--ly-hold-next),
-    rgb(0 0 0 / 0.06) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.86),
-    #000 calc(var(--ly-hold-next) + var(--ly-hold-next-fade)),
+    rgb(0 0 0 / 0.06) calc(var(--ly-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-fade-top) * 0.86),
+    #000 var(--ly-fade-top),
     #000 calc(100% - var(--ly-fade-bottom)),
     rgb(0 0 0 / 0.94) calc(100% - var(--ly-fade-bottom) * 0.86),
     rgb(0 0 0 / 0.8) calc(100% - var(--ly-fade-bottom) * 0.72),
@@ -461,37 +300,13 @@
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgb(0 0 0 / 0.06) calc(var(--ly-hold-top) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-hold-top) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-hold-top) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-hold-top) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-hold-top) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-hold-top) * 0.86),
-    #000 var(--ly-hold-top),
-    #000 var(--ly-fade-inset),
-    /* The list between the two held runs, softened into the underside of the first — this is the
-       stretch that stopped fading the instant the strip landed. `--ly-hold-gap` is the full fade
-       depth when nothing is held below, and only as far as the next held row when there is. */
-    transparent var(--ly-fade-inset),
-    rgb(0 0 0 / 0.06) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-fade-inset) + var(--ly-hold-gap) * 0.86),
-    #000 calc(var(--ly-fade-inset) + var(--ly-hold-gap)),
-    /* The second held run, kept whole for the same reason as the first. With one run this sits at
-       the stop above it and the pair below collapse onto it too — a zero-width transparent stop
-       draws nothing, which is what folds this half of the mask away. */
-    #000 var(--ly-hold-next),
-    transparent var(--ly-hold-next),
-    rgb(0 0 0 / 0.06) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.12),
-    rgb(0 0 0 / 0.19) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.26),
-    rgb(0 0 0 / 0.38) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.41),
-    rgb(0 0 0 / 0.6) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.57),
-    rgb(0 0 0 / 0.8) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.72),
-    rgb(0 0 0 / 0.94) calc(var(--ly-hold-next) + var(--ly-hold-next-fade) * 0.86),
-    #000 calc(var(--ly-hold-next) + var(--ly-hold-next-fade)),
+    rgb(0 0 0 / 0.06) calc(var(--ly-fade-top) * 0.12),
+    rgb(0 0 0 / 0.19) calc(var(--ly-fade-top) * 0.26),
+    rgb(0 0 0 / 0.38) calc(var(--ly-fade-top) * 0.41),
+    rgb(0 0 0 / 0.6) calc(var(--ly-fade-top) * 0.57),
+    rgb(0 0 0 / 0.8) calc(var(--ly-fade-top) * 0.72),
+    rgb(0 0 0 / 0.94) calc(var(--ly-fade-top) * 0.86),
+    #000 var(--ly-fade-top),
     #000 calc(100% - var(--ly-fade-bottom)),
     rgb(0 0 0 / 0.94) calc(100% - var(--ly-fade-bottom) * 0.86),
     rgb(0 0 0 / 0.8) calc(100% - var(--ly-fade-bottom) * 0.72),

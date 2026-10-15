@@ -2,14 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { scrollFade } from "./fade.ts";
 import type { Direction } from "./follow.ts";
 
-/** How deep the softening reaches. The bottom is the edge content moves through — a list grows
- *  downwards, a transcript streams into it — and a shallow fade there reads as a cut.
- *
- *  The top is exported because a scroller with rows pinned in it has to know: a row within this
- *  distance of its rail is already inside the softening, and holding it whole from there is what
- *  keeps it from dissolving on the way up. See `sidebar/sticky.ts`. */
-export { FADE_TOP } from "./fade.ts";
-
 /**
  * The app's only scrolling surface.
  *
