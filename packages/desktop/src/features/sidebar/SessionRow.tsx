@@ -282,7 +282,7 @@ export function SessionRow({
 				 */}
 				{nested && (
 					<span aria-hidden data-ly-row-branch className="relative w-3.5 shrink-0 self-stretch">
-						<span className="absolute top-[5px] right-[-1px] bottom-1/2 left-[6px] rounded-bl-[4px] border-b border-l border-ink-faint" />
+						<span className="absolute top-[5px] right-[-1px] bottom-1/2 left-[6px] rounded-bl-sm border-b border-l border-ink-faint" />
 					</span>
 				)}
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
