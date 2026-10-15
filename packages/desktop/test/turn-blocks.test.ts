@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 
-import { turnBlocks, turnEnd, withoutThinking, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
+import { thoughtLast, turnBlocks, turnEnd, withoutThinking, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
 
 const ask = (text: string, index: number): Run => ({
 	kind: "message",
@@ -218,6 +218,38 @@ test("不显示推理时，推理行拿掉；被它隔开的同类活合成一�
 
 test("不显示推理时，只想不做的一轮没有锚，就是一句回答", () => {
 	assert.deepEqual(shape(withoutThinking([ask("在吗", 0), think(1), say("在。", 1)])), ["plain", "plain"]);
+});
+
+/** 推理不画时 `Conversation` 怎么分：拿掉推理之前先问最后一轮想过没有。 */
+const hidden = (list: Run[], running: boolean) => turnBlocks(withoutThinking(list), undefined, running && thoughtLast(list));
+
+test("不显示推理时，跑着的那一轮从开始想就有锚，不等第一次工具调用", () => {
+	const thinking = hidden([ask("看看", 0), think(1)], true);
+	assert.deepEqual(thinking.map((b) => b.kind), ["plain", "work"], "还在想：锚先挂上");
+	assert.deepEqual(thinking[1].runs, [], "锚下面还什么都没有");
+
+	const speaking = hidden([ask("看看", 0), think(1), say("我先看一下。", 1)], true);
+	assert.deepEqual(speaking.map((b) => b.kind), ["plain", "work"], "说了第一句：锚还在，那句话生在锚下面");
+	assert.deepEqual(items(speaking[1]), ["assistant"]);
+
+	const working = hidden([ask("看看", 0), think(1), say("我先看一下。", 1), work(1)], true);
+	assert.deepEqual(working.map((b) => b.kind), ["plain", "work"], "第一次工具调用：还是同一个锚");
+	assert.deepEqual(items(working[1]), ["~assistant", "step(read)"]);
+});
+
+test("不显示推理时，只想不做的一轮跑完就退回一句回答", () => {
+	assert.deepEqual(hidden([ask("在吗", 0), think(1), say("在。", 1)], false).map((b) => b.kind), ["plain", "plain"]);
+});
+
+test("不显示推理时，只有跑着的最后一轮因为想过而挂锚", () => {
+	const blocks = hidden([ask("在吗", 0), think(1), say("在。", 1), ask("再看看", 2), think(3)], true);
+	assert.deepEqual(blocks.map((b) => [b.kind, b.turn]), [["plain", 1], ["plain", 1], ["plain", 2], ["work", 2]]);
+	assert.deepEqual(hidden([ask("看看", 0), say("好。", 1)], true).map((b) => b.kind), ["plain", "plain"], "没想过：照旧等过程");
+});
+
+test("不显示推理时，后台结果叫醒的一轮想着也不挂锚", () => {
+	assert.deepEqual(hidden([delivered(0), think(1)], true).map((b) => b.kind), ["plain"]);
+	assert.deepEqual(hidden([delivered(0), think(1), say("看了。", 2)], true).map((b) => b.kind), ["plain", "plain"]);
 });
 
 test("不显示推理时，停在推理上的那一行留个壳：推理切掉，行还在", () => {

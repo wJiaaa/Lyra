@@ -17,7 +17,7 @@ import { SessionSuggestionNotes } from "./SessionSuggestionNote.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { computeTurnStats, isNudge, runs, runKey, turnBlocks, turnEnd, withoutThinking, type Run } from "./grouping.ts";
+import { computeTurnStats, isNudge, runs, runKey, thoughtLast, turnBlocks, turnEnd, withoutThinking, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { LiveToolCard, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
@@ -134,9 +134,9 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
   const loadingSession = useScopedLoading();
   // 推理默认不画，见 `withoutThinking`。
   const showThinking = useApp((s) => s.settings?.showThinking === true);
-  const allRuns = useMemo(() => {
+  const { allRuns, thought } = useMemo(() => {
     const list = runs(messages, compactions, commandRuns, hiccups);
-    return showThinking ? list : withoutThinking(list);
+    return showThinking ? { allRuns: list, thought: false } : { allRuns: withoutThinking(list), thought: thoughtLast(list) };
   }, [messages, compactions, commandRuns, hiccups, showThinking]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
@@ -155,8 +155,9 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
   const groupTerminal = useApp((s) => s.settings?.appearance.groupTerminal !== false);
   const groupChanges = useApp((s) => s.settings?.appearance.groupChanges === true);
   const allBlocks = useMemo(
-    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }),
-    [allRuns, groupExplore, groupTerminal, groupChanges],
+    // 跑着的那一轮想过就有锚，见 `turnBlocks` 的 `thinking`。
+    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }, running && thought),
+    [allRuns, groupExplore, groupTerminal, groupChanges, running, thought],
   );
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   /*
@@ -554,7 +555,13 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
              * 是一个压缩标记」——一旦真是，`runKey` 会去读它没有的 `message`，整页白掉。`runKey`
              * 现在认得每一种 Run，断言也就没有存在的理由了。
              */
-            const key = `${activeSessionId}:process:${runKey(block.runs[0])}`;
+            /*
+             * 按开这一轮的那句话起名，不按锚下面第一行：推理不画时，还在想的那一轮锚下面是空的，第一行等它开口
+             * 才有（见 `turnBlocks` 的 `thinking`）。按第一行起名，开口那一下锚就卸掉重建。没有开口那句的
+             * （会话的第 0 轮）才退回第一行。
+             */
+            const opener = allBlocks[range.start + at - 1];
+            const key = `${activeSessionId}:process:${runKey((opener?.turn === block.turn ? opener : block).runs[0])}`;
             /*
              * 这一轮里 agent 打开过的网页，画在锚下面那一列的最后。
              *

@@ -728,6 +728,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 export interface TurnBlock {
 	/** `work`：有过程的一轮，带一行锚。`plain`：一行原样画的东西——开口的那句话，或者没有过程的一轮里的每一行。 */
 	kind: "work" | "plain";
+	/** 跑着的一轮还在想、推理又不画时，`work` 的这一项是空的：只有锚（见 `turnBlocks` 的 `thinking`）。 */
 	runs: Run[];
 	/** 一轮里按画出来的顺序排好的每一行；`plain` 时为空。 */
 	items: TurnItem[];
@@ -869,7 +870,23 @@ function merges(category: string, grouping: ToolGrouping): boolean {
 	return true;
 }
 
-export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): TurnBlock[] {
+/**
+ * 最后一轮想过没有。推理不画时，在 `withoutThinking` 拿掉之前问这一句，交给 `turnBlocks` 的 `thinking`。
+ */
+export function thoughtLast(list: Run[]): boolean {
+	for (let at = list.length - 1; at >= 0 && !opensBlock(list[at]); at--) if (reasoning(list[at])) return true;
+	return false;
+}
+
+/**
+ * `thinking`：最后一轮还在跑，而且想过——推理不画时由 `thoughtLast` 在拿掉推理之前问出来。
+ *
+ * 推理拿掉以后，一轮要等到第一次工具调用才算有过程。锚就晚到了：模型想了半分钟、开口说了第一句，
+ * 「已工作 39 秒」才在那句话上面冒出来，那句话也被挪进锚下面重挂一遍。所以跑着的那一轮想过就算有过程，
+ * 锚从开始想就在。跑完了还是没有工具的那一轮照旧退回一句回答（`withoutThinking` 要的就是这个）——
+ * 锚在那一下拿掉，比它在跑着的时候半路冒出来好。后台结果叫醒的一轮本来就没有锚，不受影响。
+ */
+export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL, thinking = false): TurnBlock[] {
 	const out: TurnBlock[] = [];
 	let turn = 0;
 	let woken = false;
@@ -892,11 +909,14 @@ export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): Tur
 		 * 检查的那一页从写第一笔起就算：它后面要么是一次发布、要么是它自己收进过程，这一轮早晚是有过程的。
 		 * 等到那时才换成有锚的一轮，页面就换了一个父元素，重新挂一遍、闪一下。
 		 */
-		if (body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
+		const thought = thinking && end === list.length && !woken;
+		if (thought || body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
 			out.push({ kind: "work", runs: body, items: itemsOf(body, grouping), turn, ...(woken ? { woken } : {}) });
 		} else for (const run of body) plain(run);
 		at = end;
 	}
+	// 还在想、一个字没说：推理拿掉之后这一轮什么也没剩，锚先挂上。
+	if (thinking && !woken && list.length > 0 && opensBlock(list[list.length - 1])) out.push({ kind: "work", runs: [], items: [], turn });
 	return out;
 }
 
