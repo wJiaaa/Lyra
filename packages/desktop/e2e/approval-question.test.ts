@@ -52,7 +52,8 @@ async function until(condition: () => Promise<boolean>) {
 }
 
 async function settle() {
-	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
+	// 只等文档时间线上的：侧栏吸顶标题的 `ly-under-head` 挂在滚动时间线上，`finished` 永远不来，整份测试会卡死在这里。
+	await app.evaluate("Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.timeline===document.timeline&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))");
 }
 
 async function point(target: keyof typeof targets) {
@@ -154,6 +155,9 @@ test("a long final choice remains reachable through the same body scroller", asy
 	await app.evaluate(`document.querySelector(${JSON.stringify(targets.lastChoice)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
 	await settle(); await shot("approval-options-light-375"); await click("lastChoice");
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length"), 1);
+	// 列表滚下去以后点选，聚焦曾把卡片外层 overflow:hidden 的容器滚走，问题被推出卡顶、底下一片空白。只许列表自己滚。
+	await settle();
+	assert.deepEqual(await app.evaluate("[...document.querySelectorAll('[data-approval-card], [data-approval-card] *')].filter(e=>e.scrollTop>0&&!e.classList.contains('ly-scroll-view')).map(e=>({className:String(e.className).slice(0,60),scrollTop:e.scrollTop}))"), []);
 	await click("confirm");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
 	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');const t=await window.plume.sessions.transcript(s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");

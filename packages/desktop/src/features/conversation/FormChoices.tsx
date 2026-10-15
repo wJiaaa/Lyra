@@ -25,7 +25,8 @@ const PROBLEM: Record<FormProblem, MessageKey> = {
 
 function rowTone(on: boolean): string {
 	// 和提问卡（`QuestionChoices`）的选项行同一套底色：同一个卡片体系里，单选长得一样。
-	return `group flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${on ? "bg-accent/[0.08]" : "bg-card hover:bg-card-hover"}`;
+	// `relative` 让 `sr-only` 的 input 跟着行滚，理由见 `QuestionChoices` 的 `rowTone`。
+	return `group relative flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${on ? "bg-accent/[0.08]" : "bg-card hover:bg-card-hover"}`;
 }
 
 function collect(fields: readonly FormField[], draft: Draft): Record<string, unknown> {
