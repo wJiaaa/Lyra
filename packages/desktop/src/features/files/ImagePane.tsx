@@ -47,6 +47,22 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 		setGliding(false);
 	}, [src]);
 
+	/** What "fit" means for a picture of this size in the pane as it is now, in the units of a zoom. */
+	const fitFor = useCallback((size: { width: number; height: number }) => {
+		const box = viewport.current?.getBoundingClientRect();
+		// Never enlarge to fit: a 16px icon blown up to fill the pane is not what fitting means.
+		return box ? Math.min(1, (box.width - 24) / size.width, (box.height - 24) / size.height) : 1;
+	}, []);
+
+	// The pane can be dragged narrower or wider; "fit" follows it.
+	useEffect(() => {
+		const element = viewport.current;
+		if (!element || !natural) return;
+		const observer = new ResizeObserver(() => setFitted(fitFor(natural)));
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [natural, fitFor]);
+
 	const effective = scale ?? fitted;
 
 	/**
@@ -134,10 +150,8 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 					draggable={false}
 					onLoad={(event) => {
 						const size = { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight };
-						const box = viewport.current?.getBoundingClientRect();
 						// Fitted in the same update that reveals it, so the first frame shown is already the fit.
-						// Never enlarge to fit: a 16px icon blown up to fill the pane is not what fitting means.
-						setFitted(box ? Math.min(1, (box.width - 24) / size.width, (box.height - 24) / size.height) : 1);
+						setFitted(fitFor(size));
 						setNatural(size);
 					}}
 					className="absolute top-1/2 left-1/2 max-w-none origin-center select-none"
