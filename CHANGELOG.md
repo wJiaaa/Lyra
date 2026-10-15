@@ -2,6 +2,85 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.31](https://github.com/wJiaaa/Plume/releases/tag/v0.9.31) - 2026-10-15
+
+<!-- plume:notes en -->
+
+### New
+
+- **Subagents are let go as soon as they're dispatched, and each reports back when it finishes.** `task` used to wait for its subagents unless you spoke up, so with three running in parallel the main agent sat silent until the slowest was done, then all three conclusions came out in one paragraph. Dispatching now returns "dispatched", the turn wraps up, and you can keep talking. Each result is delivered as it comes back — ones that land within 400 ms of each other share a turn — naming who is still out and saying only what this one brought; when the last is in, they are merged into one answer. Whatever waits for the conversation to go idle (`wait_for_session`, archiving, idle compaction, the CLI, the "done" notification) waits for the last one. Subagents still running when Plume quits are interrupted, and the main conversation is told so the next time you speak. The price is requests: three subagents coming back separately take the main conversation from 2 requests to 5.
+- **Tool calls in a row read as one line that grows.** Consecutive calls merge into one line that counts from the first call — "Read 2 files, listed 4 directories" — and new calls are added at the end, so the words already there stay put; the width eases over, and the arrow and +N −M at the end slide along instead of jumping. Read-only shell commands (`rg`, `sed -n`, `git log`: every piped segment read-only, no redirect into a file) belong to the same exploring line as reading files. Editing, exploring and terminal work next to each other merge too, so "edit failed → `sed -n` → python → edit failed → read → edit" is one line instead of six. The browser, dispatch and preview only merge with their own kind, and the model saying something still starts a new line. The expanded/collapsed "Tool calls" switch in Settings → Appearance is gone.
+- **A running line says which call it's on.** It used to show totals ticking up — "Read 12 files, searched 5" — so a minute of exploring told you nothing about which file it was looking at. While running it names the first call still in progress and holds each phrase for at least 650 ms, so reads and greps 100–200 ms apart don't roll past before you can read them; once an answer or other work follows, it rolls over to the totals. `read`, `grep`, `glob` and `ls` take an optional description, and when the model writes one it is shown, as with bash; otherwise it falls back to "Read a.ts".
+- **Split view looks like two screens.** The gap between screens was as wide as the one between a conversation and its panels, so a terminal on each side made four identical cards with no telling which two belonged together, or which screen had focus. Each screen is now one card with the conversation on it and the tab bar floating inside (6 px from the card's edge, 3 px from the conversation, outlined, no shadow). The unfocused screen's content is a step dimmer, its composer one more, and its title grey. A single screen is unchanged.
+
+### Changes
+
+- **The model's reasoning is hidden by default.** It is a draft the model writes for itself and often runs longer than the answer. Settings → General → "Show reasoning" brings it back, in the main conversation and subagent panels alike; the bottom of the chat still says when the model is thinking.
+- **No more "Worked N s" line over each turn.** The steps lie flat in the conversation with the answer at the end, and nothing folds itself away when the turn finishes. The line repeated the number the running indicator already shows, and for models that don't stream reasoning — GPT through a proxy, say — it took ages to appear and arrived already at tens of seconds. A turn woken by a finished subagent or background command doesn't get a second header on top of the delivery line either.
+- **The task list opens expanded.** Collapsed, it showed only the current step, and how many are left and what comes next — what the card is there for — took a click. Clicking the title still folds it to one line.
+- **Icons no longer animate on hover.** They are plain lucide icons now; the 218 animated versions are gone, along with the `motion` dependency they needed.
+- **Corners and shadows come from one scale.** There were 22 radii in use, with 10, 11, 13 and 14 px side by side. 10 px corners (settings cards, tool cards, code blocks, gallery tiles) are 8 px now, 18 px ones (the message editor, slash and @ menus, the commit dialog) 16 px, and 11/13/14 px ones 12 px. Segmented controls are the same everywhere — 8 px outside, 6 px on the thumb — where the plugin page's tab strip and scope buttons were pills beside small-cornered controls on the same page.
+- **Secondary text is darker on menus and cards.** The two greys were tuned to the page background and washed out on lighter surfaces: muted text measured 3.9:1 on a dark menu, faint text 2.3:1 in the light theme. Muted is now at least 4.5:1 on every surface and faint at least 3:1. Windows' light theme used to get one extra step darker on its own; every platform now sits above that.
+- **The sidebar's top and bottom rows aren't greyed out.** They faded towards the edges, which looked like something lying over them; the project heading and the settings row are solid already and rows pass beneath them.
+- **The conversation fades 32 px at the top and 48 px at the bottom, all the way down to the composer.** In dark themes a light image or preview card scrolled to the top edge picked up a dirty dark band from the 36 px mask. The composer also kept a fixed 12 px top margin, so the fade stopped short and left a strip above it; that margin is now 0 unless an approval card, hook banner or task list sits there.
+- **Updates come from `wJiaaa/Plume`.** The repository was renamed from Lyra. Update checks and the release link in Settings → About use the new name instead of relying on GitHub's redirect.
+
+### Fixes
+
+- **A preview that is checked before publishing stays where it is.** Checking and publishing are two calls with a whole round of the model's thinking in between: the draft vanished once the check finished, the conversation sat empty for ten-odd seconds, then the page turned up somewhere lower down. 115 of the 139 preview calls on this machine were checks, so this happened to nearly every page. The draft now stays in place marked "checked, not published yet", and the published page fades in on the same spot. If the turn ends unpublished the draft goes away; a page published in a later turn is still drawn there.
+- **A terminal opened once in an empty conversation no longer comes with every new one.** Sending the first message copied the empty conversation's panels to the new session and left the copy on disk, so every later "New conversation" brought that terminal, and so did everything sent from it. Switching back to that session from an empty conversation also kept bringing closed terminals back.
+- **Paths from `grep` and `glob` with a `path` can be read.** They were written relative to the searched directory while `read` and `edit` resolve against the workspace root: a grep with `path: "src"` reported `pages/Login/index.tsx`, `read` said File not found, and the model spent a round with glob finding `src/` again. Results are relative to the workspace root now, and absolute when the searched directory is outside it.
+- **`ls` and `preview` understand `scratch://`.** `ls scratch://` said "Not a directory or not found", and `preview scratch://todo-templates.html` went looking for `<project>/scratch:/todo-templates.html`.
+- **Models whose thinking can't be switched off get conversation titles.** The title request asks for no thinking and 60 output tokens. DeepSeek V4 Flash through magpie only offers low/high/max, so it thought at low, spent all 60 tokens on reasoning and left the title empty — all 34 attempts in the logs here. Such models get 2048 tokens now; models that can switch thinking off still get 60.
+- **Dialogs no longer twitch after opening.** A centred card often lands on half a pixel, and when the opening animation ended the text snapped to the pixel grid about a quarter of a device pixel away. Opening now scales up from 0.95 and fades in over 150 ms (closing reverses in 100 ms), instead of rising 6 px, which made a centred card look like it drifted in from below.
+- **Double-clicking a word no longer pops the quote menu in the way of a triple-click.** The menu opened right after the second click, closed on the third and opened again on the paragraph. A double-click now waits 400 ms first; dragging and triple-clicks open it immediately. A single selected character no longer counts as a quote.
+- **Expanding history no longer makes +N −M and the failed and stopped marks bounce.** The pop is for a tool finishing in front of you; cards that only appeared because you expanded a group played it too.
+- **The file path pinned at the top of the changes panel isn't faded out.** The panel's 36 px top fade swallowed the 38 px sticky file header as soon as you scrolled.
+- **A second terminal's header and border follow the code theme.** Only the first terminal and file panel matched, so under Dracula or Solarized later ones had a window-coloured frame around a differently coloured terminal. The default dark theme happens to use #171717 for both, which hid it.
+- **The idle ring in the conversation list is visible in dark mode.** It measured 1.09:1 against the sidebar; it is 1.27:1 now, and 1.21:1 in light.
+- **Clicking a project row no longer flashes.** Pressing it darkened the row and releasing it undid that, on every expand and collapse; it keeps the hover colour while held.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **子代理派出去就放手，跑完一个送回一个。** 从前 `task` 默认等子代理交差，只有你插话才放手：并行派三路时，主智能体一声不吭地等最慢的那一路，三路的结论最后挤在一段话里出来。现在派出去就回一句「已派出」，这一轮先收尾，你可以接着说话。每回来一个送一份，前后脚 400ms 内回来的合成一轮；还有没回来的就点名在等谁、只说这一份带来了什么，全回来了再合成一份回答。等会话闲下来的那些（`wait_for_session`、归档、闲时压缩、命令行、「做完了」的通知）都等最后一个回来。退出 Plume 时还在跑的子代理会被打断，你下次开口时主会话会知道。代价是请求数：三路分开回来，主会话的请求从 2 次变成 5 次。
+- **连着的工具调用合成一行，往句尾接。** 一行从第一次调用起就说累计的「读取文件 2 个、列出目录 4 个」，新的调用接在句尾，前面的字不动；宽度缓过去，行尾的箭头和 +N -M 是被推过去的，不是跳过去的。`rg`、`sed -n`、`git log` 这类只读命令（管道里每一段都只读、没有写文件的重定向）和读文件归成同一行探索。改代码、探索、终端挨在一起也合：「edit 失败 → `sed -n` 看一眼 → python 改 → edit 失败 → read → edit」从六行变成一行。浏览器、派发、预览仍然只和同类合，模型说了话照旧另起一行。设置 › 外观里「调用链」的展开 / 折叠开关删掉了。
+- **跑着的那一行说正在跑的那次调用。** 从前跑着时只说总数「读取文件 12 个、搜索内容 5 个」，一段探索跑一分钟，只看得到数字在涨，不知道它正在看哪个文件。现在说的是第一个还在跑的调用，每一句至少停 650ms——连着的 read、grep 一两百毫秒一换，不停一下字还没读完就滚走了；后面接上回答或别的活，再滚成总数。`read`、`grep`、`glob`、`ls` 多了可选的说明，模型写了就用它，和 bash 一样；没写退回「读取文件 a.ts」。
+- **分屏时看得出是两屏、焦点在哪一屏。** 从前屏与屏之间的缝和屏内对话、面板之间的缝一样宽，两屏各开一个终端就是四张一样的卡，看不出哪两张是一组，也不知道自己在哪个会话下面。现在每一屏是一张卡，对话铺在上面，标签栏浮在屏卡里（离边 6px、挨对话一边 3px，只有描边不投影）。非焦点屏的内容淡一档、输入框再淡一档，标题变灰。单屏不变。
+
+### 变化
+
+- **对话里默认不再摊开模型的推理。** 推理是模型写给自己的草稿，常常比回答还长。设置 › 常规 →「显示思考过程」可以打开，主会话和子智能体面板同一个开关；模型在想的时候，底部的运行指示照旧会说。
+- **不再给每一轮挂「已工作 N 秒」那一行。** 过程一行行摊在对话里，回答跟在最后，跑完也不自己收起。那一行说的和底部运行指示是同一个数，而经代理的 GPT 这类不流推理的模型，它要么迟迟不出，要么一出来就是几十秒。子智能体或后台命令跑完叫醒的那一轮，也不再在送达那一行上面多挂一个标题。
+- **任务清单默认展开。** 收起时只看得到当前那一步，「还剩几步、接下来做什么」正是这张卡片要回答的，却得先点一下。点标题照样能收成一行。
+- **悬停时图标不再动。** 统一用 lucide 原版，218 个动画版图标和只为它们装的 `motion` 依赖一起删掉了。
+- **圆角和阴影收成一套刻度。** 从前界面里有 22 种圆角，10、11、13、14px 并排出现。现在 10px 那一组（设置卡片、工具卡片、代码块、画廊方块）是 8px，18px 那一组（消息编辑框、斜杠和 @ 菜单、提交弹窗）是 16px，11/13/14px 是 12px。分段控件处处一样：外框 8px、滑块 6px——插件页的标签条和范围按钮从前是胶囊，同一页上别的分段控件是小圆角。
+- **次要文字在菜单、卡片上更深了。** 两档灰原来按页面底色定，落到更浅的表面上就发灰发飘：深色菜单上次要文字只有 3.9:1，浅色下最浅那档只有 2.3:1。现在次要文字在每种表面上都 ≥4.5:1，最浅那档 ≥3:1。Windows 浅色原来单独多深一步，现在所有平台都在那一步之上。
+- **侧边栏上下两头的行不再像盖了一层灰。** 两头原来往边上淡出，看着像被什么压住；项目标题和底部设置行本来就是实心的，行是从它们下面穿过去的。
+- **会话区渐隐收成顶 32px、底 48px，一直淡到输入框边上。** 深色主题下，浅色图片、预览卡滚到顶边，会被 36px 的遮罩压出一条发脏的暗带。输入框上方原来固定留 12px，渐隐到它上面就停了，中间空出一条；现在只有对话时这 12px 收掉，上面叠着审批卡片、Hook 提示条或任务清单时照旧留着。
+- **更新改从 `wJiaaa/Plume` 取。** 仓库从 Lyra 改了名，更新检查和设置 › 关于里的发布页链接都换成新名字，不再靠 GitHub 的重定向。
+
+### 修复
+
+- **先检查再发布的网页预览，不再写完就消失、再在下面另起一张。** 检查和发布是两次调用，中间隔着模型一整轮推理：检查完草稿就撤了，对话里空着十几秒，页面再换个位置出现。本机 139 次 preview 调用里 115 次是检查，几乎每一页都这样。现在草稿留在原地、标着「检查过了，还没发布」，发布的页面就在那个位置淡入接上。这一轮结束还没发布的，草稿撤掉；隔一轮才发布的，页面仍画在发布那里。
+- **空白对话里开过一次终端，之后的新对话不再都带着它。** 发出第一条消息时，空白对话摆好的面板是抄给新会话的，草稿那份留在盘上，于是之后每个「新对话」都带着那个终端，从它发出去的会话也一个个继承。从空白对话点回那个会话时，关掉的终端也会再冒出来。
+- **grep、glob 带 `path` 搜出的路径，拿去读不再报找不到。** 结果原来相对搜索目录写，而 `read`、`edit` 按工作区根解析：grep 带 `path: "src"` 报出 `pages/Login/index.tsx`，原样去读得到 File not found，又要搭一轮 glob 才找回 `src/`。现在都相对工作区根写，搜索目录在工作区外时给绝对路径。
+- **`ls`、`preview` 也认 `scratch://`。** 从前 `ls scratch://` 报「Not a directory or not found」，`preview scratch://todo-templates.html` 去找 `<项目>/scratch:/todo-templates.html`。
+- **关不掉思考的模型也能生成会话标题。** 标题请求要求不思考、输出上限 60。经 magpie 接入的 DeepSeek V4 Flash 只有 low/high/max 三档，「不思考」被就近提到 low，60 个 token 全花在推理上，标题是空的——本机日志里它的 34 次全是这样。这类模型现在给 2048，能关思考的仍是 60。
+- **弹窗打开后文字不再抖一下。** 居中的卡片常落在半像素上，进场动画一结束，文字重新对齐像素网格，挪了约四分之一个设备像素。进场也改成从 0.95 倍原地放大、淡入（150ms），退场反过来（100ms）；原来往上升 6px，一个居中的卡片看着像从下面飘上来的。
+- **双击选词不再立刻弹出划词菜单、打断三击选段。** 从前第二下松开就弹，接着点第三下时菜单先被收起、松开又在整段上弹一次，一次三击闪两回。现在双击先等 400ms，拖选和三击照旧立刻弹。只选中一个字不再算引文。
+- **展开历史时，+N -M 和失败、停止的标记不再弹一下。** 那一下是给眼前刚跑完的工具的，展开分组时才出现的卡片也跟着播了。
+- **文件变更面板滚动后，钉在顶上的文件路径不再被淡掉一截。** 面板 36px 的顶部渐隐，一滚动就把 38px 高的文件头整个盖进去。
+- **第二个终端的标题栏和边框也跟代码主题走。** 从前只有第一个终端和文件面板换底色，换成 Dracula、Solarized 这类主题时，后开的那个是一圈窗口底色套着一块别的颜色。默认深色主题下两者恰好都是 #171717，所以一直没露出来。
+- **深色模式下，会话列表空闲态的状态圆环看得见了。** 从前在侧栏上只有 1.09:1，现在 1.27:1，浅色 1.21:1。
+- **点项目行不再闪一下。** 按下时底色加深、松手退回，而点项目行就是在折叠展开，每点一次闪一次；现在按住和悬停同色。
+
+</details>
+
 ## [0.9.30](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.30) - 2026-10-14
 
 <!-- plume:notes en -->
