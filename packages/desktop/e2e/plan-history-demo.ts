@@ -31,19 +31,17 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 	console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(measured)}`);
 };
 
-const PLAN = {
-	title: "登录改成 OAuth",
-	current: "登录只有账号密码一条路：校验密码后写会话。",
-	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话。",
-	changes: [
-		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
-		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
-		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
-	],
-	verification: ["跑 oauth 的测试"],
-	risks: ["回调地址在本地和线上不同"],
-	unknowns: [],
-};
+const TITLE = "登录改成 OAuth";
+const CHANGES = [
+	"抽出写会话的那段，给 OAuth 复用",
+	"加 OAuth 回调路由，换取 token 后写会话（`src/auth/oauth.ts`）",
+	"补回调和会话写入的测试",
+];
+/** 计划是一段 Markdown，照 codex 的 `<proposed_plan>`：标题、概要、主要改动、测试、假设。 */
+const planOf = (changes: string[]) => ({
+	plan: [`# ${TITLE}`, "", "## 概要", "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮。", "", "## 主要改动", ...changes.map((change) => `- ${change}`), "", "## 测试", "- 跑 oauth 的测试", "- 本地点一次「用 GitHub 登录」，走完回调后会话里有用户", "", "## 假设", "- 线上和本地用同一个 OAuth 应用，回调地址分别配置"].join("\n"),
+});
+const PLAN = planOf(CHANGES);
 
 async function seed(home: string): Promise<void> {
 	const cwd = join(home, "project");
@@ -115,7 +113,7 @@ async function pane() {
 		return {
 			shown:Boolean(pane&&pane.checkVisibility({visibilityProperty:true})),
 			h1:pane?.querySelector('[data-plan-body] h1')?.textContent??"",
-			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
+			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="主要改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			status:pane?.querySelector('[data-plan-status]')?.textContent??"",
 			hint:Boolean(pane?.querySelector('[data-plan-hint]')),
 		};
@@ -145,7 +143,7 @@ try {
 	await until(app, `document.querySelector(${JSON.stringify(`${PANE} [data-plan-body]`)})`, 600);
 	await pause(1200);
 	const approved = await pane();
-	check("点开就是会话历史里那份计划：标题、三处改动、标「已批准」，没有评论提示", approved.shown && approved.h1 === PLAN.title && approved.changes === 3 && approved.status === "已批准" && !approved.hint, approved);
+	check("点开就是会话历史里那份计划：标题、三处改动、标「已批准」，没有评论提示", approved.shown && approved.h1 === TITLE && approved.changes === 3 && approved.status === "已批准" && !approved.hint, approved);
 	await photo("03_重开后的计划面板_已批准");
 
 	await openSession(app, "plan-declined");

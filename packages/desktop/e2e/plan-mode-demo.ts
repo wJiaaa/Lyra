@@ -2,7 +2,7 @@
 /**
  * 计划模式在真窗口里走一遍：芯片的关与开、`/plan` 两种用法、计划审批卡片与右栏的计划面板、批准后芯片自己熄掉。
  *
- * 模型是本地起的假服务（照 `ask-user-card-demo.ts`）：收到 `PLAN_ME` 就调 `submit_plan` 交一份五步计划，
+ * 模型是本地起的假服务（照 `ask-user-card-demo.ts`）：收到 `PLAN_ME` 就调 `submit_plan` 交一份计划，
  * 收到那次调用的结果就说一句话收尾。它同时记下每次请求带了哪些工具——`submit_plan` 只在计划模式那一轮
  * 才装进工具表，这是开关真的到了 core 的证据，不是只在界面上亮了一下。
  *
@@ -38,21 +38,19 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 	console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(measured)}`);
 };
 
-const PLAN = {
-	title: "登录改成 OAuth",
-	current: "登录只有账号密码一条路：校验密码后写会话，登录页是一张表单。",
-	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮，旧的密码登录留在开关后面。",
-	changes: [
-		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
-		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
-		{ file: "src/pages/Login.tsx", what: "登录页把表单换成「用 GitHub 登录」按钮" },
-		{ file: "src/config.ts", what: "旧的密码登录保留一个版本，打开开关才走" },
-		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
-	],
-	verification: ["跑 oauth 的测试", "本地点一次「用 GitHub 登录」，走完回调后会话里有用户"],
-	risks: ["回调地址在本地和线上不同，配错了登录直接失败"],
-	unknowns: ["线上用的是哪个 OAuth 应用"],
-};
+const TITLE = "登录改成 OAuth";
+const CHANGES = [
+	"抽出写会话的那段，给 OAuth 复用",
+	"加 OAuth 回调路由，换取 token 后写会话（`src/auth/oauth.ts`）",
+	"登录页把表单换成「用 GitHub 登录」按钮",
+	"旧的密码登录保留一个版本，打开开关才走",
+	"补回调和会话写入的测试",
+];
+/** 计划是一段 Markdown，照 codex 的 `<proposed_plan>`：标题、概要、主要改动、测试、假设。 */
+const planOf = (changes: string[]) => ({
+	plan: [`# ${TITLE}`, "", "## 概要", "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮。", "", "## 主要改动", ...changes.map((change) => `- ${change}`), "", "## 测试", "- 跑 oauth 的测试", "- 本地点一次「用 GitHub 登录」，走完回调后会话里有用户", "", "## 假设", "- 线上和本地用同一个 OAuth 应用，回调地址分别配置"].join("\n"),
+});
+const PLAN = planOf(CHANGES);
 
 /** 每次请求带着的工具名，按到达顺序。 */
 const requests: { tools: string[]; tail: string }[] = [];
@@ -200,7 +198,7 @@ try {
 			pre:card.querySelectorAll('pre').length,
 			actions:[...card.querySelectorAll('[data-plan-action]')].map(e=>e.getAttribute('data-plan-action')),
 			open:Boolean(card.querySelector('[data-approval-open-plan]')),
-			pane:[...document.querySelectorAll('[data-dock-content="plan"] [data-plan-body] h2')].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
+			pane:[...document.querySelectorAll('[data-dock-content="plan"] [data-plan-body] h2')].find(e=>e.textContent==="主要改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			height:Math.round(card.getBoundingClientRect().height),
 		};
 	})()`);
@@ -219,7 +217,7 @@ try {
 	check("批准之后的那次请求照常进行", requests.some((request) => request.tail.includes('"tool_result"')), requests.length);
 	// 计划是方案不是清单：批准不往清单里写，拆步是模型自己 `todo_write` 的事。
 	const listed = await app.evaluate<string>(`document.querySelector('[data-ly-task-list]')?.textContent ?? ""`);
-	check("批准后计划不照搬进任务清单", !PLAN.changes.some((change) => listed.includes(change.what)), listed.slice(0, 200));
+	check("批准后计划不照搬进任务清单", !CHANGES.some((change) => listed.includes(change)), listed.slice(0, 200));
 	await photo("05_批准后自动关");
 	await stopRecording();
 	stopRecording = undefined;

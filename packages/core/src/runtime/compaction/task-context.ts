@@ -34,7 +34,7 @@ export function taskContextFromHistory(messages: Message[]): CompactionContext {
 		} else if (message.role === "toolResult" && message.toolName === SUBMIT_PLAN_TOOL_NAME && !message.isError) {
 			// 只认批准的那份：打回的是反馈，不是计划。后一次批准覆盖前一次。
 			const details = message.details as { kind?: string; plan?: CompactionContext["plan"] } | undefined;
-			if (details?.kind === "plan" && details.plan && Array.isArray(details.plan.changes)) context.plan = details.plan;
+			if (details?.kind === "plan" && typeof details.plan?.plan === "string") context.plan = details.plan;
 		}
 	}
 	return context;

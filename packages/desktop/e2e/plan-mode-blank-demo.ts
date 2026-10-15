@@ -36,14 +36,15 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 	console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(measured)}`);
 };
 
-const PLAN = {
-	title: "登录改成 OAuth",
-	approach: "加一条 OAuth 回调路由，复用现有的写会话。",
-	changes: [{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由" }],
-	verification: ["跑 oauth 的测试"],
-	risks: [],
-	unknowns: [],
-};
+const TITLE = "登录改成 OAuth";
+const CHANGES = [
+	"加 OAuth 回调路由（`src/auth/oauth.ts`）",
+];
+/** 计划是一段 Markdown，照 codex 的 `<proposed_plan>`：标题、概要、主要改动、测试、假设。 */
+const planOf = (changes: string[]) => ({
+	plan: [`# ${TITLE}`, "", "## 概要", "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮。", "", "## 主要改动", ...changes.map((change) => `- ${change}`), "", "## 测试", "- 跑 oauth 的测试", "", "## 假设", "- 线上和本地用同一个 OAuth 应用，回调地址分别配置"].join("\n"),
+});
+const PLAN = planOf(CHANGES);
 
 const requests: { tools: string[]; tail: string }[] = [];
 /** agent 那一轮的请求。新会话还会发一次不带工具的起标题请求，它不算。 */

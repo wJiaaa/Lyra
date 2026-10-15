@@ -13,39 +13,20 @@ export type PlanDraft = Omit<ApprovedPlan, "approvedAt">;
 
 /** 计划在转录、审批卡片、计划面板和压缩快照里长的样子。 */
 export function renderPlan(plan: PlanDraft): string {
-	const lines: string[] = [];
-	if (plan.title) lines.push(`# ${plan.title}`, "");
-	if (plan.current) lines.push("## 现状", plan.current, "");
-	lines.push("## 方案", plan.approach);
-	if (plan.changes.length) lines.push("", "## 改动", ...plan.changes.map((change) => `- \`${change.file}\`：${change.what}`));
-	if (plan.verification.length) lines.push("", "## 验证", ...plan.verification.map((check) => `- ${check}`));
-	if (plan.risks.length) lines.push("", "## 风险", ...plan.risks.map((risk) => `- ${risk}`));
-	if (plan.unknowns.length) lines.push("", "## 未确定", ...plan.unknowns.map((unknown) => `- ${unknown}`));
-	if (plan.notes) lines.push("", "## 执行时注意", plan.notes);
-	return lines.join("\n");
+	return plan.notes ? `${plan.plan}\n\n## 执行时注意\n${plan.notes}` : plan.plan;
 }
 
-const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined);
-const texts = (value: unknown): string[] => (Array.isArray(value) ? value.flatMap((item) => text(item) ?? []) : []);
+/** 计划的标题：正文第一个标题，没有就取第一行。 */
+export function planTitle(plan: PlanDraft): string {
+	const lines = plan.plan.split("\n").map((line) => line.trim()).filter(Boolean);
+	const heading = lines.find((line) => line.startsWith("#"));
+	return (heading ?? lines[0] ?? "").replace(/^#+\s*/, "");
+}
 
 /** 模型交上来的参数整理成计划；不成形时返回说给模型听的那句错误。 */
 export function normalizePlan(args: Record<string, unknown>): PlanDraft | string {
-	const approach = text(args.approach);
-	if (!approach) return "Describe the approach in `approach`.";
-	if (!Array.isArray(args.changes) || args.changes.length === 0) return "List the files you will change in `changes`.";
-	const changes: PlanDraft["changes"] = [];
-	for (const change of args.changes as unknown[]) {
-		const { file, what } = (typeof change === "object" && change !== null ? change : {}) as { file?: unknown; what?: unknown };
-		const path = text(file);
-		const edit = text(what);
-		if (!path || !edit) return "Every change needs a nonempty `file` and `what`.";
-		changes.push({ file: path, what: edit });
-	}
-	const verification = texts(args.verification);
-	if (verification.length === 0) return "Say how you will verify the change in `verification`.";
-	const title = text(args.title);
-	const current = text(args.current);
-	return { ...(title ? { title } : {}), ...(current ? { current } : {}), approach, changes, verification, risks: texts(args.risks), unknowns: texts(args.unknowns) };
+	const plan = typeof args.plan === "string" ? args.plan.trim() : "";
+	return plan ? { plan } : "Put the whole plan, as Markdown, in `plan`.";
 }
 
 export interface CurrentPlan {
@@ -75,7 +56,7 @@ export function currentPlan(messages: readonly Message[]): CurrentPlan | null {
 			const kind = (message.details as { kind?: string } | undefined)?.kind;
 			results.set(message.toolCallId, message.isError ? "error" : kind === "plan" ? "approved" : "declined");
 			const approved = (message.details as { plan?: ApprovedPlan } | undefined)?.plan;
-			if (!message.isError && kind === "plan" && approved && Array.isArray(approved.changes)) {
+			if (!message.isError && kind === "plan" && typeof approved?.plan === "string") {
 				const { approvedAt: _approvedAt, ...plan } = approved;
 				approvedPlans.set(message.toolCallId, plan);
 			}

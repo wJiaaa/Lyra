@@ -3,7 +3,7 @@
  * 计划面板在真窗口里走一遍：计划交上来时右栏自己打开「计划」标签，面板里划一段字留评论，
  * 选「要改」时评论跟着打回理由一起到了模型那里，之后面板只读。
  *
- * 模型是本地起的假服务（照 `plan-mode-demo.ts`）：收到 `PLAN_ME` 就交一份五步计划，收到打回就说一句话收尾，
+ * 模型是本地起的假服务（照 `plan-mode-demo.ts`）：收到 `PLAN_ME` 就交一份计划，收到打回就说一句话收尾，
  * 并记下每次请求的最后两条消息——评论真的到了 core、进了发给模型的那条工具结果，就是在这里量出来的。
  *
  * 用法：先 `pnpm --filter @plume/desktop build`，再
@@ -37,33 +37,22 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 	console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(measured)}`);
 };
 
-const PLAN = {
-	title: "登录改成 OAuth",
-	current: "登录只有账号密码一条路：校验密码后写会话，登录页是一张表单。",
-	approach: "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮，旧的密码登录留在开关后面。",
-	changes: [
-		{ file: "src/auth/login.ts", what: "抽出写会话的那段，给 OAuth 复用" },
-		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，换取 token 后写会话" },
-		{ file: "src/pages/Login.tsx", what: "登录页把表单换成「用 GitHub 登录」按钮" },
-		{ file: "src/config.ts", what: "旧的密码登录保留一个版本，打开开关才走" },
-		{ file: "test/oauth.test.ts", what: "补回调和会话写入的测试" },
-	],
-	verification: ["跑 oauth 的测试", "本地点一次「用 GitHub 登录」，走完回调后会话里有用户"],
-	risks: ["回调地址在本地和线上不同，配错了登录直接失败"],
-	unknowns: ["线上用的是哪个 OAuth 应用"],
-};
+const TITLE = "登录改成 OAuth";
+const CHANGES = [
+	"抽出写会话的那段，给 OAuth 复用",
+	"加 OAuth 回调路由，换取 token 后写会话（`src/auth/oauth.ts`）",
+	"登录页把表单换成「用 GitHub 登录」按钮",
+	"旧的密码登录保留一个版本，打开开关才走",
+	"补回调和会话写入的测试",
+];
+/** 计划是一段 Markdown，照 codex 的 `<proposed_plan>`：标题、概要、主要改动、测试、假设。 */
+const planOf = (changes: string[]) => ({
+	plan: [`# ${TITLE}`, "", "## 概要", "加一条 OAuth 回调路由，换到 token 后复用现有的写会话；登录页换成「用 GitHub 登录」按钮。", "", "## 主要改动", ...changes.map((change) => `- ${change}`), "", "## 测试", "- 跑 oauth 的测试", "- 本地点一次「用 GitHub 登录」，走完回调后会话里有用户", "", "## 假设", "- 线上和本地用同一个 OAuth 应用，回调地址分别配置"].join("\n"),
+});
+const PLAN = planOf(CHANGES);
 
 /** 按评论改过的第二版：打回后模型重交的那一份。 */
-const REVISED = {
-	...PLAN,
-	changes: [
-		PLAN.changes[0]!,
-		{ file: "src/auth/oauth.ts", what: "加 OAuth 回调路由，先校验 state 再换 token 写会话" },
-		PLAN.changes[2]!,
-		{ file: "src/auth/login.ts", what: "删掉旧的密码登录" },
-		PLAN.changes[4]!,
-	],
-};
+const REVISED = planOf([CHANGES[0]!, "加 OAuth 回调路由，先校验 state 再换 token 写会话（`src/auth/oauth.ts`）", CHANGES[2]!, "删掉旧的密码登录", CHANGES[4]!]);
 
 const requests: { tail: string }[] = [];
 
@@ -145,7 +134,7 @@ async function state() {
 			pane:Boolean(visible),
 			tabActive:Boolean(document.querySelector('[data-dock-pane]:not([inert]) [data-panel-tab="plan"] [aria-selected="true"]')),
 			h1:pane?.querySelector('[data-plan-body] h1')?.textContent??"",
-			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="改动")?.nextElementSibling?.querySelectorAll('li').length??0,
+			changes:[...(pane?.querySelectorAll('[data-plan-body] h2')??[])].find(e=>e.textContent==="主要改动")?.nextElementSibling?.querySelectorAll('li').length??0,
 			hint:Boolean(pane?.querySelector('[data-plan-hint]')),
 			comments:[...(card?.querySelectorAll('[data-plan-comment-text]')??[])].map(e=>e.textContent),
 			numbers:[...(card?.querySelectorAll('[data-plan-comment-chip]')??[])].map(e=>e.firstElementChild?.textContent??""),
@@ -202,7 +191,7 @@ try {
 
 	const opened = await state();
 	check("计划交上来，右栏自己打开「计划」标签并摆在前台", opened.pane && opened.tabActive, opened);
-	check("面板按 Markdown 摊开整份计划：标题和五处改动", opened.h1 === PLAN.title && opened.changes === 5, { h1: opened.h1, changes: opened.changes });
+	check("面板按 Markdown 摊开整份计划：标题和五处改动", opened.h1 === TITLE && opened.changes === 5, { h1: opened.h1, changes: opened.changes });
 	check("面板顶上提示可以划线评论", opened.hint, opened.hint);
 	const waitingLine = await app.evaluate<string>(`document.querySelector('[data-ly-waiting]')?.textContent??""`);
 	check("对话底部那一行说的是「等你审批计划」", waitingLine === "等你审批计划", waitingLine);
@@ -286,7 +275,7 @@ try {
 		};
 	})()`);
 	check("面板显示已批准的第二版，末尾多一节「执行时注意」", done.status === "已批准" && done.notes, done);
-	check("批准后计划不照搬进任务清单：清单由模型自己拆", !REVISED.changes.some((change) => done.tasks.includes(change.what)), done.tasks.slice(0, 200));
+	check("批准后计划不照搬进任务清单：清单由模型自己拆", !CHANGES.some((change) => done.tasks.includes(change)), done.tasks.slice(0, 200));
 	await photo("08_带评论接受后");
 	await pause(800);
 } catch (error) {

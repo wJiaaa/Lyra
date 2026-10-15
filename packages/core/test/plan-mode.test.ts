@@ -9,7 +9,7 @@ import { buildSystemPrompt } from "../src/prompt/system.ts";
 import { ApprovalGate } from "../src/runtime/approvals.ts";
 import { compactIfNeeded } from "../src/runtime/compaction/compaction.ts";
 import { inPlanMode, PLAN_MODE_KEY, planModeTools } from "../src/runtime/plan-mode.ts";
-import { currentPlan, renderPlan } from "../src/runtime/plan-view.ts";
+import { currentPlan, planTitle, renderPlan } from "../src/runtime/plan-view.ts";
 import { PLAN_APPROVE, PLAN_REVISE, submitPlanTool } from "../src/runtime/plan-tool.ts";
 import { formatTaskContext, taskContextFromHistory } from "../src/runtime/compaction/task-context.ts";
 import { TODOS_KEY, todosFromLog } from "../src/tools/todo.ts";
@@ -90,7 +90,7 @@ function approvalFixture(mode: "ask" | "auto" | "full" = "full") {
 	const ctx: ToolContext = { ...ctxWith(state), requestApproval: (request) => gate.request(request) };
 	return { gate, state, ctx };
 }
-const PLAN = { title: "改登录", current: "只有密码登录", approach: "加一条 OAuth 回调路由", changes: [{ file: "src/auth.ts", what: "加 OAuth 回调" }, { file: "test/auth.test.ts", what: "补测试" }], verification: ["跑 auth 测试"], risks: ["回调地址要配"], unknowns: [] };
+const PLAN = { plan: "# 改登录\n\n## 概要\n加一条 OAuth 回调路由，复用现有的写会话。\n\n## 主要改动\n- 加 OAuth 回调（`src/auth.ts`）\n- 补回调的测试\n\n## 测试\n- 跑 auth 测试\n\n## 假设\n- 回调地址按本地配置" };
 
 test("approving the plan turns plan mode off and leaves the task list to the model", async () => {
 	const { gate, state, ctx } = approvalFixture("full");
@@ -99,17 +99,16 @@ test("approving the plan turns plan mode off and leaves the task list to the mod
 	assert.ok(request, "full access does not approve a plan by itself");
 	assert.equal(request.request.subject, "submit_plan");
 	assert.deepEqual(request.request.options, [PLAN_APPROVE, PLAN_REVISE]);
-	assert.match(request.request.detail, /## 现状\n只有密码登录\n\n## 方案\n加一条 OAuth 回调路由\n\n## 改动\n- `src\/auth\.ts`：加 OAuth 回调/);
-	assert.match(request.request.detail, /## 验证\n- 跑 auth 测试/);
+	assert.equal(request.request.detail, PLAN.plan, "the card shows the plan as written");
 	gate.resolve(request.id, { answer: PLAN_APPROVE });
 	const result = await pending;
 	assert.equal(result.isError, undefined);
 	assert.equal(inPlanMode(state), false);
 	assert.equal(state.get(TODOS_KEY), undefined, "the plan is the approach, not the task list");
 	assert.match(textOf(result), /todo_write/);
-	const details = result.details as { kind: string; plan: { changes: unknown[]; approvedAt: number } };
+	const details = result.details as { kind: string; plan: { plan: string; approvedAt: number } };
 	assert.equal(details.kind, "plan");
-	assert.equal(details.plan.changes.length, 2);
+	assert.equal(details.plan.plan, PLAN.plan);
 	assert.ok(details.plan.approvedAt > 0);
 });
 
@@ -135,10 +134,8 @@ test("feedback sends the plan back without leaving plan mode; silence ends the t
 
 test("a malformed plan is refused with a reason, and plan mode off has nothing to approve", async () => {
 	const { ctx, state } = approvalFixture();
-	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, approach: "  " }, ctx)), /`approach`/);
-	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, changes: [] }, ctx)), /`changes`/);
-	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, changes: [{ file: "a.ts", what: " " }] }, ctx)), /nonempty `file` and `what`/);
-	assert.match(textOf(await submitPlanTool.execute({ ...PLAN, verification: [] }, ctx)), /`verification`/);
+	assert.match(textOf(await submitPlanTool.execute({ plan: "  " }, ctx)), /`plan`/);
+	assert.match(textOf(await submitPlanTool.execute({} as never, ctx)), /`plan`/);
 	state.set(PLAN_MODE_KEY, false);
 	assert.match(textOf(await submitPlanTool.execute(PLAN, ctx)), /Plan mode is off/);
 });
@@ -185,9 +182,9 @@ test("the approved plan survives compaction beside the task list; feedback does 
 
 	assert.equal(taskContextFromHistory([feedback]).plan, undefined);
 	const context = taskContextFromHistory([feedback, approved]);
-	assert.equal(context.plan?.changes.length, 2);
+	assert.equal(context.plan?.plan, PLAN.plan);
 	assert.match(formatTaskContext(context), /User-approved plan/);
-	assert.match(formatTaskContext(context), /- `test\/auth\.test\.ts`：补测试/);
+	assert.match(formatTaskContext(context), /- 补回调的测试/);
 
 	const messages: Message[] = [{ role: "user", content: [{ type: "text", text: "改登录" }], timestamp: 1 }, approved, ...filler];
 	const first = await compactIfNeeded({ messages, model, provider, streamFn: stream, force: true });
@@ -195,7 +192,7 @@ test("the approved plan survives compaction beside the task list; feedback does 
 	const second = await compactIfNeeded({ messages: [...first.messages, ...filler], model, provider, streamFn: stream, force: true });
 	assert.ok(second);
 	const text = second.messages.flatMap((m) => m.content).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-	assert.match(text, /- `src\/auth\.ts`：加 OAuth 回调/);
+	assert.match(text, /- 加 OAuth 回调（`src\/auth\.ts`）/);
 	assert.deepEqual(taskContextFromHistory(second.messages).plan, context.plan);
 });
 
@@ -205,9 +202,10 @@ test("the system prompt explains plan mode only while it is on", async () => {
 	assert.match(await buildSystemPrompt({ ...base, planMode: true }), /Plan mode is on[\s\S]*submit_plan/);
 });
 
-test("renderPlan leaves out empty sections", () => {
-	const rendered = renderPlan({ approach: "直接改", changes: [], verification: [], risks: [], unknowns: [] });
-	assert.equal(rendered, "## 方案\n直接改");
+test("the plan is shown as written; its title is the first heading, or the first line", () => {
+	assert.equal(renderPlan(PLAN), PLAN.plan);
+	assert.equal(planTitle(PLAN), "改登录");
+	assert.equal(planTitle({ plan: "\n直接改这一行\n- 细节" }), "直接改这一行");
 });
 
 test("an approved plan writes no task list into the log; only todo_write does", () => {
@@ -224,7 +222,7 @@ test("currentPlan reads the last submitted plan off the log, approved or not", (
 		({ role: "assistant", content: [{ type: "toolCall", id, name: "submit_plan", arguments: args }], timestamp: 1 }) as unknown as Message;
 	const result = (id: string, details: unknown, isError = false) =>
 		({ role: "toolResult", toolCallId: id, toolName: "submit_plan", content: [], isError, details, timestamp: 1 }) as Message;
-	const second = { ...PLAN, title: "改登录 v2" };
+	const second = { plan: PLAN.plan.replace("# 改登录", "# 改登录 v2") };
 
 	assert.equal(currentPlan([]), null);
 	// 还在等审批：没有结果。
@@ -235,7 +233,7 @@ test("currentPlan reads the last submitted plan off the log, approved or not", (
 	const approved = [...declined, call("b", second), result("b", { kind: "plan", plan: { ...second, approvedAt: 1 } })];
 	assert.deepEqual(currentPlan(approved), { plan: second, status: "approved", toolCallId: "b" });
 	// 被工具当场退回的那次人没见过，不算。
-	assert.equal(currentPlan([...approved, call("c", { ...PLAN, changes: [] }), result("c", undefined, true)])?.toolCallId, "b");
+	assert.equal(currentPlan([...approved, call("c", { plan: "" }), result("c", undefined, true)])?.toolCallId, "b");
 	assert.equal(currentPlan([...approved, call("d", PLAN), result("d", undefined, true)])?.toolCallId, "b");
 	// 压缩以后调用不在了，读快照里批准的那份。
 	const compacted = { role: "user", synthetic: true, content: [], timestamp: 2, compactionContext: { plan: { ...PLAN, approvedAt: 1 } } } as unknown as Message;

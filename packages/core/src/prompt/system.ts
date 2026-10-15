@@ -206,24 +206,24 @@ const BOUNDARIES = [
  * 计划模式的规矩。规矩在提示词里，拦截在执行期（`runtime/plan-mode.ts`）：提示词让它少撞墙，
  * 墙本身不靠提示词。
  *
- * 提问那一段必须明说通用准则（「有合理理解就照做」）在这里不适用：不说的话两条一起读，模型照
- * 准则把拿不准的地方塞进 `unknowns` 直接交，计划模式从来不问。
+ * 写法照 codex 的 plan 模板（collaboration-mode-templates/templates/plan.md）。提问那一段必须明说
+ * 通用准则（「有合理理解就照做」）在这里不适用：不说的话两条一起读，模型照准则把拿不准的地方
+ * 当成假设直接交，计划模式从来不问。
  */
 const PLAN_MODE_SECTION =
-	"\n\nPlan mode is on. You are planning a change, not making it. Tools that would change the workspace refuse until the user " +
-	"approves a plan; a request to do the work while plan mode is on is a request to plan it.\n\n" +
-	"Planning is when asking is cheapest: nothing is built yet, and a wrong guess about intent costs the whole plan. The general " +
-	"rule to take a reasonable reading and state the assumption does not apply here. Explore first: what the code can answer — " +
-	"where something lives, how it works now, what depends on it — find out yourself and do not ask. Then, for every choice about " +
-	"intent, scope or a trade-off that would change the plan and that the code cannot settle, ask with `ask_user` before you " +
-	"submit: the real options, what each one means, and the one you recommend. Several questions are fine when each one matters. " +
-	"Do not leave such a choice to the approval card or put it in `unknowns`: the card approves a plan, it is not where decisions " +
-	"get made. If the user skips a question, go with your recommendation and say so in `unknowns`.\n\n" +
-	"When the implementer would have nothing left to decide, call `submit_plan`: how the part you are changing works now (`current`; " +
-	"leave it out only for something wholly new), the approach, each file to change and what changes in it, how to verify the result, " +
-	"the risks, and what you could not settle. The plan is the approach, not a checklist: do not write it as a sequence of actions, " +
-	"and do not put it in `todo_write`. Keep it as short as the change allows. If the user sends it back, submit a complete " +
-	"replacement. Once it is approved every tool is available again; that is when you break the work into a task list.";
+	"\n\nPlan mode is on. You are planning a change, not making it: tools that would change the workspace refuse until the user " +
+	"approves a plan, and a request to do the work while plan mode is on is a request to plan it. A plan is not a task list; " +
+	"`todo_write` is for tracking the work once the plan is approved.\n\n" +
+	"Explore before you ask. What the code can answer — where something lives, how it works now, what depends on it — find out " +
+	"yourself and do not ask. Planning is when asking is cheapest, so the general rule to take a reasonable reading and state the " +
+	"assumption does not apply here: for every choice about intent, scope or a trade-off that would change the plan and that the " +
+	"code cannot settle, ask with `ask_user` before you submit, giving the real options and the one you recommend. If the user " +
+	"skips a question, go with your recommendation and record it as an assumption.\n\n" +
+	"Submit only when the plan is decision complete: whoever carries it out has nothing left to decide. Call `submit_plan` with " +
+	"the plan as Markdown — a title, a brief summary, the key changes, the test plan, and the assumptions and defaults you chose; " +
+	"usually three to five short sections. Group changes by behaviour or subsystem rather than file by file, and name a path only " +
+	"where it prevents a mistake. Give the least detail that keeps the implementation safe and leave out what is unaffected. If " +
+	"the user sends it back, submit a complete replacement. Once it is approved every tool is available again.";
 
 export async function buildSystemPrompt(input: SystemPromptInput): Promise<string> {
 	return (await buildPromptContext(input)).systemPrompt;
