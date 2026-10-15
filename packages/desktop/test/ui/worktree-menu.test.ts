@@ -255,3 +255,35 @@ test("删除确认：说出工作树里留下的东西", async () => {
 	const plain = await deleteSessionQuestion(meta({ worktree: undefined }), () => {});
 	assert.equal(typeof plain.detail, "string", "a conversation without a worktree asks as before");
 });
+
+test("删除确认：下面嵌套着会话时说它们会留下，并给一个连它们一起删的按钮", async () => {
+	const plain = { worktree: undefined, cwd: "/work/app" };
+	// Only an archived conversation offers 删除; its children stand on their own in the sidebar by then.
+	const parent = meta({ ...plain, id: "p", createdAt: 1, archived: true });
+	const child = meta({ ...plain, id: "c", createdAt: 2, spawnedFrom: { sessionId: "p", toolCallId: "t1" } });
+	const grandchild = meta({ ...plain, id: "g", createdAt: 3, archived: true, spawnedFrom: { sessionId: "c", toolCallId: "t2" } });
+	const deleted: string[] = [];
+	useApp.setState({
+		activeSessionId: null,
+		sessions: [parent, child, grandchild],
+		deleteSession: async (one: SessionMeta) => {
+			deleted.push(one.id);
+		},
+	});
+
+	const asked = await deleteSessionQuestion(parent, () => deleted.push("p"));
+	const view = await mount(h("p", null, asked.detail));
+	views.push(view);
+	assert.match(view.text(), /它下面嵌套着 2 个会话。只删这一个的话，它们会留下，成为独立的会话。/, "archived or not, a suggestion's suggestion counts too");
+	assert.equal(asked.confirmLabel, "删除此会话");
+	assert.equal(asked.alternate?.label, "删除 3 个会话");
+
+	asked.alternate!.onConfirm();
+	await settle();
+	assert.deepEqual(deleted, ["c", "g", "p"], "nested ones go before the one they hang under");
+
+	const leaf = await deleteSessionQuestion(grandchild, () => {});
+	assert.equal(typeof leaf.detail, "string", "nothing nested: asked as before");
+	assert.equal(leaf.alternate, undefined);
+	assert.equal(leaf.confirmLabel, "删除");
+});

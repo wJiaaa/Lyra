@@ -6,6 +6,9 @@
  * takes the folder and, once its commits are all in the base, the branch (`sessions:remove`). What would
  * outlive it is named, because it is the one part of the work not deleted with it: uncommitted files left
  * where they are, unmerged commits left on their branch.
+ *
+ * Conversations started from its suggestions (nested under it in the sidebar) are not deleted with it:
+ * they stay, each a conversation of its own. That is said, and deleting them all at once is the second answer.
  */
 
 import type { SessionMeta } from "@plume/core";
@@ -13,7 +16,9 @@ import type { WorktreeState } from "../../../electron/ipc-types.ts";
 import { translate } from "../../i18n/translate.ts";
 import { tildeHome } from "../../lib/paths.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
+import { nestSpawned, withSpawned } from "../../lib/sidebar-grouping.ts";
 import { bridge } from "../../services/index.ts";
+import { useApp } from "../../store/index.ts";
 import type { ConfirmOptions } from "../../ui/overlay/Confirm.tsx";
 
 /** How long the dialog waits on git before it asks without the worktree's line. */
@@ -39,23 +44,53 @@ function worktreeStateOf(meta: SessionMeta): Promise<WorktreeState | null> {
 }
 
 export async function deleteSessionQuestion(meta: SessionMeta, onConfirm: () => void): Promise<ConfirmOptions> {
-	const detail = translate("sidebarList.deleteDetail", { title: sessionTitle(meta.title), n: meta.messageCount });
-	const note = meta.worktree ? await worktreeNote(meta) : null;
+	const title = sessionTitle(meta.title);
+	const detail = translate("sidebarList.deleteDetail", { title, n: meta.messageCount });
+	const nested = nestedUnder(meta);
+	const worktree = meta.worktree ? await worktreeNote(meta) : null;
+	const note = "mt-1.5 block [overflow-wrap:anywhere]";
 	return {
 		title: translate("sidebarList.deleteConfirm"),
-		detail: note ? (
+		detail: nested.length || worktree ? (
 			<>
 				{detail}
-				<span data-ly-delete-worktree="" className="mt-1.5 block [overflow-wrap:anywhere]">
-					{note}
-				</span>
+				{nested.length > 0 && (
+					<span data-ly-delete-nested="" className={note}>
+						{translate("sidebarList.deleteNested", { n: nested.length })}
+					</span>
+				)}
+				{worktree && (
+					<span data-ly-delete-worktree="" className={note}>
+						{worktree}
+					</span>
+				)}
 			</>
 		) : (
 			detail
 		),
-		confirmLabel: translate("common.delete"),
+		confirmLabel: nested.length ? translate("sidebarList.deleteOnlyThis") : translate("common.delete"),
+		alternate: nested.length
+			? {
+					label: translate("sidebarList.deleteWithNested", { n: nested.length + 1 }),
+					// Nested ones first: deleting the parent first lifts them to the top level for the moment before they go.
+					onConfirm: () => void Promise.all(nested.map((child) => useApp.getState().deleteSession(child))).then(onConfirm),
+				}
+			: undefined,
 		onConfirm,
 	};
+}
+
+/**
+ * Every conversation started from this one's suggestions, and from theirs, archived or not.
+ *
+ * Not only what the sidebar is drawing under it right now: only an archived conversation can be deleted,
+ * and an archived parent is not in the list, so its children are already standing on their own there.
+ * What deleting it changes is that they can never go back under it. Who counts as whose child is
+ * `nestSpawned`'s rule, applied to one flat list.
+ */
+function nestedUnder(meta: SessionMeta): SessionMeta[] {
+	const { spawned } = nestSpawned({ pinnedSessions: [], projects: [], loose: useApp.getState().sessions });
+	return withSpawned([meta], spawned).slice(1);
 }
 
 async function worktreeNote(meta: SessionMeta): Promise<string | null> {

@@ -84,6 +84,26 @@ test("Confirm: 两个按钮各自只触发自己的回调", async () => {
 	await view.unmount();
 });
 
+test("Confirm: 有第二种做法时三颗按钮——取消在最左，焦点仍在取消上，各自只触发自己的回调", async () => {
+	const fired: string[] = [];
+	const view = await mount(h(Confirm, {
+		title: "删除这个会话？",
+		confirmLabel: "删除此会话",
+		alternate: { label: "删除 2 个会话", onConfirm: () => fired.push("all") },
+		onConfirm: () => fired.push("one"),
+		onCancel: () => fired.push("cancel"),
+	}));
+	const buttons = [...document.querySelectorAll<HTMLButtonElement>("[data-ly-modal] button")];
+	assert.deepEqual(buttons.map((one) => one.textContent), ["取消", "删除 2 个会话", "删除此会话"]);
+	assert.equal(document.activeElement, buttons[0], "多一个出口不改变哪一个是安全的");
+	assert.doesNotMatch(buttons[1]!.className, /ly-dialog-action-danger/, "第二种做法是次要按钮");
+	assert.match(buttons[2]!.className, /ly-dialog-action-danger/);
+
+	await click(buttons[1]!);
+	await view.unmount();
+	assert.deepEqual(fired, ["all"]);
+});
+
 test("Confirm: 没有 detail 时不留空段落", async () => {
 	const view = await open({ detail: undefined });
 	assert.equal(view.all("p").length, 0, "标题已经说清楚时不该多一个空行");

@@ -57,6 +57,12 @@ export interface ConfirmOptions {
 	 * 意思就是下次还问。
 	 */
 	onCancel?: () => void;
+	/**
+	 * 同一个动词的另一种做法，比如「删除此会话」旁边的「删除 3 个会话」。
+	 *
+	 * 画成次要按钮，放在主按钮左边；有它的时候「取消」挪到最左，三颗按钮不挤成一排。
+	 */
+	alternate?: { label: string; onConfirm: () => void };
 	/** 说明和按钮之间的那一块，比如「不再询问」。大多数问题用不着。 */
 	children?: React.ReactNode;
 }
@@ -75,8 +81,10 @@ export function ConfirmBody({
 	tone = "danger",
 	onConfirm,
 	onCancel,
+	alternate,
 	children,
 }: ConfirmOptions & { onCancel: () => void }) {
+	const cancel = <DialogAction onClick={onCancel}>{cancelLabel ?? translate("common.cancel")}</DialogAction>;
 	return (
 		<DialogFrame
 			icon={tone === "danger" ? <TriangleAlert size={20} className="shrink-0 text-danger" /> : <CircleHelp size={20} className="shrink-0 text-accent" />}
@@ -95,8 +103,9 @@ export function ConfirmBody({
 					 *
 					 * 这也是应用里其它对话框的样子（权限确认、更新、新建项目），同一套 `DialogAction`。
 					 */}
+					{alternate && cancel}
 					<div className="flex-1" />
-					<DialogAction onClick={onCancel}>{cancelLabel ?? translate("common.cancel")}</DialogAction>
+					{alternate ? <DialogAction onClick={alternate.onConfirm}>{alternate.label}</DialogAction> : cancel}
 					<DialogAction tone={tone === "danger" ? "danger" : "primary"} onClick={onConfirm}>
 						{confirmLabel}
 					</DialogAction>
@@ -116,7 +125,14 @@ export function Confirm({ onCancel, ...options }: ConfirmOptions & { onCancel: (
 	return (
 		// Escape and the scrim mean the same thing as the 取消 button, so they get the same handler.
 		<Overlay onClose={onCancel} width={CONFIRM_WIDTH}>
-			{(dismiss) => <ConfirmBody {...options} onConfirm={() => dismiss(options.onConfirm)} onCancel={() => dismiss()} />}
+			{(dismiss) => (
+				<ConfirmBody
+					{...options}
+					onConfirm={() => dismiss(options.onConfirm)}
+					alternate={options.alternate && { label: options.alternate.label, onConfirm: () => dismiss(options.alternate!.onConfirm) }}
+					onCancel={() => dismiss()}
+				/>
+			)}
 		</Overlay>
 	);
 }
@@ -145,6 +161,13 @@ export function useConfirmer() {
 				onConfirm={() => {
 					setPending(null);
 					pending.onConfirm();
+				}}
+				alternate={pending.alternate && {
+					label: pending.alternate.label,
+					onConfirm: () => {
+						setPending(null);
+						pending.alternate!.onConfirm();
+					},
 				}}
 				/* 取消也可能是一个回答——见 `onCancel` 上的说明。 */
 				onCancel={() => {
