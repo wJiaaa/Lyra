@@ -237,9 +237,13 @@
 	color: var(--color-ink-muted);
 }
 
-[data-ly-split-root] [data-dock-content],
-[data-ly-split-root] [data-dock-content] .ly-composer-dock {
+[data-ly-split-root] [data-dock-content] {
 	transition: opacity var(--ly-t-quick) var(--ly-e-soft);
+}
+
+/* 这一条盖过 `composer.css` 里输入框条自己的过渡，那条上边距的过渡要一起写上，否则又是一帧切过去。 */
+[data-ly-split-root] [data-dock-content] .ly-composer-dock {
+	transition: opacity var(--ly-t-quick) var(--ly-e-soft), padding-top var(--ly-t-slow) var(--ly-e-out);
 }
 
 [data-ly-split-root] [data-ly-screen-title] {

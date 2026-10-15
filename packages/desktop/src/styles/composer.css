@@ -246,9 +246,14 @@
  *
  * No top under the transcript itself: it runs straight down to the field, as in Claude's desktop
  * app. With 12px there the bottom fade ended short of the field and left an empty strip.
+ *
+ * The top below switches between 0 and 12px by selector, while the cards and the sub-agent bar
+ * that trigger it grow through `.ly-reveal`. Snapped, the field dropped 12px in one frame and was
+ * then pushed back up by the growing row; on the reveal's own clock the two add up to one move.
  */
 .ly-composer-dock {
 	padding: 0 var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+	transition: padding-top var(--ly-t-slow) var(--ly-e-out);
 }
 
 /*
