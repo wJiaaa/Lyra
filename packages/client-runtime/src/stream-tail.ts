@@ -31,6 +31,8 @@ const BARE_MARKER = /^\s*(#{1,6}|[-*+]|\d+[.)]|>)\s*$/;
  * 段落结束。真实的行内代码和链接文字都比这短。
  */
 const HOLD = 120;
+/** 链接地址最长多少字还算链接，同桌面 `inline.ts` 的 `URL_SPAN`。 */
+const URL_SPAN = 2048;
 /** 一行内容自成一个行内单元的开头：列表项和标题。 */
 const UNIT_START = /^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s)/;
 
@@ -180,9 +182,17 @@ function closeInline(text: string): string {
 				continue;
 			}
 			if (link.state === "href") {
-				// 地址还在写：链接先只剩下它的字，图片先什么都不留。
+				/*
+				 * 地址还在写：整个先不画。只放出它的字，文件链接会先是一段字（`router.tsx:242`），
+				 * `)` 一到又换成带图标、只剩文件名的卡片，宽度跟着变，换进链接里的字还要重新淡入一遍。
+				 *
+				 * 不用 `HOLD`：绝对路径动辄上百字，`[listTestCases](/Users/…/test-case.service.ts)`
+				 * 就有 104 字。界线照 `inline.ts` 认链接的规矩来——跨了行或超过它的地址上限，写完也不是链接，
+				 * 这时才退回只留它的字。
+				 */
+				const href = text.slice(from + link.label.length + 3);
 				end = i;
-				suffix = char === "!" ? "" : link.label;
+				suffix = char === "!" || (href.length <= URL_SPAN && !href.includes("\n")) ? "" : link.label;
 				break;
 			}
 			// 方括号还没收口，或者刚收口、还看不出后面跟不跟地址：先不画，免得方括号露出来再消失。

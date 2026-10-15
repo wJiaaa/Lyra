@@ -42,10 +42,19 @@ test("方括号还没收口时先不画，免得它露出来再消失", () => {
 	assert.equal(completeTail("见 [1] 的说法"), "见 [1] 的说法", "后面不跟地址的就是方括号");
 });
 
-test("地址还在写的链接只留下它的字，半截地址不被画成裸链接", () => {
-	assert.equal(completeTail("看 [文档](https://exa"), "看 文档");
+test("地址还在写的链接整个先不画，写完一次出来", () => {
+	assert.equal(completeTail("看 [文档](https://exa"), "看 ");
 	assert.equal(completeTail("图 ![logo](assets/lo"), "图 ");
 	assert.equal(completeTail("看 [文档](https://example.com) 和 **这"), "看 [文档](https://example.com) 和 **这**");
+	// 文件链接先露出一段字、再换成只剩文件名的卡片，就是那一下闪。
+	assert.equal(completeTail("承载（[router.tsx:242](/Users/x/apps/web/src/app/rou"), "承载（");
+	// 绝对路径动辄上百字，也照样藏到写完。
+	assert.equal(completeTail(`看 [listTestCases](/Users/${"deep/".repeat(40)}test-case.serv`), "看 ");
+});
+
+test("跨了行或超过地址上限的不是链接，退回只留它的字，后面的话不一直藏着", () => {
+	assert.equal(completeTail("看 [文档](https://exa\n下一行"), "看 文档");
+	assert.equal(completeTail(`看 [文档](https://example.com/${"a".repeat(2048)}`), "看 文档");
 });
 
 test("乘号、下划线名字、货币不被当成没收口的强调或公式", () => {

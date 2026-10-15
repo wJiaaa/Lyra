@@ -269,7 +269,17 @@ export function useScopedSubAgents(): SubAgentSummary[] {
 export function useScopedProjectPath(): string | null {
 	const id = useScopedSessionId();
 	return useApp((s) => {
-		if (id === s.activeSessionId) return s.workspace?.path ?? null;
+		if (id === s.activeSessionId) {
+			/*
+			 * `workspace` is read back after the switch (`openSession`), and until then it is the project
+			 * left behind, or null. The transcript paints first: `apps/web/a.ts` in inline code showed as
+			 * the bare path, then turned into a file chip once the project arrived. Its path is the
+			 * conversation's own directory anyway, so take that until the two agree.
+			 */
+			const cwd = s.meta?.id === id ? s.meta.cwd : null;
+			if (cwd === null || s.workspace?.path === cwd) return s.workspace?.path ?? null;
+			return isProjectLess(cwd, s.scratchRoots) ? null : cwd;
+		}
 		if (id === null) return s.parkedDraft?.workspace?.path ?? null;
 		const cwd = (s.sessionCache[id]?.meta ?? s.sessions.find((one) => one.id === id))?.cwd ?? null;
 		return cwd !== null && !isProjectLess(cwd, s.scratchRoots) ? cwd : null;
