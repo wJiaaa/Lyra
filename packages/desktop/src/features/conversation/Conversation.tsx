@@ -221,6 +221,13 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
    * line folded for the rest of a turn that was still running. See `conversation/answering.ts`.
    */
   const answering = useAnswering(messages);
+  /** 最后一条是一段正常写完的回答：底下的操作行在这时长出来，运行行在同一帧让位，见 `RunningRow`。 */
+  const answered = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (last?.role !== "assistant" || last.stopReason !== "stop") return false;
+    const block = last.content[last.content.length - 1];
+    return block?.type === "text" && block.text.trim().length > 0;
+  }, [messages]);
 
   /*
    * Following the bottom, and everything that decides whether to.
@@ -592,8 +599,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
           </div>
 
           {/*
-           * Present for the whole turn — until the answer starts, at which point it has been
-           * overtaken by what it was standing in for.
+           * Present for the whole turn, and out of sight while the answer is arriving — at that point
+           * it has been overtaken by what it was standing in for.
            *
            * It stays put through the parts of a turn: it used to appear only when the last message
            * had settled, so it came and went with every tool call, and its 46px came and went with
@@ -603,8 +610,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
            * reader can already see the end of. Sitting under a finished answer saying almost-done
            * reads as the app having lost track of itself.
            *
-           * Folded rather than removed, so the height goes continuously — which is the whole
-           * reason it was made to stay put in the first place.
+           * Hidden rather than folded, so the height does not change at all — which is the whole
+           * reason it was made to stay put in the first place. See `RunningRow`.
            */}
           {range.end < allBlocks.length && (
             <div className="my-3 flex items-center justify-center">
@@ -621,14 +628,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
             </div>
           )}
           {range.end === allBlocks.length && <>
-          {/*
-           * 回答开始时这一行立刻收起，不走 `.ly-reveal` 的收拢过渡。
-           *
-           * 回答的第一行字和这一行收起发生在同一刻，高度一增一减差不多抵掉，字就落在这一行原来的
-           * 位置。慢慢收的话，贴着底部的转录先被新的一行整段顶上去，再随着这一行变矮一帧帧往下漂，
-           * 读起来是字从底下蹦上来、把它顶走了。展开（回答停住之后它回来）照旧是动画。
-           */}
-          <RunningRow running={running} answering={answering} compacting={compacting} />
+          {/* 回答在来的时候这一行只是看不见、高度不变，答完时当帧让位给操作行——为什么这样，见 `RunningRow`。 */}
+          <RunningRow running={running} answering={answering} answered={answered} compacting={compacting} />
           {/* Where the running indicator would have been, saying why it is not there. */}
           {!side && <ResumeRow />}
           {/*

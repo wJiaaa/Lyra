@@ -12,31 +12,51 @@ import { RunningIndicator } from "./RunningIndicator.tsx";
  * transcript pinned to the bottom dropped the row's whole height at once. Now the indicator stays
  * until the fold has finished, and only then goes.
  *
- * The answer arriving is the deliberate exception, and keeps its instant fold — see the note where
- * this is rendered in `Conversation`. Nothing is retained for it: with no transition there is no
- * `transitionend` to release it, and the indicator stays mounted for the rest of the turn anyway.
+ * 回答在来的时候它只是看不见，位置照旧占着。
+ *
+ * 从前回答一开始它就当帧收起，指望和第一行字「一增一减抵掉」。抵不掉：正文由 `useSmoothText` 逐帧
+ * 放出来，比这一行收起晚一到四帧，于是贴底的转录先掉下去 30px、再被字顶回来；回答停顿超过
+ * `STALL_MS` 它又长回来，把转录往上推 30px，字接着来再掉一次。一轮里高度不变，这些就都不会发生。
+ *
+ * 回答写完（`answered`）时它当帧收起，不走过渡：回答底下那一行时间和复制按钮正是在这一次提交里
+ * 长出来的，两者一出一进，转录只挪两者的差（实测 8px）。慢慢收的话，刚读完的那段话会先被操作行
+ * 顶上去 38px、再随着这一行变矮往下沉 30px。
  */
-export function RunningRow({ running, answering, compacting }: { running: boolean; answering: boolean; compacting: boolean }) {
-	const open = running && !answering && !compacting;
+export function RunningRow({ running, answering, answered, compacting }: {
+	running: boolean;
+	answering: boolean;
+	/**
+	 * 最后一条是一段正常写完的回答。收尾时消息先定稿、`answering` 先变回 false，`running` 晚一次提交
+	 * 才落下——只看 `answering`，这一行会在收尾前一刻亮一下。
+	 */
+	answered: boolean;
+	compacting: boolean;
+}) {
+	const open = running && !compacting && !answered;
 	const [retained, setRetained] = useState(open);
 	useLayoutEffect(() => {
 		if (open) setRetained(true);
-		else if (answering || motionReduced()) setRetained(false);
-	}, [open, answering]);
+		else if (answered || motionReduced()) setRetained(false);
+	}, [open, answered]);
 	// A hidden `Activity` cancels the fold before its `transitionend`; see the same release in `Collapse`.
 	useLayoutEffect(() => () => setRetained(false), []);
 	return (
 		<div
 			className="ly-reveal"
 			data-open={open}
-			aria-hidden={!open}
-			style={answering ? { transition: "none" } : undefined}
+			aria-hidden={!open || answering}
+			style={answered ? { transition: "none" } : undefined}
 			onTransitionEnd={(event) => {
 				if (event.target === event.currentTarget && event.propertyName === "grid-template-rows" && !open) setRetained(false);
 			}}
 		>
 			<div>
-				<div>{((running && !compacting) || retained) && <RunningIndicator />}</div>
+				<div
+					data-ly-running-quiet={(open && answering) || undefined}
+					className={`transition-opacity ${open && answering ? "opacity-0 duration-[var(--ly-t-quick)]" : "duration-[var(--ly-t-base)]"}`}
+				>
+					{((running && !compacting && !answered) || retained) && <RunningIndicator />}
+				</div>
 			</div>
 		</div>
 	);

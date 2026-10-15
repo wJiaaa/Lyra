@@ -24,7 +24,7 @@ import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume排队条动画测试");
 const LABEL = process.env.LABEL ?? "修后";
-const PORT = 9648;
+const PORT = 9656;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 
 const checks: { ok: boolean; what: string }[] = [];
