@@ -140,8 +140,12 @@ export const globTool: Tool<GlobArgs> = {
 /**
  * Translate a glob to a regular expression.
  *
- * `**` crosses directory separators, `*` and `?` do not, and `{a,b}` expands to alternation.
+ * `**` crosses directory separators, `*` and `?` do not, `{a,b}` expands to alternation, and
+ * `[abc]` / `[a-z]` / `[!x]` (or `[^x]`) are character classes, as ripgrep's `--glob` reads them.
  * Everything else is escaped so a pattern like `src/v1.2/*.ts` cannot smuggle regex syntax in.
+ *
+ * Classes used to be escaped too, and `*[Pp]review*` then looked for the three characters `[Pp]`:
+ * it matched nothing and answered "No files match" with a file that matched sitting right there.
  */
 export function globToRegExp(pattern: string): RegExp {
 	let out = "";
@@ -169,6 +173,14 @@ export function globToRegExp(pattern: string): RegExp {
 			i += 1;
 			continue;
 		}
+		if (char === "[") {
+			const close = classEnd(pattern, i);
+			if (close !== -1) {
+				out += charClass(pattern.slice(i + 1, close));
+				i = close + 1;
+				continue;
+			}
+		}
 		if (char === "{") {
 			const close = pattern.indexOf("}", i);
 			if (close !== -1) {
@@ -182,6 +194,21 @@ export function globToRegExp(pattern: string): RegExp {
 		i += 1;
 	}
 	return new RegExp(`^${out}$`);
+}
+
+/** Where the class opened at `open` ends, or -1 if it never does — then `[` is just a character. A `]` right after `[` or `[!` is a member. */
+function classEnd(pattern: string, open: number): number {
+	let j = open + 1;
+	if (pattern[j] === "!" || pattern[j] === "^") j += 1;
+	if (pattern[j] === "]") j += 1;
+	return pattern.indexOf("]", j);
+}
+
+/** A glob class body as a regex class. Negated, it still never matches `/`, the same way `?` does not. */
+function charClass(body: string): string {
+	const negated = body.startsWith("!") || body.startsWith("^");
+	const members = (negated ? body.slice(1) : body).replace(/[\\\][^]/g, "\\$&");
+	return negated ? `[^/${members}]` : `[${members}]`;
 }
 
 function escapeRegex(text: string): string {

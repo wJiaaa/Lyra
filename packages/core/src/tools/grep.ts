@@ -117,6 +117,11 @@ export const grepTool: Tool<GrepArgs> = {
 			const authorized = await authorizeRead(ctx, normalizedArgs.path);
 			if (!authorized.ok) return errorResult(authorized.message);
 			root = authorized.absolute;
+			/*
+			 * 路径不存在时 ripgrep 退出码 2，stderr 里那句 "No such file or directory" 又被截在 200 字之后，
+			 * 交回去的就成了「No matches」：模型把猜错名字的文件当成搜过了、里面没有。先查一次，答它真正的情况。
+			 */
+			if (!(await stat(root).catch(() => null))) return errorResult(`Path not found: ${normalizedArgs.path}. Nothing was searched.`);
 		}
 		const viaRipgrep = await runRipgrep(normalizedArgs, root, ctx);
 		if (viaRipgrep) return viaRipgrep;

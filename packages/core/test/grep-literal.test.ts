@@ -154,3 +154,20 @@ for (const fallback of [false, true]) {
 		assert.doesNotMatch(few.content.map((part) => part.text).join(""), /truncated/);
 	});
 }
+
+for (const fallback of [false, true]) {
+	test(`a path that does not exist is said to be missing, not searched and empty (fallback=${fallback})`, async (t) => {
+		// 真实会话里模型把 ToolCard.tsx 猜成 ToolCall.tsx，拿回的是「No matches」，以为文件里没有。
+		const dir = await workspace();
+		t.after(() => rm(dir, { recursive: true, force: true }));
+		const path = process.env.PATH;
+		if (fallback) process.env.PATH = "";
+		t.after(() => { process.env.PATH = path; });
+
+		const res = await grepTool.execute({ pattern: "onEvent", path: "Sample.tsx" }, ctx(dir));
+
+		assert.equal(res.isError, true);
+		assert.match(res.content[0].text, /^Path not found: Sample\.tsx\./);
+		assert.doesNotMatch(res.content[0].text, /No matches/);
+	});
+}
