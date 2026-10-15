@@ -22,7 +22,7 @@
 | 按钮 | `ui/primitives/Button.tsx`、`IconButton.tsx` | [ADR-0013](../adr/0013-one-button-two-heights.md) |
 | 字阶与字重的配对 | `ui/primitives/Text.tsx` 的 `DEFAULT_WEIGHT` | — |
 | 样式三分法（色、时长、类名） | `stylelint.config.mjs` | `pnpm style`，[ADR-0015](../adr/0015-styles-are-checked-not-agreed.md) |
-| 图标 | `ui/icons/index.ts`（lucide + 悬停动画版） | oxlint `no-restricted-imports`、`test/ui/icons-animated.test.ts` |
+| 图标 | `ui/icons/index.ts`（lucide 原版） | oxlint `no-restricted-imports` |
 
 ## 颜色
 
@@ -274,7 +274,7 @@ Windows 浅色原来单独加深的那一档（雅黑没有 Medium，画得更�
 | `Dialog` / `Overlay` | `float` 底、`line-float` 边、16px 圆角、最高 85dvh；内衬 20px（`px-5`）；底部动作 `.ly-dialog-action` 是 34px 无描边胶囊：secondary `card` 底 + `ink-muted`，primary 墨底，danger 10% 红底 |
 | `Tooltip` | 整个窗口一个，挂在 `data-ly-tip` 属性上，CodeMirror 生成的节点也能用；禁用的控件默认不弹，除非 `explainDisabled` |
 | 开关旋钮 `.ly-knob` | 两种主题都是白色；灰旋钮压在强调色上读起来是「脏了一块」 |
-| 图标 | 一律从 `ui/icons` 导入 lucide，描边 2；悬停整颗按钮时播放动画版 |
+| 图标 | 一律从 `ui/icons` 导入 lucide，描边 2；悬停不播动画 |
 | 滚动 | 全局隐藏原生滚动条，一律走 `<Scroller>` 的浮层滑块 |
 
 焦点：去掉了 Chromium 的默认轮廓，`:focus-visible` 统一是 2px 强调色、外移 2px（`base.css`）。

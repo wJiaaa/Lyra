@@ -736,11 +736,6 @@ textarea.ly-composer-text[data-highlighted="true"] {
   content: none;
 }
 
-/*
- * 竖向居中不用 `transform`：文件树那几枚图标是带动画的（`ui/icons/animated`），motion 会往 svg
- * 上写一条行内的 `transform: scale(1)` / `rotate(0)`，把这里的 `translateY(-50%)` 整条盖掉——图标
- * 掉下去半个身位，压在名字的第一个字上。上下贴死再 `margin: auto` 居中，没有可被覆盖的东西。
- */
 .ly-token-bracket > .ly-token-glyph {
   position: absolute;
   top: 0;

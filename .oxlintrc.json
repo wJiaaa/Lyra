@@ -206,7 +206,7 @@
               {
                 "name": "lucide-react",
                 "allowTypeImports": true,
-                "message": "图标从 ui/icons/index.ts 引入：有动画版的拿到的是动画版，名字和 lucide 一样。直接从 lucide-react 引入会悄悄拿到不会动的那个。只有类型（LucideProps 等）可以直接引。"
+                "message": "图标从 ui/icons/index.ts 引入，所有图标只有这一个入口。只有类型（LucideProps 等）可以直接引。"
               }
             ]
           }
@@ -242,7 +242,7 @@
               {
                 "name": "lucide-react",
                 "allowTypeImports": true,
-                "message": "图标从 ui/icons/index.ts 引入：有动画版的拿到的是动画版，名字和 lucide 一样。直接从 lucide-react 引入会悄悄拿到不会动的那个。只有类型（LucideProps 等）可以直接引。"
+                "message": "图标从 ui/icons/index.ts 引入，所有图标只有这一个入口。只有类型（LucideProps 等）可以直接引。"
               }
             ]
           }
