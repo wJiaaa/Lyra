@@ -25,6 +25,7 @@ export function Scroller({
 	className = "",
 	contentClassName = "",
 	top = "fade",
+	fadeTop,
 	bottom = "fade",
 	overscroll = "contain",
 	onScroll,
@@ -64,6 +65,8 @@ export function Scroller({
 	 * treatment at all: a boundary is worth drawing when it is doing something.
 	 */
 	top?: "fade" | "line" | "none";
+	/** How deep the top fade reaches, in px, when the default does not suit this list. */
+	fadeTop?: number;
 	/** Same question at the bottom, minus the hairline: nothing is ever pinned below the content. */
 	bottom?: "fade" | "none";
 	onScroll?: (element: HTMLDivElement) => void;
@@ -368,7 +371,7 @@ export function Scroller({
 				style={
 					fades
 						? ({
-								"--ly-fade-top": showTopFade ? `${scrollFade(metrics.height, "top")}px` : "0px",
+								"--ly-fade-top": showTopFade ? `${scrollFade(metrics.height, "top", fadeTop)}px` : "0px",
 								"--ly-fade-bottom": showBottomFade ? `${scrollFade(metrics.height, "bottom")}px` : "0px",
 							} as React.CSSProperties)
 						: undefined

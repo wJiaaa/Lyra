@@ -241,9 +241,34 @@
  * `--ly-composer-out`, so a card and the messages it answers share one edge.
  * Compact windows drop to `--ly-composer-x` so 24+24 does not eat a 360px column.
  */
-/* The conversation is a card too, so its bottom pads like the panes below. */
+/*
+ * The conversation is a card too, so its bottom pads like the panes below.
+ *
+ * No top under the transcript itself: it runs straight down to the field, as in Claude's desktop
+ * app. With 12px there the bottom fade ended short of the field and left an empty strip.
+ */
 .ly-composer-dock {
-	padding: var(--ly-composer-in) var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+	padding: 0 var(--ly-composer-out) calc(var(--ly-composer-out) - var(--ly-pane-chrome));
+}
+
+/*
+ * A card stacked above the field (approval, hook banner, inline task list) is a separate block, and
+ * keeps the 12px it always had. Each renders nothing when it has nothing to say; the task list's
+ * layer stays mounted, so it counts only once the list is in it.
+ */
+:is([data-approval-region], :has([data-ly-hook-trust-banner]), [data-ly-task-inline]:has([data-ly-task-list])) ~ .ly-composer-dock {
+	padding-top: var(--ly-composer-in);
+}
+
+/*
+ * 任务清单和子智能体那一条挨着的时候，是一摞，不是两段。
+ *
+ * 清单卡片压在输入框上方（窄的时候没地方浮在角上），子智能体那一条是输入框区域的第一行——两者
+ * 之间原本隔着卡片下面那 6px 加上上面那条的 12px，比那一条到下面那排小签的 6px 宽出两倍，读起来像
+ * 两块不相干的东西（2026-09-26 用户圈出来的那道缝）。这时候把上边距收掉，只留卡片自己那 6px。
+ */
+[data-ly-task-inline]:has([data-ly-task-list]) + .ly-composer-dock:has(> * > .ly-reveal[data-open="true"] [data-ly-subagent-bar]) {
+	padding-top: 0;
 }
 
 /*
@@ -267,17 +292,6 @@
 /* 欢迎页上输入框排在标题下面，外边距由那一列自己给。 */
 .ly-composer-dock[data-center] {
 	padding: 0;
-}
-
-/*
- * 任务清单和子智能体那一条挨着的时候，是一摞，不是两段。
- *
- * 清单卡片压在输入框上方（窄的时候没地方浮在角上），子智能体那一条是输入框区域的第一行——两者
- * 之间原本隔着卡片下面那 6px 加上这里的 12px，比那一条到下面那排小签的 6px 宽出两倍，读起来像
- * 两块不相干的东西（2026-09-26 用户圈出来的那道缝）。这时候把上边距收掉，只留卡片自己那 6px。
- */
-[data-ly-task-inline]:has([data-ly-task-list]) + .ly-composer-dock:has(> * > .ly-reveal[data-open="true"] [data-ly-subagent-bar]) {
-	padding-top: 0;
 }
 
 /*

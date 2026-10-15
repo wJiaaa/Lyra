@@ -30,7 +30,10 @@ test("composer attachments, text and toolbar share --ly-composer-in", async () =
 	// Shut, the tray's padding is clipped away with its rows, not dropped by a rule in one frame.
 	assert.doesNotMatch(composer, /\.ly-reveal:not\(\[data-open="true"\]\) \.ly-composer-attachments[\s\S]*?padding-block:\s*0/);
 	assert.match(composer, /\.ly-composer-bar[\s\S]*padding:\s*0 var\(--ly-composer-x\) var\(--ly-composer-in\)/);
-	assert.match(composer, /\.ly-composer-dock[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
+	// The main dock has no top: the transcript runs down to the field (see composer.css).
+	assert.match(composer, /\.ly-composer-dock \{\s*padding:\s*0 var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
+	// …but a card stacked above the field still gets its 12px back.
+	assert.match(composer, /\[data-approval-region\][^{]*\[data-ly-hook-trust-banner\][^{]*\[data-ly-task-list\][^{]*~ \.ly-composer-dock \{\s*padding-top:\s*var\(--ly-composer-in\)/);
 	assert.match(composer, /\.ly-composer-pad[\s\S]*padding:\s*var\(--ly-composer-in\) var\(--ly-composer-out\) calc\(var\(--ly-composer-out\) - var\(--ly-pane-chrome\)\)/);
 	assert.match(composer, /\.ly-content-gutter[\s\S]*padding-inline:\s*var\(--ly-composer-out\)/);
 	assert.match(composer, /\.ly-composer-control[\s\S]*height:\s*var\(--ly-composer-control\)/);

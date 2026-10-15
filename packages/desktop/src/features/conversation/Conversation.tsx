@@ -400,6 +400,11 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
          * `NARROW_COLUMN` the rail moves to the very edge and 28px each side clears it evenly.
          */
         contentClassName={questions.length > 1 && !side ? (narrowColumn ? "px-7" : "pl-12 pr-4 @min-[600px]:pr-8") : gutter}
+        /*
+         * 32px on top, the depth Claude's desktop transcript uses; the bottom's default 48 already
+         * matches it.
+         */
+        fadeTop={32}
         onScroll={follow.onScroll}
         onResize={follow.onResize}
         onUserScroll={follow.onUserScroll}
