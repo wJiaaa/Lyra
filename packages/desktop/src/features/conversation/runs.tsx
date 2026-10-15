@@ -17,8 +17,7 @@ import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 import type { PageState } from "./preview-pages.ts";
-import { describeCalls, diffOf, subjectOf } from "./call-words.ts";
-import { describeCall } from "../../lib/tool-kinds.ts";
+import { describeCalls, describeOne, diffOf } from "./call-words.ts";
 
 /**
  * How much of a long transcript is mounted at once, and how much each "show more" adds — **in turns**.
@@ -143,8 +142,8 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, ex
       stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
-      // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeCall`.
-      summary={describeCall(block.name, run?.summary ?? title, subjectOf(block))}
+      // The model's own words when it gave some, else core's English summary said the way the turn line says it; see `describeOne`.
+      summary={describeOne(block, run?.summary ?? title)}
       // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
       status={status}
       result={run?.result}

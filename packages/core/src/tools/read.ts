@@ -20,6 +20,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 interface ReadArgs {
 	path: string;
+	description?: string;
 	offset?: number;
 	limit?: number;
 	char_offset?: number;
@@ -44,6 +45,7 @@ export const readTool: Tool<ReadArgs> = {
 		type: "object",
 		properties: {
 			path: { type: "string", description: "File path, absolute or relative to the workspace root." },
+			description: { type: "string", description: "5-10 word description shown to the user, in plain words and the user's language." },
 			offset: { type: "number", description: "1-indexed line to start from." },
 			limit: { type: "number", description: "Maximum number of lines to return. Defaults to 2000." },
 			char_offset: {

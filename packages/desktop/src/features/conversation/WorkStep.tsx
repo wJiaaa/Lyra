@@ -1,11 +1,14 @@
 /**
- * 一段同一类的活，画成一行（怎么分段见 `grouping.ts` 的 `Step`）。
+ * 一段连着做的活，画成一行（怎么分段见 `grouping.ts` 的 `Step`）。
  *
  * - **一次调用**：这一行就是那次调用自己，和从前的工具行一模一样。
- * - **几次调用，或者调用前想过**：「思考 2 次 · 打开网页 todo.html、操作网页 4 次」。从第一次调用起
- *   就说总的，跑着的时候新的一次接在句尾，前面的字不动、框的宽度缓过去（`RollWords` 的 `text`）。
- *   跑着时换成最新那一步、跑完再换成总的，是每来一次调用那一行就跳一下、最后再整句换一遍——试过。
- *   点开是挂在一条竖线上的每一次调用和每一段推理。
+ * - **几次调用，或者调用前想过**：跑着时这一行说的是最新那一次调用（「读取文件 safety.md」，模型给了
+ *   `description` 就是它那句话），每来一次滚一下；这一段不再长了（后面接上了回答或别的活），再滚成总的
+ *   「思考 2 次 · 读取文件 12 个、搜索内容 5 个」。点开是挂在一条竖线上的每一次调用和每一段推理。
+ *
+ *   从前跑着时就说总的、新的一次接在句尾：一段探索跑一分钟，人只看得到几个数在涨，不知道它此刻在看
+ *   什么。更早试过跑着时换成最新一步，那时是硬换，每来一次整行跳一下；现在每一次换都是 `RollWords`
+ *   的滚动，宽度缓过去，跳的那一下没有了。
  *
  * 行首是这一段第一次调用的图标，和它只有一次调用时那一行是同一枚：从一次长到两次，换的只有字。
  * 不写类名（「终端 ·」「探索 ·」）：摘要本来就以动作开头，「终端 · 执行命令 7 个」把一件事说了两遍，
@@ -23,7 +26,7 @@ import { FlowRow } from "./FlowRow.tsx";
 import { LiveThought } from "./LiveThought.tsx";
 import { ToolIcon } from "./tool-icons.tsx";
 import { RollWords } from "../../ui/motion/RollWords.tsx";
-import { describeCalls, diffOf } from "./call-words.ts";
+import { describeCalls, describeOne, diffOf } from "./call-words.ts";
 import { thinkingLive, type Call, type Run, type Step } from "./grouping.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
@@ -99,22 +102,30 @@ function StepGroup({ step, thought, live, thinking, from, draw, drawCall }: {
 	const removed = useScopedFromToolRuns((runs) => calls.reduce((n, { block }) => n + diffOf(runs[block.id], "removed"), 0));
 	const failed = useScopedFromToolRuns((runs) => calls.some(({ block }) => runs[block.id]?.status === "error"));
 
-	// 哪样先来哪样在前：句子只往后长，先有的那半句不能被后来的「思考 N 次」从前面挤开。
+	// 跑着时说的那一次：bash 给人看的那句话只在记录的 `summary` 里，参数里是命令本身。
+	const last = calls[calls.length - 1].block;
+	const lastSummary = useScopedFromToolRuns((runs) => runs[last.id]?.summary);
+
+	// 哪样先来哪样在前：先有的那半句不能被后来的「思考 N 次」从前面挤开。
 	const parts = [describeCalls(calls)];
 	if (thought > 0) parts[step.members[0].kind === "thinking" ? "unshift" : "push"](translate("step.thinking", { n: thought }));
-	const words = parts.join(translate("step.separator"));
+	const words = live ? describeOne(last, lastSummary) : parts.join(translate("step.separator"));
+	// 换一次调用、或者从跑着换成总的，就是换了一句话，滚一下；同一次调用的参数还在流进来，只缓宽度。
+	const rollKey = live ? `call-${last.id}` : "step";
+	// 一次调用的那一行后面只接上了推理：句子还是原地那一句，从旧宽度缓过来就够，不滚。
+	const sameWords = from !== null && calls.length === 1;
 
 	return (
 		<div data-ly-step={step.category} data-ly-run={live ? "running" : "done"}>
 			<FlowRow
 				icon={<ToolIcon name={calls[0].block.name} />}
 				/*
-				 * 跑着时刚出现的这一段滚进来（`enter`）：它接替的是原地那段推理，说的是另一句话。接替同一段的工具行时
-				 * 不滚、从旧的宽度缓过去（`from`），句子读起来是往后长了一截。历史里挂上的不滚。光挂在字上而不是经
-				 * `running` 挂在外层，见 `RollWords`。
+				 * 跑着时挂上的这一行滚进来（`enter`）：它接替的是原地那段推理，或者一次调用的那一行而这里已经是下一次
+				 * 了，说的都是另一句话；从旧的宽度缓过去（`from`）。历史里挂上的不滚。光挂在字上而不是经 `running`
+				 * 挂在外层，见 `RollWords`。
 				 */
 				summary={
-					<RollWords rollKey="step" text={words} from={from?.words} glide={live && !thinking} enter={live && !from}>
+					<RollWords rollKey={rollKey} text={words} from={from?.words} glide={live && !thinking} enter={live && !sameWords}>
 						{words}
 					</RollWords>
 				}

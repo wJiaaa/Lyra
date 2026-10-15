@@ -37,6 +37,7 @@ export const globTool: Tool<GlobArgs> = {
 		type: "object",
 		properties: {
 			pattern: { type: "string", description: "Glob pattern, relative to the search root." },
+			description: { type: "string", description: "5-10 word description shown to the user, in plain words and the user's language — not the pattern." },
 			path: { type: "string", description: "Directory to search. Defaults to the workspace root." },
 			limit: { type: "number", description: "Maximum number of matches. Default 500." },
 		},

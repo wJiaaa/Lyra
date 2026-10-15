@@ -11,6 +11,7 @@ const MAX_ENTRIES = 400;
 
 interface LsArgs {
 	path?: string;
+	description?: string;
 	all?: boolean;
 }
 
@@ -22,6 +23,7 @@ export const lsTool: Tool<LsArgs> = {
 		type: "object",
 		properties: {
 			path: { type: "string", description: "Directory to list. Defaults to the workspace root." },
+			description: { type: "string", description: "5-10 word description shown to the user, in plain words and the user's language." },
 			all: { type: "boolean", description: "Include dotfiles." },
 		},
 		additionalProperties: false,

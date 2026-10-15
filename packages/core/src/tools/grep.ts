@@ -77,6 +77,7 @@ export const grepTool: Tool<GrepArgs> = {
 		type: "object",
 		properties: {
 			pattern: { type: "string", description: "Regular expression to search for." },
+			description: { type: "string", description: "5-10 word description shown to the user, in plain words and the user's language — not the pattern." },
 			path: { type: "string", description: "Directory or file to search. Defaults to the workspace root." },
 			glob: { type: "string", description: "Only search files matching this glob, e.g. `**/*.ts`." },
 			case_insensitive: { type: "boolean", description: "Ignore case." },

@@ -89,20 +89,27 @@ test("several calls of one kind are one line saying what they did, with the call
 	}
 });
 
-test("while it runs the line already says the total, and a new call lands at its end", async () => {
+test("while it runs the line says the latest call, and rolls to the total once the stretch stops growing", async () => {
 	const calls = [browse("b1", "browser_open", { url: "todo.html" }), browse("b2", "browser_screenshot")];
-	const restore = withRuns([...calls, browse("b3", "browser_act")], "running");
+	const more = [...calls, browse("b3", "browser_act")];
+	const restore = withRuns(more, "running");
 	const view = await mount(h(WorkStep, { step: step(calls), live: true, draw: () => null, drawCall }));
 	try {
 		const words = view.find(".ly-roll-words");
-		const before = words.textContent ?? "";
-		assert.equal(before, "打开网页 todo.html、截取网页", "跑着也说总的，不换成最新那一步");
+		assert.equal(words.textContent, "截取网页", "跑着时说的是最新那一次，不是总数");
 		assert.ok(words.querySelector(".ly-glide"), "正在跑的那一行在扫光，光挂在字上");
 
-		await view.rerender(h(WorkStep, { step: step([...calls, browse("b3", "browser_act")]), live: true, draw: () => null, drawCall }));
-		assert.equal(view.find(".ly-roll-words"), words, "还是同一个框：句子往后长，不重新滚一遍");
-		assert.ok((words.textContent ?? "").startsWith(before), "前面的字不动");
-		assert.match(words.textContent ?? "", /操作网页$/, "新的一次接在句尾");
+		const said = words.firstElementChild;
+		await view.rerender(h(WorkStep, { step: step(more), live: true, draw: () => null, drawCall }));
+		assert.equal(view.find(".ly-roll-words"), words, "还是同一个框，宽度从旧的缓过去");
+		assert.equal(words.textContent, "操作网页", "换成新来的那一次");
+		assert.notEqual(words.firstElementChild, said, "换了一句话：新的一层滚进来");
+		assert.ok(words.firstElementChild?.classList.contains("ly-roll-soft"));
+
+		await view.rerender(h(WorkStep, { step: step(more), live: false, draw: () => null, drawCall }));
+		assert.equal(words.textContent, "打开网页 todo.html、截取网页、操作网页", "不再长了，滚成总的");
+		assert.ok(words.firstElementChild?.classList.contains("ly-roll-soft"), "换成总的也是滚过去，不是硬换");
+		assert.equal(words.querySelector(".ly-glide"), null, "停下的那一行不再扫光");
 	} finally {
 		await view.unmount();
 		restore();
@@ -128,10 +135,32 @@ test("thinking still being written at the end of a stretch is said at the end of
 	const view = await mount(h(WorkStep, { step: step(calls, [{ kind: "thinking", run: thought(true) }]), live: true, draw: () => h("div", { "data-probe": "thought" }), drawCall }));
 	try {
 		assert.equal(view.all(".ly-flow-row").length, 1, "推理不另起一行");
-		assert.equal(view.find(".ly-roll-words").textContent, "打开网页 todo.html · 思考 1 次", "先有的那半句不动，推理的次数接在后面");
+		assert.equal(view.find(".ly-roll-words").textContent, "打开网页 todo.html", "跑着时说的还是那一次调用，推理的次数等停下再算进去");
 		assert.match(view.text(), /正在思考/, "还在写的那段在句尾说一声");
 	} finally {
 		await view.unmount();
+		restore();
+	}
+});
+
+test("one call says the model's own words when it gave some", async () => {
+	const tool = (id: string, name: string, args: Record<string, unknown>): Call => ({ block: { type: "toolCall", id, name, arguments: args }, stopReason: "toolUse" });
+	const calls = [
+		tool("d1", "read", { path: "docs/safety.md", description: "看审批规则怎么写" }),
+		tool("d2", "read", { path: "docs/safety.md" }),
+		// 没给 pattern：description 里是模型错放的式子，core 拿它当 pattern 搜，这里不当一句话说。
+		tool("d3", "grep", { description: "timeout|overtime" }),
+	];
+	const restore = withRuns(calls);
+	// 一个一个挂：`act` 叠在一起时，后面几条测试拿到的是没提交完的树。
+	const rows = [];
+	for (const call of calls) rows.push(await mount(drawCall(call)));
+	try {
+		assert.match(rows[0].text(), /^看审批规则怎么写/);
+		assert.match(rows[1].text(), /^读取文件 safety\.md/, "没写就照旧");
+		assert.match(rows[2].text(), /^搜索内容/);
+	} finally {
+		for (const row of rows) await row.unmount();
 		restore();
 	}
 });
