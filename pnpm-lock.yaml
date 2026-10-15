@@ -13,6 +13,9 @@ overrides:
 
 packageExtensionsChecksum: sha256-Lf5jC2IbTTAW8l+6aS10BXc0LzcnOQpLTO7usHrN1u0=
 
+patchedDependencies:
+  node-pty@1.1.0: 14bf115721397bb3df31714492a57929331b5815b2953b85846eab5c729fe279
+
 importers:
 
   .:
@@ -247,7 +250,7 @@ importers:
         version: 12.1.0
       node-pty:
         specifier: 1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=14bf115721397bb3df31714492a57929331b5815b2953b85846eab5c729fe279)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -11527,7 +11530,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.1.0:
+  node-pty@1.1.0(patch_hash=14bf115721397bb3df31714492a57929331b5815b2953b85846eab5c729fe279):
     dependencies:
       node-addon-api: 7.1.1
 

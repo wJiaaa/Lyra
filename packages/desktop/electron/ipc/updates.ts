@@ -513,11 +513,8 @@ export function registerUpdateIpc(): void {
 			runPrivileged: runCollecting,
 			openInstaller: (file) => shell.openPath(file),
 			relaunch: (execPath) => app.relaunch(execPath ? { execPath } : undefined),
-			// `exit`, not `quit`: quitting runs the window-close handlers, and on macOS the swap script
-			// is waiting on this pid.
 			exit: () => app.exit(0),
-			// Windows: `quit`, so `before-quit` shuts sessions and shells down before the
-			// installer would have killed the process outright.
+			// macOS and Windows need before-quit to shut sessions and shells down.
 			quit: () => app.quit(),
 		});
 		if (result.ok) {

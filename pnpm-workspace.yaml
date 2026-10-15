@@ -97,3 +97,7 @@ supportedArchitectures:
     - current
     - x64
     - arm64
+
+# 退出时 JS 已停用，原生终端回调仍尝试抛异常会导致 SIGABRT；上游修复后移除此补丁。
+patchedDependencies:
+  node-pty@1.1.0: patches/node-pty@1.1.0.patch

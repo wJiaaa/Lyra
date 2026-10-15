@@ -12,8 +12,8 @@
  *     which runs no `before-quit` handler: sessions not flushed, shells not ended, the sync server
  *     not stopped. Quitting as soon as the installer is confirmed running lets all of that happen.
  *
- * The others `exit`: quitting runs the window-close handlers, and on macOS the swap script is
- * waiting on this pid — see `install-update.ts`.
+ * macOS also quits through `before-quit` so terminals and sessions can shut down. `beginQuit`
+ * lets window-close handlers proceed; the swap script waits for this pid to exit.
  */
 
 export type PendingUpdate =
@@ -59,7 +59,7 @@ export async function finishUpdate(job: PendingUpdate, effects: FinishEffects): 
 		switch (job.kind) {
 			case "bundle":
 				await effects.swapBundle(job);
-				effects.exit();
+				effects.quit();
 				return { ok: true };
 			case "appimage":
 				await effects.swapAppImage(job.staged, job.target);

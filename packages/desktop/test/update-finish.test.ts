@@ -84,8 +84,8 @@ test("an installer that did not start leaves the app where it was", async () => 
 	assert.ok(!calls.includes("quit"));
 });
 
-test("macOS keeps its swap script, which relaunches the app itself", async () => {
+test("macOS schedules its swap script, then quits through terminal and session cleanup", async () => {
 	const { calls, effects: fx } = effects();
 	assert.deepEqual(await finishUpdate({ kind: "bundle", staged: "/u/Plume.app", target: "/Applications/Plume.app" }, fx), { ok: true });
-	assert.deepEqual(calls, ["swapBundle /Applications/Plume.app", "exit"]);
+	assert.deepEqual(calls, ["swapBundle /Applications/Plume.app", "quit"]);
 });
