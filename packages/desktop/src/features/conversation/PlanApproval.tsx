@@ -27,7 +27,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
  * 一个键一枚键帽，照参考的样子：「⇧ ⌘ ↩」挤在一个框里读不出是三个键。边框取字色的三成，主按钮反色底上
  * 也看得见。非 Mac 键盘写成一串「Ctrl+Shift+Enter」，那是一个词，放一枚。
  */
-const CAP = "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-[color-mix(in_srgb,currentColor_30%,transparent)] px-1 font-sans text-[11px] leading-none";
+const CAP = "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-[color-mix(in_srgb,currentColor_30%,transparent)] px-1 font-sans text-[11px] leading-none";
 
 const EMPTY: never[] = [];
 
