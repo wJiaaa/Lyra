@@ -69,21 +69,19 @@ import { acceleratorLabel } from "../../ui/keyboard.ts";
 type Attachment = DraftAttachment;
 
 /*
- * 欢迎页的输入框刚被换下时在哪、有多宽。
+ * 欢迎页发出第一条之后，对话页底部那个输入框从底边升起来。
  *
- * 从欢迎页进入对话，输入框看上去是同一个：从标题下面滑到底部，同时从 672 变宽到对话那一栏。
- * 实际上欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下矩形，新的那个挂上时接着往下画。
- * 只交接宽度的那一版，顶边一帧跳了 261px（1200×800 窗口实测），之后才在底部横着拉开，两段动作
- * 看着就是生硬。
- * 只认一秒以内的交接：隔久了就不是「同一个框换了位置」，而是另一次打开。
+ * 欢迎页和对话各挂各的输入框。上一版让新框从欢迎页那个框的位置滑到底部、同时变宽，看上去是同一个
+ * 框换了位置，但要交接矩形、对齐顶边、补宽度，还要分清这次卸载是发送还是点开了别的会话——点开
+ * 别的会话也滑，就成了无缘无故的动作。现在新框只在自己的位置上升起，不管旧框在哪。
+ *
+ * 只认发送：欢迎页的框在把第一条交给 `send` 时记下时间，卸载后一秒以内挂上的那个框才升起。
+ * 从欢迎页点开已有会话，框直接在底部。
  */
-let handoff: { rect: DOMRect; at: number } | null = null;
-const HANDOFF_WINDOW = 1000;
-/*
- * 欢迎页的框正在把第一条交出去。只有这时卸载才留矩形：从欢迎页点开一个已有会话，欢迎页的框也会
- * 卸载、对话的框也会挂上，但那是换了一个页面，框从标题下面滑到底部就成了无缘无故的动作。
- */
+let sentAt: number | null = null;
 let sending = false;
+const ARRIVAL_WINDOW = 1000;
+const ARRIVAL_RISE = 16;
 
 export function Composer({ centered = false }: {
 	/** 欢迎页：排在标题下面那一列里，外边距由那一列给，不再是贴着底边的那一条。 */
@@ -133,21 +131,16 @@ export function Composer({ centered = false }: {
 			return () => {
 				if (!sending) return;
 				sending = false;
-				handoff = { rect: el.getBoundingClientRect(), at: performance.now() };
+				sentAt = performance.now();
 			};
 		}
-		const from = handoff;
-		handoff = null;
-		if (!from || performance.now() - from.at > HANDOFF_WINDOW || motionReduced()) return;
-		const to = el.getBoundingClientRect();
-		// 顶边对齐：欢迎页那个框带着刚打的字，可能比底部这个空框高，对齐顶边看上去才是「框往下走」。
-		const dx = from.rect.left + from.rect.width / 2 - (to.left + to.width / 2);
-		const dy = from.rect.top - to.top;
-		if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(to.width - from.rect.width) < 1) return;
+		const at = sentAt;
+		sentAt = null;
+		if (at === null || performance.now() - at > ARRIVAL_WINDOW || motionReduced()) return;
 		el.animate(
 			[
-				{ maxWidth: `${from.rect.width}px`, transform: `translate(${dx}px, ${dy}px)` },
-				{ maxWidth: `${to.width}px`, transform: "none" },
+				{ opacity: 0, transform: `translateY(${ARRIVAL_RISE}px)` },
+				{ opacity: 1, transform: "none" },
 			],
 			{ duration: DURATION.base, easing: EASING.out },
 		);

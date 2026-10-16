@@ -1,12 +1,12 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 欢迎页发出第一条：输入框从标题下面走到底部的那一段，逐帧是什么样。
+ * 欢迎页发出第一条：对话页的输入框从底边升起来的那一段，逐帧是什么样。
  *
- * 欢迎页和对话页各挂一个输入框（见 `Composer.tsx` 的 `handoff`），看上去是同一个框换了位置。
- * 换的那一下要是一帧瞬移、或者半路被另一个实例接走而跳到终点，人看到的就是「生硬」。
- * 所以逐帧记下框的顶边、宽度、横向中心，以及这一帧画的是哪个实例、页面处在哪种状态。
+ * 欢迎页和对话页各挂一个输入框（见 `Composer.tsx` 的 `sentAt`）。新框只在自己的位置上升起，
+ * 不从欢迎页那个框的位置滑下来，所以离开欢迎页之后，框的顶边一帧也不该高过它最终停的地方。
+ * 逐帧记下框的顶边、宽度、透明度，以及这一帧画的是哪个实例、页面处在哪种状态。
  *
- * 先量反面：从欢迎页点开一个已有会话，换的是页面，框不该从标题下面滑下来。
+ * 先量反面：从欢迎页点开一个已有会话，换的是页面，框直接在底部，不升也不滑。
  *
  * 用法：node --experimental-strip-types e2e/composer-handoff-probe.ts [输出目录]
  */
@@ -59,6 +59,7 @@ interface Sample {
 	instance: number;
 	surface: string;
 	animations: number;
+	opacity: number;
 }
 
 /*
@@ -78,7 +79,7 @@ const SAMPLER = `(() => {
 			if (!ids.has(card)) ids.set(card, next++);
 			const r = card.getBoundingClientRect();
 			const column = card.closest('.ly-composer-dock > div');
-			out.push({ t: Math.round(performance.now() - t0), top: Math.round(r.top), width: Math.round(r.width), center: Math.round(r.left + r.width / 2), instance: ids.get(card), surface, animations: column ? column.getAnimations().length : -1 });
+			out.push({ t: Math.round(performance.now() - t0), top: Math.round(r.top), width: Math.round(r.width), center: Math.round(r.left + r.width / 2), instance: ids.get(card), surface, animations: column ? column.getAnimations().length : -1, opacity: column ? Number(getComputedStyle(column).opacity) : 1 });
 		}
 		if (performance.now() - t0 < 1500) requestAnimationFrame(tick);
 	};
@@ -121,34 +122,31 @@ async function main(): Promise<void> {
 		await stop();
 
 		const samples = await app.evaluate<Sample[]>("window.__handoff");
-		console.log("\n── 逐帧（t ms · 实例 · 页面 · top · width · 中心 · 动画数）──");
+		console.log("\n── 逐帧（t ms · 实例 · 页面 · top · width · 透明度 · 动画数）──");
 		let previous: Sample | null = null;
 		for (const s of samples) {
-			if (previous && previous.top === s.top && previous.width === s.width && previous.instance === s.instance && previous.surface === s.surface) continue;
-			console.log(`   ${String(s.t).padStart(5)} · #${s.instance} · ${s.surface.padEnd(8)} · ${String(s.top).padStart(4)} · ${String(s.width).padStart(4)} · ${s.center} · ${s.animations}`);
+			if (previous && previous.top === s.top && previous.width === s.width && previous.opacity === s.opacity && previous.instance === s.instance && previous.surface === s.surface) continue;
+			console.log(`   ${String(s.t).padStart(5)} · #${s.instance} · ${s.surface.padEnd(8)} · ${String(s.top).padStart(4)} · ${String(s.width).padStart(4)} · ${s.opacity.toFixed(2)} · ${s.animations}`);
 			previous = s;
 		}
 
-		const first = samples[0];
-		const last = samples[samples.length - 1];
-		if (!first || !last) throw new Error("一帧都没采到");
-		const travel = Math.abs(last.top - first.top);
-		let biggest = 0;
-		for (let i = 1; i < samples.length; i++) biggest = Math.max(biggest, Math.abs(samples[i].top - samples[i - 1].top));
-		const widths = samples.map((s) => s.width);
-		const monotonic = widths.every((w, i) => i === 0 || w >= widths[i - 1] - 1);
-		const instances = new Set(samples.map((s) => s.instance)).size;
-		const surfaces = [...new Set(samples.map((s) => s.surface))].join(" → ");
+		const arrived = samples.filter((s) => s.surface !== "empty");
+		const first = arrived[0];
+		const last = arrived[arrived.length - 1];
+		if (!first || !last) throw new Error("没采到对话页的输入框");
+		const highest = Math.min(...arrived.map((s) => s.top));
+		const rise = first.top - last.top;
+		const widths = new Set(arrived.map((s) => s.width));
+		console.log(`\n   页面经过：${[...new Set(samples.map((s) => s.surface))].join(" → ")}；对话页第一帧 top ${first.top}、透明度 ${first.opacity.toFixed(2)}；停在 ${last.top}`);
+		console.log(`   宽度：${[...widths].join(" / ")}；结束时 column 上还挂着 ${last.animations} 段动画\n`);
 
-		console.log(`\n   页面经过：${surfaces}；实例 ${instances} 个；纵向总位移 ${travel}px；单帧最大位移 ${biggest}px`);
-		console.log(`   宽度：${first.width} → ${last.width}；结束时 column 上还挂着 ${last.animations} 段动画\n`);
-
+		check("不从中间滑下来：离开欢迎页后顶边没有高过终点", highest >= last.top - 1, `最高 ${highest}，终点 ${last.top}`);
+		check("宽度一开始就是对话那一栏，不再横着拉开", widths.size === 1, [...widths].join(" / "));
 		if (REDUCED) {
-			check("减少动态效果时直接到位", biggest === travel, `单帧最大位移 ${biggest}px，总位移 ${travel}px`);
+			check("减少动态效果时直接到位、不透明", rise === 0 && first.opacity === 1, `升起 ${rise}px，第一帧透明度 ${first.opacity}`);
 		} else {
-			check("顶边没有一帧瞬移（单帧位移 ≤ 总位移的 35%）", travel > 0 && biggest <= travel * 0.35, `单帧最大 ${biggest}px / 总 ${travel}px`);
-			check("宽度一路变宽，没有回缩", monotonic, `${widths[0]} → ${widths[widths.length - 1]}`);
-			check("横向中心前后一致", Math.abs(last.center - first.center) <= 1, `${first.center} → ${last.center}`);
+			check("从底边升起（第一帧在终点下方 ≤ 16px）", rise > 0 && rise <= 16, `${first.top} → ${last.top}，升起 ${rise}px`);
+			check("升起时淡入", first.opacity < 0.5 && last.opacity === 1, `${first.opacity.toFixed(2)} → ${last.opacity}`);
 		}
 		check("动画播完不留残余", last.animations === 0, `${last.animations} 段`);
 	} finally {
@@ -157,7 +155,7 @@ async function main(): Promise<void> {
 	}
 	const passed = checks.filter((c) => c.ok).length;
 	await mkdir(OUT_DIR, { recursive: true });
-	const label = REDUCED ? "减少动态效果" : "切会话不滑_发送才滑";
+	const label = REDUCED ? "减少动态效果" : "切会话不动_发送从底部升起";
 	const out = join(OUT_DIR, `${STAMP}_${label}_${passed}of${checks.length}.mp4`);
 	await encode(frames, out);
 	console.log(`\n   录屏：${out}`);
