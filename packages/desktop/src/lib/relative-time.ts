@@ -4,6 +4,7 @@
 
 import { activeLocale, translate } from "../i18n/translate.ts";
 import type { ResolvedUiLocale } from "../i18n/index.ts";
+import { formatDate } from "./date-format.ts";
 import { hourStyle } from "./hour-style.ts";
 
 /** Coarse on purpose: the exact minute of a commit is never the question in a list. */
@@ -32,7 +33,7 @@ export function shortRelativeTime(iso: string, now = Date.now()): string {
 export function exactTime(iso: string, locale: ResolvedUiLocale = activeLocale()): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return at.toLocaleString(locale, {
+  return formatDate(at, locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

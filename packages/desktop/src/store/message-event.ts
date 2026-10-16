@@ -1,1 +1,1 @@
-export { messageEvent } from "@plume/client-runtime/messages";
+export { drawnAt, messageEvent } from "@plume/client-runtime/messages";

@@ -33,7 +33,7 @@ import type {
  */
 import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning, sideSessionIds } from "../lib/row-activity.ts";
-import { bridge } from "../services/index.ts";
+import { bridge, inFrame } from "../services/index.ts";
 import { activeModelCatalog } from "@plume/core/model-catalog";
 import { pullModelCatalog } from "./model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
@@ -661,13 +661,14 @@ export const useApp = create<AppState>((set, get) => ({
 		let initialComplete = false;
 		let connectionInterrupted = false;
 		const initialChanges: SessionChange[] = [];
-		bridge.sessions.onChanged((change) => {
+		// 这两路按帧合批，见 `services/pushes.ts`：开始一轮时它们在几十毫秒里连着来六七条。
+		bridge.sessions.onChanged((change) => inFrame(() => {
 			// 侧边聊天会话记在它那一格上；没了的时候不知道它是不是侧边聊天（`meta` 是 null），问一下就是。
 			if (change.meta?.parentId) useSide.getState().noteSide(change.meta);
 			else if (!change.meta) useSide.getState().forgetSide(change.id);
 			if (!initialComplete) initialChanges.push(change);
 			else applySessionChange(change, set, get);
-		});
+		}));
 
 		/*
 		 * Subscribe before the first reads.
@@ -710,7 +711,7 @@ export const useApp = create<AppState>((set, get) => ({
 			.then((pluginUpdates) => set({ pluginUpdates }))
 			.catch(() => {});
 		bridge.agent.onEvent(({ sessionId, event }) =>
-			get().applyEvent(sessionId, event),
+			inFrame(() => get().applyEvent(sessionId, event)),
 		);
 		if (typeof window !== "undefined") {
 			window.addEventListener("plume:connection", (event) => {

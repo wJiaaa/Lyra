@@ -35,7 +35,7 @@ function Harness({ enabled = true }: { enabled?: boolean }) {
 	return h(SidebarReorderContext.Provider, { value: reorder.contextValue },
 		h("output", null, reorder.dragging?.id ?? "idle"),
 		h(ProjectHead, { group: groups.projects[0], collapsed: false, onToggleCollapsed: () => { opened++; } }),
-		...sessions.map((item) => h(SessionRow, { key: item.id, session: item, onOpen: () => { opened++; }, onArchive: () => {} })),
+		...sessions.map((item) => h(SessionRow, { key: item.id, session: item, actions: { onOpen: () => { opened++; }, onArchive: () => {} } })),
 	);
 }
 const view = (enabled = true) => mount(h(LayoutProvider, null, h(Harness, { enabled })));

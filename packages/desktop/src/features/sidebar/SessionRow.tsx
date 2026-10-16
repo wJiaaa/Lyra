@@ -15,7 +15,7 @@ import type { SessionMeta } from "@plume/core";
 import { rowActivity } from "../../lib/row-activity.ts";
 import { useApp, useSideChatRunning } from "../../store/index.ts";
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "../../ui/icons/index.ts";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
@@ -55,13 +55,15 @@ const JUST_CREATED_MS = 1500;
  */
 export interface RowActions {
 	onOpen: (session: SessionMeta) => void;
+	/** Put it away. Absent in the archive, where every row is already filed. */
 	onArchive?: (session: SessionMeta) => void;
+	/** Both present only in the archive: put it back, or end it. */
 	onRestore?: (session: SessionMeta) => void;
 	onDelete?: (session: SessionMeta) => void;
 }
 
-/** Bind a set of actions to one conversation, for spreading onto its row. */
-export function rowActions(actions: RowActions, session: SessionMeta) {
+/** Bind a set of actions to one conversation. */
+function rowActions(actions: RowActions, session: SessionMeta) {
 	const bind = (act: ((session: SessionMeta) => void) | undefined) => (act ? () => act(session) : undefined);
 	return {
 		onOpen: () => actions.onOpen(session),
@@ -94,14 +96,16 @@ function showTrajectory(session: SessionMeta, open: () => void): void {
 	const timer = window.setTimeout(stop, 5000);
 }
 
-export function SessionRow({
+/*
+ * Memoised on its data: `actions` is held steady by `useSidebarLists`, so a session list that changed
+ * one row re-renders that row. It used to redraw all of them — eighty rows, eighty `TimeAgo`
+ * tooltips formatted — on every `sessions:changed`, and a send brings two of those inside 50ms.
+ */
+export const SessionRow = memo(function SessionRow({
 	session,
 	project,
 	nested = false,
-	onRestore,
-	onDelete,
-	onOpen,
-	onArchive,
+	actions,
 }: {
 	session: SessionMeta;
 	/**
@@ -118,13 +122,9 @@ export function SessionRow({
 	 * thing being read. In the tip it costs nothing and is there when it is wanted.
 	 */
 	project?: string;
-	onOpen: () => void;
-	/** Put it away. Absent in the archive, where every row is already filed. */
-	onArchive?: () => void;
-	/** Both present only in the archive: put it back, or end it. */
-	onRestore?: () => void;
-	onDelete?: () => void;
+	actions: RowActions;
 }) {
+	const { onOpen, onArchive, onRestore, onDelete } = rowActions(actions, session);
 	const { t } = useI18n();
 	const active = useRowLit(session.id);
 	/*
@@ -350,4 +350,4 @@ export function SessionRow({
 			</HoverRowReveal>
 		</HoverRow>
 	);
-}
+});

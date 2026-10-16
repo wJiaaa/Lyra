@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { formatDate } from "../../lib/date-format.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
 
 /**
@@ -181,7 +182,7 @@ function formatDurationTip(
 }
 
 function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string {
-	return new Date(timestamp).toLocaleString(locale, {
+	return formatDate(timestamp, locale, {
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
@@ -201,7 +202,7 @@ function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string
 function formatSentAt(timestamp: number, locale: ResolvedUiLocale): string {
 	const sent = new Date(timestamp);
 	const sameYear = sent.getFullYear() === new Date().getFullYear();
-	return sent.toLocaleString(locale, {
+	return formatDate(sent, locale, {
 		...(sameYear ? {} : { year: "numeric" }),
 		month: "short",
 		day: "numeric",

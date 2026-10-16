@@ -7,7 +7,7 @@
 
 import { Fragment } from "react";
 import type { SessionMeta } from "@plume/core";
-import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
+import { SessionRow, type RowActions } from "./SessionRow.tsx";
 
 export function SessionRows({ sessions, spawned, actions, project }: {
 	sessions: SessionMeta[];
@@ -20,7 +20,7 @@ export function SessionRows({ sessions, spawned, actions, project }: {
 		<>
 			{sessions.map((session) => (
 				<Fragment key={session.id}>
-					<SessionRow session={session} project={project ? session.projectName : undefined} {...rowActions(actions, session)} />
+					<SessionRow session={session} project={project ? session.projectName : undefined} actions={actions} />
 					<Spawned parentId={session.id} spawned={spawned} actions={actions} />
 				</Fragment>
 			))}
@@ -34,7 +34,7 @@ function Spawned({ parentId, spawned, actions }: { parentId: string; spawned: Re
 		<>
 			{(spawned[parentId] ?? []).map((child) => (
 				<Fragment key={child.id}>
-					<SessionRow session={child} nested {...rowActions(actions, child)} />
+					<SessionRow session={child} nested actions={actions} />
 					<Spawned parentId={child.id} spawned={spawned} actions={actions} />
 				</Fragment>
 			))}

@@ -16,6 +16,7 @@ import { routedBlock } from "../../lib/tool-summary.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import { isPlanTick } from "../../store/turn-stop.ts";
+import { drawnAt } from "../../store/message-event.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 import { toolCategory } from "../../lib/tool-kinds.ts";
@@ -105,7 +106,8 @@ export function runKey(run: Run): string {
 	if (run.kind === "hiccup") return `hiccup-${run.hiccup.id}`;
 	if (run.kind === "model") return `model-${run.at}`;
 	if (run.kind === "tools") return `tools-${run.calls[0]?.block.id ?? "empty"}`;
-	return run.key ?? `${run.message.role}-${run.message.timestamp}-${run.index}`;
+	// 按第一次画出来时的时间戳：乐观的那条换成落盘的那条，行不该跟着卸掉重挂，见 `drawnAt`。
+	return run.key ?? `${run.message.role}-${drawnAt(run.message)}-${run.index}`;
 }
 
 export type TurnStats = {

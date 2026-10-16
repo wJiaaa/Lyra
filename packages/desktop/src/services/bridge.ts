@@ -15,6 +15,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { PlumeApi } from "../../electron/ipc-types.ts";
+import { flushPushes } from "./pushes.ts";
 
 /**
  * The bridge, or a failure that names the cause.
@@ -52,9 +53,64 @@ function bridgeOrThrow(): PlumeApi {
  */
 export const bridge: PlumeApi = new Proxy({} as PlumeApi, {
 	get(_target, property) {
-		return bridgeOrThrow()[property as keyof PlumeApi];
+		const value = bridgeOrThrow()[property as keyof PlumeApi];
+		if (typeof value === "function") return method(property, () => bridgeOrThrow());
+		if (value && typeof value === "object") return namespace(property);
+		return value;
 	},
 	has(_target, property) {
 		return property in bridgeOrThrow();
 	},
 });
+
+/*
+ * Every call's reply resolves only after the pushes that arrived before it have been applied.
+ *
+ * Pushes are applied once per frame (`pushes.ts`), and the main process sends events and replies
+ * down one pipe in order. A reply overtaking the events ahead of it is how a transcript read back
+ * from disk gets the same `message_start` appended to it a second time.
+ *
+ * The flush is the first reaction registered on the reply, and the caller gets the same promise
+ * back: reactions run in the order they were added, so it lands before the caller's `await` without
+ * adding a tick. A `.finally` wrapper did the same thing two microtasks later, and that was enough
+ * to let one read in `session-read.ts` overlap the next.
+ *
+ * Wrapped by name and looked up on every call, never captured: tests replace bridge methods after
+ * the first access, and the namespaces the preload exposes are frozen, so the wrapper cannot simply
+ * be the object it stands for.
+ */
+const namespaces = new Map<PropertyKey, object>();
+const methods = new Map<string, (...args: unknown[]) => unknown>();
+
+function namespace(property: PropertyKey): object {
+	let wrapped = namespaces.get(property);
+	if (!wrapped) {
+		const live = () => bridgeOrThrow()[property as keyof PlumeApi] as unknown as Record<PropertyKey, unknown>;
+		wrapped = new Proxy({}, {
+			get(_target, name) {
+				const value = live()[name];
+				return typeof value === "function" ? method(`${String(property)}.${String(name)}`, live, name) : value;
+			},
+			has(_target, name) {
+				return name in live();
+			},
+		});
+		namespaces.set(property, wrapped);
+	}
+	return wrapped;
+}
+
+function method(key: PropertyKey, owner: () => object, name: PropertyKey = key): (...args: unknown[]) => unknown {
+	const id = String(key);
+	let wrapped = methods.get(id);
+	if (!wrapped) {
+		wrapped = (...args) => {
+			const target = owner();
+			const result: unknown = Reflect.apply(Reflect.get(target, name) as (...a: unknown[]) => unknown, target, args);
+			if (result && typeof (result as PromiseLike<unknown>).then === "function") (result as PromiseLike<unknown>).then(flushPushes, flushPushes);
+			return result;
+		};
+		methods.set(id, wrapped);
+	}
+	return wrapped;
+}

@@ -7,7 +7,6 @@
  * 设置 › 已归档的聊天's; the sidebar does not list them.
  */
 
-import type { SessionMeta } from "@plume/core";
 import { useMemo } from "react";
 import { useApp } from "../../store/index.ts";
 import { openInPane } from "../split/index.ts";
@@ -61,12 +60,12 @@ export function useSidebarLists({
 		[pool, settings, scratchRoots, sort, emptied],
 	);
 
-	const open = (meta: SessionMeta) => {
-		openInPane(meta);
-		onOpened();
-	};
-	const actions: RowActions = {
-		onOpen: open,
+	// 一份跨渲染不变的动作：行是按 props 记忆的（`SessionRow`），每次新建一份就等于没记。
+	const actions = useMemo((): RowActions => ({
+		onOpen: (meta) => {
+			openInPane(meta);
+			onOpened();
+		},
 		onArchive: (meta) => void setSessionArchived(meta, true),
 		/*
 		 * Both directions, because one row can be filed: the conversation you have open, which
@@ -75,7 +74,7 @@ export function useSidebarLists({
 		 * `SessionRow`.
 		 */
 		onRestore: (meta) => void setSessionArchived(meta, false),
-	};
+	}), [onOpened, setSessionArchived]);
 
 	return { groups, actions };
 }
