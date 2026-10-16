@@ -46,16 +46,13 @@ const TRACK = `((wantView) => {
 	const read = () => {
 		const page = [...document.querySelectorAll('.ly-settings-enter[data-active="true"]')].find((el) => el.getAttribute('data-view') !== wantView) || null;
 		const scroller = page ? (page.querySelector('.ly-scroll-view') || page.closest('.ly-scroll-view')) : null;
-		const pill = document.querySelector('.ly-settings-nav-pill');
 		const first = page ? page.querySelector('h1, h2, [data-settings-title], p, div') : null;
 		const fb = first ? first.getBoundingClientRect() : null;
-		const pb = pill ? pill.getBoundingClientRect() : null;
 		return {
 			y: fb ? Math.round(fb.top * 10) / 10 : null,
 			v: page ? page.getAttribute('data-view') : null,
 			h: page ? Math.round(page.getBoundingClientRect().height) : null,
 			top: scroller ? Math.round(scroller.scrollTop) : null,
-			pillY: pb ? Math.round(pb.top * 10) / 10 : null,
 		};
 	};
 	const tick = () => {
@@ -70,7 +67,6 @@ interface Frame {
 	y: number | null;
 	h: number | null;
 	top: number | null;
-	pillY: number | null;
 	v: string | null;
 }
 
@@ -115,7 +111,6 @@ async function pick(labelPattern: string, label: string): Promise<void> {
 	const shot = await evaluate<{ frames: Frame[] }>(`(() => ({ frames: window.__sj.frames }))()`);
 	const ys = live(shot.frames.map((f) => f.y));
 	const tops = live(shot.frames.map((f) => f.top));
-	const pills = live(shot.frames.map((f) => f.pillY));
 	if (!ys.length) {
 		console.log(`\n### ${label}\n  没读到内容块`);
 		return;
@@ -126,7 +121,6 @@ async function pick(labelPattern: string, label: string): Promise<void> {
 	console.log(`\n### ${label}`);
 	console.log(`  记了 ${shot.frames.length} 帧`);
 	console.log(`  内容走了 ${travel.toFixed(1)}px（${ys[0]} → ${ys[ys.length - 1]}），掉头 ${turns} 次`);
-	console.log(`  药丸走了 ${pills.length ? (Math.max(...pills) - Math.min(...pills)).toFixed(1) : "-"}px`);
 	console.log(`  scrollTop 变了 ${scrolled}px`);
 	const seq = shot.frames.filter((f) => f.y !== null).slice(0, 6).map((f) => `${f.v}@${f.y}`);
 	console.log(`  头几帧：${seq.join("  ")}`);
@@ -151,10 +145,10 @@ async function main(): Promise<void> {
 			console.log("找不到打开设置的入口");
 			return;
 		}
-		await until(`document.querySelector('.ly-settings-nav-pill') !== null`, 15000).catch(() => {});
+		await until(`document.querySelector('[data-ly-settings] [aria-current="page"]') !== null`, 15000).catch(() => {});
 		await new Promise((r) => setTimeout(r, 800));
 
-		const chapters = await evaluate<string[]>(`[...document.querySelectorAll('.ly-settings-nav-pill ~ div button, [aria-current], nav button')].map((b) => (b.innerText || '').trim()).filter((t) => t && t.length < 12)`);
+		const chapters = await evaluate<string[]>(`[...document.querySelectorAll('[aria-current], nav button')].map((b) => (b.innerText || '').trim()).filter((t) => t && t.length < 12)`);
 		console.log(`左边这些章：${chapters.slice(0, 14).join("、")}`);
 		// 头两章，来回走一趟：第一次是「进来」，第三次是「回来」，两者该长得不一样。
 		const [a, b] = [chapters[1], chapters[2]];

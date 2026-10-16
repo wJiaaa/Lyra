@@ -199,28 +199,6 @@
 	animation: ly-settings-in var(--ly-t-base) var(--ly-e-out) both;
 }
 
-.ly-settings-nav-pill {
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 0;
-	z-index: 0;
-	border-radius: var(--radius-xl);
-	background: var(--color-card-hover);
-	height: var(--ly-nav-pill-h, 32px);
-	transform: translateY(var(--ly-nav-pill-y, 0));
-	pointer-events: none;
-	transition:
-		transform var(--ly-t-base) var(--ly-e-out),
-		height var(--ly-t-base) var(--ly-e-out),
-		opacity var(--ly-t-quick) var(--ly-e-out);
-}
-
-.ly-settings-nav-pill[data-ready="false"] {
-	opacity: 0;
-	transition: none;
-}
-
 /*
  * Session switch: opacity only, from 0, on a remounted wrapper.
  *

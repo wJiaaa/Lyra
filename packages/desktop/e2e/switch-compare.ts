@@ -83,21 +83,16 @@ async function measureSettings(): Promise<{
 	animation: string;
 	duration: string;
 	fromOpacity: string;
-	pillReady: boolean;
-	pillMoved: boolean;
 	view: string;
 }> {
 	return evaluate(`(() => {
 		const root = document.querySelector("[data-ly-settings]");
 		const page = root && root.querySelector('[data-active="true"]');
-		const pill = root && root.querySelector(".ly-settings-nav-pill");
 		const style = page ? getComputedStyle(page) : null;
 		return {
 			animation: style ? style.animationName : "",
 			duration: style ? style.animationDuration : "",
 			fromOpacity: style ? style.opacity : "",
-			pillReady: pill?.getAttribute("data-ready") === "true",
-			pillMoved: false,
 			view: page?.getAttribute("data-view") || "",
 		};
 	})()`);
@@ -143,38 +138,28 @@ async function main(): Promise<void> {
 	const d = driver(app);
 	try {
 		await d.until('document.querySelector("[data-ly-open-settings]")', 30000);
-		await d.mark("[data-ly-open-settings]", "data-ly-open-settings");
 		await d.click("[data-ly-open-settings]");
-		await d.until('document.querySelector("[data-ly-settings] .ly-settings-nav-pill")', 20000);
+		const currentRow = `(document.querySelector('[data-ly-settings] [aria-current="page"]')?.textContent || "").trim()`;
+		await d.until(currentRow, 20000);
 		await pause(400);
-		const firstY = await evaluate<number>(`(() => {
-			const pill = document.querySelector("[data-ly-settings] .ly-settings-nav-pill");
-			if (!pill) return -1;
-			const y = parseFloat(getComputedStyle(pill).transform.split(",")[5] || "0");
-			return Number.isFinite(y) ? Math.round(y) : -1;
-		})()`);
+		const first = await evaluate<string>(currentRow);
 		await d.markByText("/屏幕截图/", "data-ly-settings-nav");
 		await d.click("[data-ly-settings-nav]");
 		const arriving = await measureSettings();
 		await pause(80);
 		const later = await measureSettings();
-		const secondY = await evaluate<number>(`(() => {
-			const pill = document.querySelector("[data-ly-settings] .ly-settings-nav-pill");
-			if (!pill) return -1;
-			const y = parseFloat(getComputedStyle(pill).transform.split(",")[5] || "0");
-			return Number.isFinite(y) ? Math.round(y) : -1;
-		})()`);
+		const second = await evaluate<string>(currentRow);
 		console.log(`   入场 ${arriving.animation} / ${arriving.duration}，点完 view=${arriving.view} → ${later.view}`);
-		console.log(`   药丸 ${firstY}px → ${secondY}px`);
+		console.log(`   选中行 ${first} → ${second}`);
 		const improved =
 			arriving.animation.includes("ly-settings-in") &&
 			arriving.duration.startsWith("0.22") &&
-			secondY !== firstY &&
+			second.includes("屏幕截图") &&
 			later.view === "screenshot";
 		if (improved) {
-			console.log("有改善：入场从 150ms/0.88 换成 220ms 从 0 淡入上移，选中条跟着走。");
+			console.log("有改善：入场从 150ms/0.88 换成 220ms 从 0 淡入上移，选中行跟着换。");
 		} else {
-			console.log("没有改善：入场或药丸对不上。");
+			console.log("没有改善：入场或选中行对不上。");
 			process.exitCode = 1;
 		}
 	} finally {

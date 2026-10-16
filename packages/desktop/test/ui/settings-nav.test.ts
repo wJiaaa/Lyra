@@ -21,7 +21,7 @@ test("设置页默认选择常规", () => {
 	assert.equal(useApp.getInitialState().settingsSection, "general");
 });
 
-test("the nav pill sits on the current row and follows a click", async () => {
+test("the current row carries the fill and a click picks another", async () => {
 	let section: "general" | "appearance" | "screenshot" = "general";
 	const view = await mount(
 		h(SettingsNav, {
@@ -35,11 +35,10 @@ test("the nav pill sits on the current row and follows a click", async () => {
 		}),
 	);
 	try {
-		const pill = view.host.querySelector(".ly-settings-nav-pill");
-		assert.ok(pill);
 		const general = view.host.querySelector('[aria-current="page"]');
 		assert.ok(general);
 		assert.equal(general?.textContent, "settings.general");
+		assert.match(general?.className ?? "", /\bbg-card-hover\b/);
 		const shot = [...view.host.querySelectorAll("button")].find((button) => button.textContent === "settings.screenshot");
 		assert.ok(shot);
 		await click(shot);

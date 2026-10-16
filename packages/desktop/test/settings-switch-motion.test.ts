@@ -12,12 +12,10 @@ test("settings pages arrive with a fade and a short rise, not the workspace 0.88
 	assert.match(css, /var\(--ly-t-base\)/);
 });
 
-test("the settings nav fill is a sliding pill, not a snapped row background", async () => {
+test("the settings nav fill snaps onto the selected row, with no sliding pill", async () => {
 	const nav = await readFile(new URL("../src/features/settings/SettingsNav.tsx", import.meta.url), "utf8");
 	const shell = await readFile(new URL("../src/features/settings/SettingsShell.tsx", import.meta.url), "utf8");
-	assert.match(nav, /ly-settings-nav-pill/);
-	assert.match(nav, /--ly-nav-pill-y/);
-	assert.ok(!/bg-card-hover text-ink/.test(nav), "the selected row must not paint its own fill");
+	assert.ok(!/ly-settings-nav-pill|transition-/.test(nav), "switching chapters must not animate the fill");
 	assert.match(shell, /data-ly-settings/);
 	assert.match(shell, /pageClassName="ly-settings-enter"/);
 	assert.match(shell, /<SettingsNav/);
