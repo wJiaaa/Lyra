@@ -2,7 +2,7 @@
  * 子代理面板里的钩子按钮。
  *
  * 照 ZCode 的做法：子代理跑的钩子进它自己的面板，按段归——派出去那一句、续跑补的那一句各开一段，
- * 按钮放在这一段收尾的地方；跑着的那一段跑完才有，和主会话一样。
+ * 按钮放在这一段收尾的地方；跑着的那一段跑完才有，全部顺利的那段不出，和主会话一样。
  */
 
 import assert from "node:assert/strict";
@@ -54,15 +54,14 @@ afterEach(() => {
 	useSubAgents.setState({ agents: [], transcripts: {}, hookRuns: {}, focused: null, loading: [] });
 });
 
-test("跑完的子代理：每一段收尾处一颗钩子按钮，各数各的", async () => {
+test("跑完的子代理：出了岔子的那一段收尾处有按钮，全部顺利的那段不出", async () => {
 	const view = await show("done");
 	try {
 		const rows = view.all("[data-sub-hooks]");
-		assert.deepEqual(rows.map((row) => row.textContent?.trim()), ["2", "1"], "第一段两条、续跑那段一条");
+		assert.deepEqual(rows.map((row) => row.textContent?.trim()), ["2"], "第一段拦下过一条，数的是这段全部；续跑那段只有成功的，不出");
 		const second = view.all("[data-sub-brief]")[1]!;
 		assert.ok(rows[0]!.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING, "第一段的按钮在续跑那句之前，贴着它自己那段的结尾");
 		assert.match(rows[0]!.querySelector("button")!.className, /text-accent/, "拦下过东西的那段，按钮换成强调色");
-		assert.doesNotMatch(rows[1]!.querySelector("button")!.className, /text-accent/);
 	} finally {
 		await view.unmount();
 	}

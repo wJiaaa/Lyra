@@ -16,7 +16,7 @@ import { translate } from "../../i18n/translate.ts";
 import { CornerRightDown } from "../../ui/icons/index.ts";
 import { Fragment, memo, useMemo, useState } from "react";
 import type { HookRun, Message, UserMessage } from "@plume/core";
-import { HookRunsButton, MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun, withoutThinking } from "../conversation/index.ts";
+import { hasTroubledHooks, HookRunsButton, MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun, withoutThinking } from "../conversation/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
@@ -168,9 +168,9 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 	);
 });
 
-/** 一段里跑过的钩子；一条都没有就什么也不画，不在列表里留一道空隙。 */
+/** 一段里跑过的钩子；没有出岔子的就什么也不画，不在列表里留一道空隙。 */
 function StretchHooks({ runs }: { runs: readonly HookRun[] }) {
-	if (runs.length === 0) return null;
+	if (!hasTroubledHooks(runs)) return null;
 	// 往回收：列表的行距是两段话之间的距离，这一排属于上面那句回复，和主会话里的操作排一样贴着它。
 	return (
 		<div data-sub-hooks="" className="-mt-1.5 -ml-1.5 flex h-6 items-center">
