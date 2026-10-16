@@ -2,6 +2,43 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.37](https://github.com/wJiaaa/Plume/releases/tag/v0.9.37) - 2026-10-16
+
+<!-- plume:notes en -->
+
+### Fixes
+
+- **Sending a message no longer freezes the window for a moment.** As a turn started, six or seven updates arrived within a few dozen milliseconds and each one redrew the whole window. In a 1,031-message conversation one frame took 100 ms, right as your bubble appeared. Updates are now applied once per frame and the sidebar only redraws the row that changed. The longest frame is now 17–33 ms.
+- **Saying "wait" mid-task no longer costs two extra requests.** If you stopped a turn and the model replied with one short line, Plume still asked it whether the task list was finished, then treated its empty answer as a glitch and pushed it again. Each of those resent the whole conversation, about 180k tokens. That follow-up question now only comes when the model actually did something, and an empty answer to it ends the turn.
+- **Messages from other conversations no longer wait until a long task is over.** A queued message used to sit until the receiving conversation finished its turn. In one real case that was 12 minutes, and the message was a warning that the sender was about to edit the same files. The model is now told that queued messages can take many minutes and when to interrupt instead. Several queued messages that arrive back to back are read together in one turn instead of one turn each.
+- **After switching back to a conversation, the running row no longer vanishes for 2.5 seconds.** It happened when you switched away while the model was thinking between two pieces of text. And if the window had been reloaded, the row showed no elapsed time, only a stray dot ("Thinking… · ·"). It now shows the same time as the summary under the reply. Tokens used by subagents can't be counted in that case.
+- **The time, duration and tok/s line no longer appears in the middle of a turn that's still running.** When the model kept working after an automatic reminder about its task list, the line was drawn under the earlier answer. In English it also happened after "(auto-continue)", because the check compared against the translated text. It now goes under the last answer, once the turn is over.
+- **A "Writing…" line no longer pops up under the first words of an answer and slides away.** It now disappears the moment text arrives, without the 150 ms fade, and the conversation doesn't move.
+- **In a turn that generates an image, the time and duration now come after the image.** The image used to be drawn last, below the turn's summary line. It now sits right after the call that made it.
+- **Switching back to a conversation with subagents running no longer flips the side panel to Subagents.** Reading the list back from disk counted as new subagents starting, so whatever page you had open was replaced, and the bar above the composer collapsed and grew back. It now stays put, and its entrance animation only plays once.
+- **A side chat no longer leaves a "New chat" in Notifications that you can't clear.** It had no project and no time, and clicking it led to "conversation not found". A finished side chat no longer leaves a notification; its answer is already in the panel beside you.
+- **A background task with no output no longer opens to a blank terminal.** Commands like `go test … > run.log 2>&1` write their output to a file, so the task's own log is empty and it looked as if the reason for "exit code 1" had been lost. It now says "No output", and when the command redirected it, names the file it went to.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 修复
+
+- **发消息那一下，窗口不再卡顿。** 一轮开始时，几十毫秒里会连着来六七条更新，每条都把整个窗口重画一遍。在 1031 条消息的会话里，有一帧要 100ms，正好卡在气泡出现的时候。现在更新按帧合并，侧栏只重画变了的那一行，最长一帧降到 17–33ms。
+- **中途喊「等一下」，不再多花两次请求。** 打断之后模型只回了一句，Plume 还会追问它清单做完没有，再把它的空回复当成抽风，催它接着答。每次都要把整段对话重发一遍，一次约 18 万 token。现在只有模型真的干了活才追问清单，对追问一个字没回就直接结束。
+- **别的会话发来的消息，不再压到长任务做完才读到。** 排队的消息要等收件的会话跑完这一轮。一次实际情况里等了 12 分钟，而那条消息是在说「我要改你也在改的文件」，送到时已经没用了。现在模型知道排队可能要等很多分钟，也知道什么情况该直接插话。紧挨着排队的几条消息合成一轮读，不再一条开一轮。
+- **切回会话后，运行行不再先消失 2.5 秒。** 模型在两段话之间思考时切走再切回，就会这样。窗口刷新过的话，运行行上没有耗时，只剩一个孤零零的点（「Thinking… · ·」）。现在它和回复底下那行统计用同一份时间。这种情况下子 Agent 用掉的 token 数不到。
+- **一轮还没跑完，时间、耗时和 tok/s 那一行不再先贴到中间那段回答底下。** 模型收到关于清单的自动提示后接着干活，这一行就画在了前一段回答下面。英文界面下遇到「（自动继续）」也会这样，因为比对的是译文。现在等这一轮结束，落在最后一段回答下面。
+- **回答一开始，字底下不再冒出一行「Writing…」又滑走。** 现在正文一来它当帧就隐去，不再淡出 150ms，对话也不跟着动。
+- **生成图片那一轮，时间和耗时现在排在图后面。** 图原来画在最后，压在这一轮的统计行下面。现在紧跟着生成它的那次调用。
+- **切回子 Agent 还在跑的会话，侧边面板不再被翻到「子 Agent」。** 从磁盘读回名单那一下被当成了新派出的子 Agent，你停着的那一页被换掉，输入框上方那一条也收起再长出来一遍。现在都停在原处，那一条的入场动画只播一次。
+- **侧边聊天答完，通知里不再留下一条点不掉的「新对话」。** 那一条没有项目、没有时间，点进去是「会话不存在」。现在侧边聊天跑完不再留通知，回答就在旁边那一格里。
+- **后台任务没有输出时，展开不再是一块空白终端。** `go test … > run.log 2>&1` 这类命令把输出写进了文件，任务自己的日志是空的，挂在「退出码 1」底下，像失败原因被吞了。现在直接写「没有输出」，命令里有重定向的，再说出写进了哪个文件。
+
+</details>
+
 ## [0.9.36](https://github.com/wJiaaa/Plume/releases/tag/v0.9.36) - 2026-10-16
 
 <!-- plume:notes en -->

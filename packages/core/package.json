@@ -1,6 +1,6 @@
 {
 	"name": "@plume/core",
-	"version": "0.9.36",
+	"version": "0.9.37",
 	"private": true,
 	"type": "module",
 	"description": "Plume agent kernel: providers, agent loop, tools, skills, MCP, sessions",
