@@ -28,7 +28,8 @@
 		"./mcp-placeholders": "./src/mcp/placeholders.ts",
 		"./mcp-form": "./src/mcp/form.ts",
 		"./sandbox-runner": "./src/sandbox/runner-entry.ts",
-		"./ui-language": "./src/ui-language/index.ts"
+		"./ui-language": "./src/ui-language/index.ts",
+		"./shell-split": "./src/tools/shell-split.ts"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
