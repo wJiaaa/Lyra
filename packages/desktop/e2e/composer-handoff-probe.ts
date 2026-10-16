@@ -6,6 +6,8 @@
  * 换的那一下要是一帧瞬移、或者半路被另一个实例接走而跳到终点，人看到的就是「生硬」。
  * 所以逐帧记下框的顶边、宽度、横向中心，以及这一帧画的是哪个实例、页面处在哪种状态。
  *
+ * 先量反面：从欢迎页点开一个已有会话，换的是页面，框不该从标题下面滑下来。
+ *
  * 用法：node --experimental-strip-types e2e/composer-handoff-probe.ts [输出目录]
  */
 
@@ -14,7 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { startApp, type RunningApp } from "./app.ts";
-import { press, type, until } from "./drive.ts";
+import { click, openSession, press, type, until } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 
@@ -95,6 +97,21 @@ async function main(): Promise<void> {
 		const field = '[data-ly-chat-surface="empty"] textarea';
 		await until(app, `document.querySelector(${JSON.stringify(field)})`, 30000);
 		await new Promise((r) => setTimeout(r, 800));
+
+		await app.evaluate(SAMPLER);
+		await openSession(app, "qa-short");
+		await new Promise((r) => setTimeout(r, 1800));
+		const switched = await app.evaluate<Sample[]>("window.__handoff");
+		const moving = switched.filter((s) => s.animations > 0).length;
+		const settled = switched.filter((s) => s.surface !== "empty");
+		const stops = new Set(settled.map((s) => s.top)).size;
+		console.log(`\n── 点开已有会话：页面经过 ${[...new Set(switched.map((s) => s.surface))].join(" → ")}；离开欢迎页后顶边停在 ${stops} 处 ──`);
+		check("点开已有会话时输入框不滑动", moving === 0, `${moving} 帧挂着动画`);
+		check("点开已有会话时输入框一步到底", stops === 1, `顶边经过 ${[...new Set(settled.map((s) => s.top))].join(" → ")}`);
+
+		await click(app, 'button[aria-label="在「交互验证」里新建会话"]');
+		await until(app, `document.querySelector(${JSON.stringify(field)})`, 5000);
+		await new Promise((r) => setTimeout(r, 1200));
 		await type(app, field, "帮我看看这个项目的结构");
 		await new Promise((r) => setTimeout(r, 800));
 
@@ -140,7 +157,7 @@ async function main(): Promise<void> {
 	}
 	const passed = checks.filter((c) => c.ok).length;
 	await mkdir(OUT_DIR, { recursive: true });
-	const label = REDUCED ? "减少动态效果" : "欢迎页发出第一条";
+	const label = REDUCED ? "减少动态效果" : "切会话不滑_发送才滑";
 	const out = join(OUT_DIR, `${STAMP}_${label}_${passed}of${checks.length}.mp4`);
 	await encode(frames, out);
 	console.log(`\n   录屏：${out}`);

@@ -79,6 +79,11 @@ type Attachment = DraftAttachment;
  */
 let handoff: { rect: DOMRect; at: number } | null = null;
 const HANDOFF_WINDOW = 1000;
+/*
+ * 欢迎页的框正在把第一条交出去。只有这时卸载才留矩形：从欢迎页点开一个已有会话，欢迎页的框也会
+ * 卸载、对话的框也会挂上，但那是换了一个页面，框从标题下面滑到底部就成了无缘无故的动作。
+ */
+let sending = false;
 
 export function Composer({ centered = false }: {
 	/** 欢迎页：排在标题下面那一列里，外边距由那一列给，不再是贴着底边的那一条。 */
@@ -124,7 +129,10 @@ export function Composer({ centered = false }: {
 		const el = column.current;
 		if (!el) return;
 		if (centered) {
+			sending = false;
 			return () => {
+				if (!sending) return;
+				sending = false;
 				handoff = { rect: el.getBoundingClientRect(), at: performance.now() };
 			};
 		}
@@ -582,6 +590,7 @@ export function Composer({ centered = false }: {
 		 * live slot first; the keyboard reaches this field without that press, so it is done here.
 		 */
 		if (activeSessionId === null && useApp.getState().activeSessionId !== null) focusScreenOf(null);
+		if (centered) sending = true;
 		const accepted = await send(outgoing.content, {
 			...(outgoing.deliver ? { deliver: outgoing.deliver } : parked ? { deliver: "steer" as const } : {}),
 			...(outgoing.displayText !== undefined ? { displayText: outgoing.displayText } : {}),
@@ -592,6 +601,8 @@ export function Composer({ centered = false }: {
 			sessionId: activeSessionId,
 		});
 		if (!accepted) {
+			// 没发出去就还留在欢迎页，之后再从这里点开别的会话不该算交接。
+			if (centered) sending = false;
 			// A transport rejection must preserve the original files and command text for retry.
 			const newer = useApp.getState().drafts[draftKey];
 			const restored = { text: newer?.text ? `${text}\n${newer.text}` : text, attachments: [...attachments, ...(newer?.attachments ?? [])], sessionRefs: [...new Map([...referencedSessions, ...(newer?.sessionRefs ?? [])].map(ref => [ref.id, ref])).values()], quotes: [...quotes, ...(newer?.quotes ?? [])] };
