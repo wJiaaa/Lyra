@@ -65,8 +65,13 @@ export class PlanWatch {
 	private readonly tools: readonly Tool[];
 	/** `asked`：正在处理的这条回复是在回答 `openPlanNote`。一次运行只问一次，之后是 `spent`。 */
 	private check: "unasked" | "asked" | "spent" = "unasked";
-	/** 这条带工具的回复是在回答 `openPlanNote`——跑完工具后由 `settled` 读。 */
+	/** 正在处理的这条回复是在回答 `openPlanNote`——由 `settled`（带工具）与 `silent`（只有正文）读。 */
 	private settling = false;
+	/**
+	 * 这次运行跑过清单以外的工具。没跑过，清单不会因为这次运行落后于事实，收尾时不问：`287c543f` 喊停后
+	 * 只回了一句「已暂停」，清单里那项 in_progress 是被打断的上一次运行留下的，问了只换来一条空回复。
+	 */
+	private worked = false;
 	/** 上次汇报（或被问）以来的请求数。 */
 	private unreported = 0;
 
@@ -77,12 +82,13 @@ export class PlanWatch {
 
 	/** 一条只有正文的回复到了。它要是在回答 `openPlanNote`，这个问题就用掉了。 */
 	replied(): void {
-		this.answered();
+		this.settling = this.answered();
 	}
 
 	/** 一条带工具的回复要跑了：交回接在每条成功结果末尾的那句话，没有就是 `undefined`。 */
 	beforeTools(toolCalls: ToolCall[]): string | undefined {
 		this.settling = this.answered();
+		if (toolCalls.some((call) => call.name !== todoTool.name)) this.worked = true;
 		/*
 		 * A reply that only updated the list did nothing else. Said in that call's own result, where the
 		 * model reads next. Measured before this: nearly half the tool turns on a three-step task were a
@@ -95,6 +101,14 @@ export class PlanWatch {
 	/** 回答 `openPlanNote` 时只动了清单：回答在上面，人已经看过了，不再要一段新正文。 */
 	settled(toolCalls: ToolCall[], toolResults: ToolResultMessage[]): boolean {
 		return this.settling && toolCalls.every((call) => call.name === todoTool.name) && toolResults.every((result) => !result.isError);
+	}
+
+	/**
+	 * 回答 `openPlanNote` 时一个字也没写：那句话本来就说「要等用户回复的保持原样」「只更新清单时不要写
+	 * 正文」，这就是照做了。回答在上面，人已经看过了；当成空回复去催，逼出来的是把上面那段再说一遍。
+	 */
+	silent(assistant: AssistantMessage): boolean {
+		return this.settling && assistant.content.every((part) => part.type !== "text" || !part.text.trim());
 	}
 
 	/**
@@ -125,10 +139,11 @@ export class PlanWatch {
 	 *
 	 * 只看 in_progress：一轮都收尾了还说「正在做」，清单和事实自相矛盾。剩下的全是 pending，是它有意
 	 * 停在那一步前面（多半在等人确认）——真实模型上量过，那种情况问了也只是原样再交一遍清单，白花一次请求。
+	 * 这次运行没干活（`worked`）也不问：漏勾的前提是做了事。
 	 */
 	closing(turnsLeft: boolean): string | undefined {
 		const open = readTodos(this.state).filter((todo) => todo.status !== "completed");
-		if (!open.some((todo) => todo.status === "in_progress") || this.check !== "unasked" || !turnsLeft || !this.listing()) return undefined;
+		if (!this.worked || !open.some((todo) => todo.status === "in_progress") || this.check !== "unasked" || !turnsLeft || !this.listing()) return undefined;
 		this.check = "asked";
 		return openPlanNote(open);
 	}

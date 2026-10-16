@@ -16,7 +16,7 @@ import { runAgent, type AgentRunResult } from "../src/agent/loop.ts";
 import { openPlanNote, PROGRESS_EVERY, PROGRESS_NOTE, SOLO_TODO_NOTE, stalePlanNote } from "../src/agent/plan-watch.ts";
 import { runConfig } from "./run-config.ts";
 import { readTool } from "../src/tools/read.ts";
-import { todoTool, type TodoItem } from "../src/tools/todo.ts";
+import { TODOS_KEY, todoTool, type TodoItem } from "../src/tools/todo.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
@@ -46,8 +46,11 @@ const todoCall = (id: string, todos: TodoItem[]) => ({ type: "toolCall" as const
 const readCall = (id: string) => ({ type: "toolCall" as const, id, name: "read", arguments: { path: "a.ts" }, argumentsText: "{}" });
 const text = (value: string) => ({ type: "text" as const, text: value });
 
-/** Runs the script; a request past its end fails the test instead of replaying the last reply. */
-async function run(script: AssistantMessage[], maxTurns = 8): Promise<{ result: AgentRunResult; requests: number }> {
+/**
+ * Runs the script; a request past its end fails the test instead of replaying the last reply.
+ * `todos` is a list left over from an earlier run of the same session.
+ */
+async function run(script: AssistantMessage[], maxTurns = 8, todos?: TodoItem[]): Promise<{ result: AgentRunResult; requests: number }> {
 	let requests = 0;
 	const result = await runAgent(
 		runConfig({
@@ -55,7 +58,7 @@ async function run(script: AssistantMessage[], maxTurns = 8): Promise<{ result: 
 				sessionId: "open-plan",
 				systemPrompt: "x",
 				messages: [{ role: "user", content: [text("读 a.ts 然后总结")], timestamp: Date.now() }],
-				state: new Map(),
+				state: new Map(todos ? [[TODOS_KEY, todos]] : []),
 			},
 			model: {
 				provider: PROVIDER,
@@ -137,6 +140,36 @@ test("only pending items left means it stopped on purpose — nothing is asked",
 	]);
 	assert.equal(requests, 2);
 	assert.equal(notes(result.messages).length, 0);
+});
+
+test("a run that did no work is not asked: the open item was left by the run before it", async () => {
+	// 287c543f：喊停之后只回了一句「已暂停」，清单里那项 in_progress 是被打断的那次运行留下的。
+	const { result, requests } = await run([reply([text("已暂停，还没改代码。")], "stop")], 8, OPEN);
+	assert.equal(requests, 1);
+	assert.equal(result.reason, "done");
+	assert.equal(notes(result.messages).length, 0);
+});
+
+test("a run that only touched the list is not asked: it wrote the open item itself", async () => {
+	const { result, requests } = await run([
+		reply([todoCall("t1", OPEN)], "toolUse"),
+		reply([text("先这样拆，等你确认。")], "stop"),
+	]);
+	assert.equal(requests, 2);
+	assert.equal(notes(result.messages).length, 0);
+});
+
+test("answering the question with nothing at all ends the run: the answer above stands, no empty-reply nudge", async () => {
+	const { result, requests } = await run([
+		reply([todoCall("t1", OPEN), readCall("r1")], "toolUse"),
+		reply([text("a 导出了常量 1，等你确认后总结。")], "stop"),
+		reply([{ type: "thinking", thinking: "" }, text("")], "stop"),
+	]);
+	assert.equal(requests, 3, "an empty answer to the question is not chased with another request");
+	assert.equal(result.reason, "done");
+	assert.equal(notes(result.messages).length, 1);
+	const nudged = result.messages.some((m) => m.role === "user" && m.synthetic && m.content.some((c) => c.type === "text" && c.text.startsWith("（自动继续）")));
+	assert.ok(!nudged);
 });
 
 const readFile = (id: string, n: number) => ({ type: "toolCall" as const, id, name: "read", arguments: { path: `f${n}.ts` }, argumentsText: "{}" });

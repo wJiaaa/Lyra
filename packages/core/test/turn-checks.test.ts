@@ -77,7 +77,10 @@ async function askRealTable(control: Parameters<typeof turnChecks>[0], assistant
 	const state = new Map<string, unknown>();
 	const open: TodoItem[] = [{ content: "总结", status: "in_progress", activeForm: "总结中" }];
 	state.set(TODOS_KEY, open);
-	const checks = turnChecks(control, async () => {}, new PlanWatch(state, [todoTool]), new RepetitionWatch());
+	const plan = new PlanWatch(state, [todoTool]);
+	// 这次运行干过活，清单收尾时才会被问到。
+	plan.beforeTools([{ type: "toolCall", id: "r1", name: "read", arguments: {}, argumentsText: "{}" }]);
+	const checks = turnChecks(control, async () => {}, plan, new RepetitionWatch());
 	const said: Message[] = [];
 	const ending = await askAfterProse(checks, { assistant, turnsLeft: true, produced: [] }, async (message) => {
 		said.push(message);

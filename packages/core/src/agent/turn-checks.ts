@@ -89,6 +89,7 @@ export function turnChecks(control: AgentControlContext, emit: AgentEventSink, p
 	return {
 		afterProse: [
 			limit.prose,
+			({ assistant }) => (plan.silent(assistant) ? { end: { reason: "done" } } : undefined),
 			emptyReply(),
 			stopHook(control),
 			({ turnsLeft }) => say(plan.closing(turnsLeft)),
