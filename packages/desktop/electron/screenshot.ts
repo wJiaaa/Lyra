@@ -113,11 +113,17 @@ interface Capture {
 	 */
 	cameFromApp: boolean;
 	/**
+	 * The Plume window that had focus when the screenshot started, which cancelling hands focus back to
+	 * before the overlay goes. See `hideOnceRefocused`.
+	 */
+	focusedBefore: BrowserWindow | null;
+	/**
 	 * Escape while a capture is up, for an overlay that has not been activated.
 	 *
 	 * The overlay is shown without taking focus — see `reveal` — so the page's own key handler does not
 	 * hear anything until it has been pressed on. Cancelling has to work before that: registered when a
-	 * capture starts and released the moment it ends, so it never shadows the key anywhere else.
+	 * capture starts and released the moment it ends, so it never shadows the key anywhere else. While
+	 * it is held it shadows the page's handler too, which is why `escapePressed` forwards the key.
 	 */
 	escapeHeld: boolean;
 }
@@ -129,6 +135,7 @@ const idleCapture = (id: number): Capture => ({
 	failsafe: null,
 	steppedAsideMain: null,
 	cameFromApp: false,
+	focusedBefore: null,
 	escapeHeld: false,
 });
 
@@ -190,7 +197,7 @@ const revealers = new Map<number, () => void>();
 function holdEscape(on: boolean): void {
 	if (on === capture.escapeHeld) return;
 	try {
-		if (on) capture.escapeHeld = globalShortcut.register("Escape", () => closeScreenshotOverlay({ foreground: false }));
+		if (on) capture.escapeHeld = globalShortcut.register("Escape", escapePressed);
 		else {
 			globalShortcut.unregister("Escape");
 			capture.escapeHeld = false;
@@ -198,6 +205,24 @@ function holdEscape(on: boolean): void {
 	} catch {
 		capture.escapeHeld = false;
 	}
+}
+
+/**
+ * Escape, handed to the page so it leaves the way the cancel button does.
+ *
+ * A global shortcut takes the key away from the focused window as well, so once this is registered
+ * the page's own keydown never hears Escape — not even after the overlay has focus. This used to
+ * close straight from here, which made every Escape a hard cut: the page's 120ms fade never ran,
+ * and the dimming, the frame and the toolbar went in a single frame. Closing directly is kept for a
+ * page that cannot answer, so a dead renderer never leaves a full-screen window Escape cannot shift.
+ */
+function escapePressed(): void {
+	const page = overlay && !overlay.isDestroyed() ? overlay.webContents : null;
+	if (!page || page.isDestroyed() || page.isCrashed()) {
+		closeScreenshotOverlay({ foreground: false });
+		return;
+	}
+	page.send("screenshot:escape");
 }
 let activeShortcut: string | null = null;
 let onCaptureTriggered: (() => void) | null = null;
@@ -491,10 +516,21 @@ export function closeScreenshotOverlay(options?: {
 	 * the front of it. Nothing produced, nothing to deliver, nothing to bring forward.
 	 *
 	 * Hiding the overlay hands focus back to whatever was under it, which is where it came from.
+	 *
+	 * Except a Plume window that had focus when the capture began: that one is given it back *before*
+	 * the overlay goes — see `hideOnceRefocused`. It moves nothing the paragraph above is about: it
+	 * was already the front window of the front application, with only the overlay ever above it,
+	 * where `main` is merely whichever window was found and may not be what the user was looking at.
 	 */
 	if (!(options?.foreground ?? capture.cameFromApp)) {
+		const back = capture.focusedBefore;
+		capture.focusedBefore = null;
+		if (back && back !== cover && !back.isDestroyed() && back.isVisible() && !back.isMinimized()) {
+			hideOnceRefocused(cover, back);
+			return;
+		}
 		captureLog("close: cancelled — leaving every window where it is", { mainVisible: main?.isVisible() });
-		cover.hide();
+		takeOverlayOff(cover);
 		settleOverlayHidden();
 		return;
 	}
@@ -515,9 +551,83 @@ export function closeScreenshotOverlay(options?: {
 		main.focus();
 		app.focus({ steal: true });
 	}
-	cover.hide();
+	takeOverlayOff(cover);
 	settleOverlayHidden();
 	captureLog("close: done (brought forward)");
+}
+
+/** Two frames: long enough for an alpha change to reach the screen before the window is ordered out. */
+const TRANSPARENT_BEFORE_HIDE_MS = 34;
+
+/**
+ * Take the overlay off screen without macOS animating it away.
+ *
+ * `hide()` on a visible window is an orderOut, and the window server is free to animate that. On a
+ * full-screen window holding a frozen picture of the screen, any such animation moves the whole
+ * picture for a few frames as it goes — "the screen twitches on Escape", which stayed after the
+ * fade and the focus order were fixed. Entering never showed it because `reveal` puts the window
+ * up at `setOpacity(0)`, so whatever the system plays on the way in is played invisibly. Leaving
+ * now does the same: alpha first, which is instant, then the hide a couple of frames later, at
+ * which point there is nothing left to see. Click-through in between, because a transparent window
+ * is still a window — see `stepMainAside`.
+ *
+ * Linux has no window opacity (`hidesOverlayForSnapshot`), so it hides at once as before.
+ */
+function takeOverlayOff(cover: BrowserWindow): void {
+	if (hidesOverlayForSnapshot(process.platform)) {
+		cover.hide();
+		return;
+	}
+	cover.setIgnoreMouseEvents(true);
+	cover.setOpacity(0);
+	setTimeout(() => {
+		// A capture that began in the meantime owns the window now; `reveal` brings its alpha back.
+		if (!cover.isDestroyed() && !capture.active) cover.hide();
+	}, TRANSPARENT_BEFORE_HIDE_MS);
+}
+
+/** Two frames: time for a window that has just become key to be drawn that way. */
+const REFOCUS_REPAINT_MS = 34;
+/** How long to wait for a `focus` that may never come before taking the overlay away regardless. */
+const REFOCUS_GIVE_UP_MS = 200;
+
+/**
+ * Give focus back to the window the capture started from, and only then take the overlay away.
+ *
+ * Once the overlay has focus, the window under it wears its inactive look — grey traffic lights,
+ * faded selection — while the frozen picture shows it active, because it was when the picture was
+ * taken. Hiding first and letting the system return focus showed that difference: the capture log
+ * has `browser-window-focus` 7ms *after* the hide, so for a frame or two the screen went from
+ * active to inactive and back, which is what "the whole screen twitches on Escape" was. In this
+ * order the change happens while the overlay still covers it.
+ *
+ * Giving up after a while is the point of the timer: a window closed in between never sends
+ * `focus`, and a twitch is a much smaller failure than an overlay left on screen.
+ */
+function hideOnceRefocused(cover: BrowserWindow, back: BrowserWindow): void {
+	const session = capture.id;
+	const askedAt = Date.now();
+	let settled = false;
+	const hide = (how: string) => {
+		if (settled) return;
+		settled = true;
+		clearTimeout(giveUp);
+		if (!back.isDestroyed()) back.removeListener("focus", onFocus);
+		// Another capture began in the meantime, and the overlay is its now.
+		if (capture.id !== session || capture.active || cover.isDestroyed()) return;
+		takeOverlayOff(cover);
+		settleOverlayHidden();
+		captureLog("close: overlay hidden after focus came back", { how, ms: Date.now() - askedAt });
+	};
+	const onFocus = () => setTimeout(() => hide("focus"), REFOCUS_REPAINT_MS);
+	const giveUp = setTimeout(() => hide("gave up waiting for focus"), REFOCUS_GIVE_UP_MS);
+	captureLog("close: cancelled — handing focus back under the overlay", { window: back.id });
+	if (back.isFocused()) {
+		onFocus();
+		return;
+	}
+	back.once("focus", onFocus);
+	back.focus();
 }
 
 /**
@@ -1341,6 +1451,7 @@ export async function startScreenshotSession(customSettings?: ScreenshotSettings
 	 */
 	beginCaptureLog();
 	capture.cameFromApp = BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isFocused());
+	capture.focusedBefore = BrowserWindow.getAllWindows().find((win) => win !== overlay && !win.isDestroyed() && win.isFocused()) ?? null;
 	captureLog("session start", {
 		cameFromApp: capture.cameFromApp,
 		windows: BrowserWindow.getAllWindows().map((w) => ({

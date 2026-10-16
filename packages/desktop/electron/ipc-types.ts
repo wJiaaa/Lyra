@@ -1024,6 +1024,14 @@ export interface PlumeApi {
 		 * without delivering a picture.
 		 */
 		passThrough(): void;
+		/**
+		 * Escape was pressed during a capture. Returns an unsubscribe.
+		 *
+		 * The main process holds Escape as a global shortcut for as long as a capture is up, and a
+		 * global shortcut is never delivered to the focused page as a keydown — so this is the only
+		 * way the page hears it.
+		 */
+		onEscape(handler: () => void): () => void;
 		/** The window is on screen — from here a fade has frames to run in. Returns an unsubscribe. */
 		onShown(handler: () => void): () => void;
 		/**

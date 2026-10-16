@@ -345,6 +345,13 @@ const extras = {
 		// The capture is visually over — a colour taken, a file downloaded, a picture pinned — so let
 		// presses through while the confirmation is still up. See `overlayPassedThrough`.
 		passThrough: () => ipcRenderer.send("screenshot:passThrough"),
+		// Escape, caught by the main process's global shortcut — which keeps it from ever reaching
+		// this page as a keydown — and passed on. See `escapePressed`.
+		onEscape: (handler: () => void) => {
+			const listener = () => handler();
+			ipcRenderer.on("screenshot:escape", listener);
+			return () => ipcRenderer.removeListener("screenshot:escape", listener);
+		},
 		// And the end of one: the window is off screen and the page can let go of the picture.
 		onHidden: (handler: () => void) => {
 			const listener = () => handler();

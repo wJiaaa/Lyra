@@ -405,6 +405,16 @@ export function ScreenshotOverlay() {
 		leaveThen(() => bridge.screenshot?.cancel?.());
 	}, [leaveThen]);
 
+	/*
+	 * Escape as the main process hears it.
+	 *
+	 * While a capture is up Escape is a global shortcut, and a global shortcut never arrives here as
+	 * a keydown — so the handler below only covers the case where registering it failed. Without
+	 * this, Escape closed from the main process with no way out at all: no fade, every layer gone in
+	 * one frame.
+	 */
+	useEffect(() => bridge.screenshot?.onEscape?.(handleCancel), [handleCancel]);
+
 	/**
 	 * Leave the way Escape does, and let the confirmation outlive the capture.
 	 *
@@ -672,15 +682,20 @@ export function ScreenshotOverlay() {
 				data-screenshot-backdrop
 				className="absolute inset-0 block h-full w-full pointer-events-none"
 				/*
-				 * Taken away the instant leaving starts, without a fade.
+				 * Taken away the instant a leave with a confirmation starts, without a fade.
 				 *
-				 * It is a copy of the screen underneath it, so removing it is invisible — and it has to
-				 * go, because what follows a colour pick is the confirmation sitting over the *real*
-				 * desktop for another beat. Leave the frozen copy up and the desktop behind it is
+				 * What follows a colour pick is the confirmation sitting over the *real* desktop for
+				 * another beat. Leave the frozen copy up and the desktop behind it is
 				 * unresponsive-looking for as long as the message is: clicks land, nothing appears to
 				 * happen, because what is on screen is a photograph.
+				 *
+				 * Every other leave keeps it until the window goes. It is a copy of the screen, but not
+				 * of the screen *now*: with the overlay focused, the window underneath has turned
+				 * inactive, so dropping the copy early showed it changing appearance while the dimming
+				 * faded. The main process gives that window focus back while the overlay still covers
+				 * it — see `hideOnceRefocused` and the finishing path in `screenshot.ts`.
 				 */
-				style={{ opacity: leaving ? 0 : 1 }}
+				style={{ opacity: leaving && toast ? 0 : 1 }}
 			/>
 
 			{/*
