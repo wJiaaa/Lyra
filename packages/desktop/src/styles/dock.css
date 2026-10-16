@@ -108,6 +108,31 @@
   border-radius: var(--radius-lg);
 }
 
+/*
+ * 右栏滑动的那 220ms，面板那一栏垫一块卡片底色。
+ *
+ * 面板底下是窗口，开着毛玻璃时比卡片亮一截；对话的宽度在主线程上补间，正文一长就跟不上面板的
+ * 平移，收起时两条边之间拉开上百像素，露出来的就是那层亮灰。垫的位置是面板展开时那张卡片，圆角
+ * 也一样，所以不管哪条边慢，缝里都是卡片的颜色。只在滑动时垫：平时卡片之间就该露窗口。
+ * `overflow: clip` 是因为面板一路不透明地滑出 dock 的右缘，不裁就会扫过窗口自己的边。
+ * 见 `column-slide.ts`。
+ */
+[data-dock-sliding] {
+  overflow: clip;
+}
+
+[data-dock-sliding]::before {
+  content: "";
+  position: absolute;
+  left: var(--ly-slide-left);
+  top: var(--ly-slide-top);
+  width: var(--ly-slide-width);
+  height: var(--ly-slide-height);
+  background: var(--color-shell);
+  border-radius: var(--radius-panel);
+  pointer-events: none;
+}
+
 .ly-dock-pane {
   opacity: 1;
   transform-origin: top left;

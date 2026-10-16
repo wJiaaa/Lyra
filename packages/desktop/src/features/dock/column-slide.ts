@@ -1,8 +1,14 @@
 /**
- * 右栏收起、展开，照左边侧栏开合的样子动：面板保持自己的宽度从右边滑进、淡入，对话那一格跟着
- * 让出（收起时跟着补上）同样的宽度，两边同一条曲线、同一段时长，接缝始终贴在一起。侧栏是
+ * 右栏收起、展开，照左边侧栏开合的样子动：面板保持自己的宽度从右边滑进，对话那一格跟着
+ * 让出（收起时跟着补上）同样的宽度，两边同一条曲线、同一段时长。侧栏是
  * `NavPane` 的 margin 过渡，这里是同一件事的镜像。对话里的正文只跟着这一格的宽度排版，这里不碰它；
  * 宽度变了阅读位置不动，由滚动区自己管（`ui/scroll/useFollowBottom.ts`）。
+ *
+ * 面板一路不透明，不像侧栏那样淡入淡出。侧栏本身是透明的，淡不淡底下都是窗口；面板是一张深色卡片，
+ * 它底下也是窗口（`.ly-dock` 透明），开着毛玻璃时那层比卡片亮一截——暗色下卡片 #171717、窗口
+ * #2b2b2b——一淡就整块泛灰。接缝也贴不严：对话的宽度在主线程上补间，正文一长就跟不上合成器上的
+ * 平移，收起时两条边之间拉开上百像素，露出的同样是窗口。所以滑动期间在面板那一栏垫一块卡片底色
+ * （`data-dock-sliding`，见 `dock.css`），滑完撤掉，平时卡片之间照旧露窗口。
  *
  * 面板收起只是藏起来（`[inert]` 立刻透明，展开回来也不过渡，见 `dock.css`），对话那一格的宽度
  * 由布局一步写到终点（`PaneSurface` 不缩放角上不动的格子）。所以这两段都要由这里从起点画过去。
@@ -24,6 +30,7 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { pct } from "./css.ts";
+import { PANE_INSET } from "./geometry.ts";
 import { closeNow, usePaneDock } from "./pane-store.ts";
 import type { Box } from "./layout.ts";
 import type { PaneKind } from "./tree.ts";
@@ -76,21 +83,21 @@ export function useColumnSlide(
 		const conversation = paneOf("conversation");
 		const panel = paneOf(tab);
 		const room = area?.getBoundingClientRect();
-		if (!conversation || !panel || !room?.width || !open || motionReduced()) return skip();
+		if (!area || !conversation || !panel || !room?.width || !open || motionReduced()) return skip();
 
 		// 来回连点时从眼下画到的样子接着走，不跳回起点。
 		const running = motions.current.some((motion) => motion.playState === "running");
 		const same = panel === slid.current;
-		const now = running ? { width: conversation.getBoundingClientRect().width, x: same ? new DOMMatrix(getComputedStyle(panel).transform).m41 : null, opacity: same ? Number(getComputedStyle(panel).opacity) : null } : null;
+		const now = running ? { width: conversation.getBoundingClientRect().width, x: same ? new DOMMatrix(getComputedStyle(panel).transform).m41 : null } : null;
 		for (const motion of motions.current) motion.cancel();
 		slid.current = panel;
 
 		// 面板那一格的宽度：对话让出、面板滑过的都是这一段。
 		const shift = room.width * open.panel.width;
 		const narrow = room.width * open.conversation.width;
-		const start = folded ? { width: narrow, x: 0, opacity: 1 } : { width: room.width, x: shift, opacity: 0 };
-		const from = now ? { width: now.width, x: now.x ?? start.x, opacity: now.opacity ?? start.opacity } : start;
-		const to = folded ? { width: room.width, x: shift, opacity: 0 } : { width: narrow, x: 0, opacity: 1 };
+		const start = folded ? { width: narrow, x: 0 } : { width: room.width, x: shift };
+		const from = now ? { width: now.width, x: now.x ?? start.x } : start;
+		const to = folded ? { width: room.width, x: shift } : { width: narrow, x: 0 };
 		// 同一个 id：拖分隔线、改窗口大小时 `freezeMotion` 会把它们直接走完。
 		const options = { id: "ly-dock-geometry", duration: DURATION.base, easing: EASE_OUT };
 		// 收起后藏着的面板已经被摆成整栏大小了，动画期间按展开时的那一格画。
@@ -98,14 +105,23 @@ export function useColumnSlide(
 		const widen = conversation.animate([{ width: `${from.width}px` }, { width: `${to.width}px` }], options);
 		const slide = panel.animate(
 			[
-				{ ...at, transform: `translateX(${from.x}px)`, opacity: from.opacity },
-				{ ...at, transform: `translateX(${to.x}px)`, opacity: to.opacity },
+				// 收起那一刻面板已经 `[inert]`、按样式是透明的，这里把它撑住直到滑出去。
+				{ ...at, transform: `translateX(${from.x}px)`, opacity: 1 },
+				{ ...at, transform: `translateX(${to.x}px)`, opacity: 1 },
 			],
 			options,
 		);
 		motions.current = [widen, slide];
+		const inset = (share: number, sign: number) => `calc(${pct(share)} ${sign > 0 ? "+" : "-"} ${PANE_INSET * Math.abs(sign)}px)`;
+		area.style.setProperty("--ly-slide-left", inset(open.panel.left, 1));
+		area.style.setProperty("--ly-slide-top", inset(open.panel.top, 1));
+		area.style.setProperty("--ly-slide-width", inset(open.panel.width, -2));
+		area.style.setProperty("--ly-slide-height", inset(open.panel.height, -2));
+		area.dataset.dockSliding = "";
 		const left = leaves ? pending.current : null;
 		const done = () => {
+			// 被下一段接走的不撤：那一段已经重新垫上了，这里的回调晚一个微任务才到。
+			if (motions.current[0] === widen) delete area.dataset.dockSliding;
 			// 滑完了，或者被下一段接走了：两种都轮到真关。开回来的那种 `leaving` 已经清了，不会关。
 			if (left && pending.current === left) settle.current();
 		};

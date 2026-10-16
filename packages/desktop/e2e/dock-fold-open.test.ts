@@ -51,7 +51,7 @@ after(async () => {
 	await app?.stop();
 });
 
-interface Sample { left: number; width: number; scrolled: number; panel: number | null; opacity: number | null; text: number; textRight: number }
+interface Sample { left: number; width: number; scrolled: number; panel: number | null; opacity: number | null; backed: boolean; text: number; textRight: number }
 
 /** rAF 后再取样，避免同一帧后面的聚焦、光标回调还没跑完，读到尚未画出的布局。 */
 function sampleOpening(kind: string): Promise<Sample[]> {
@@ -65,7 +65,7 @@ function sampleOpening(kind: string): Promise<Sample[]> {
 			for (let e = conversation; e; e = e.parentElement) scrolled = Math.max(scrolled, Math.abs(e.scrollLeft));
 			const box = conversation.getBoundingClientRect();
 			const column = conversation.querySelector('.ly-transcript').getBoundingClientRect();
-			out.push({ left: box.left, width: box.width, scrolled, panel: panel ? panel.getBoundingClientRect().left : null, opacity: panel ? Number(getComputedStyle(panel).opacity) : null, text: column.left, textRight: column.right });
+			out.push({ left: box.left, width: box.width, scrolled, panel: panel ? panel.getBoundingClientRect().left : null, opacity: panel ? Number(getComputedStyle(panel).opacity) : null, backed: document.querySelector('[data-dock-panes]').hasAttribute('data-dock-sliding'), text: column.left, textRight: column.right });
 			if (--n) requestAnimationFrame(() => setTimeout(f, 0)); else resolve(out);
 		};
 		requestAnimationFrame(() => setTimeout(f, 0));
@@ -79,6 +79,22 @@ async function openWhileSampling(label: string, kind: string): Promise<Sample[]>
 	const run = sampleOpening(kind);
 	await click(app, '[role="menuitem"]', label, "starts");
 	return run;
+}
+
+/**
+ * 滑动的每一帧面板都不透明，底下垫着卡片底色；滑完撤掉。
+ *
+ * 面板原先跟着淡入淡出，而它底下是窗口：开着毛玻璃时比卡片亮一截，一淡就整块泛灰；对话的宽度又
+ * 跟不上面板的平移，缝里露出同一层灰。见 `column-slide.ts`。
+ */
+function assertOpaqueAndBacked(samples: { width: number; opacity: number | null; backed: boolean }[], name: string): void {
+	// 对话那一格的宽度还在起点和终点之间，就是在滑。采样从点击之前开始，头几帧还停在起点。
+	const [low, high] = [samples[0]!.width, samples.at(-1)!.width].sort((a, b) => a - b) as [number, number];
+	const moving = samples.filter((sample) => sample.width > low + 1 && sample.width < high - 1 && sample.opacity !== null);
+	assert.ok(moving.length > 5, `${name}没采到滑动中的帧`);
+	assert.deepEqual(moving.filter((sample) => sample.opacity! < 1).map((sample) => sample.opacity), [], `${name}面板滑动时变透明了`);
+	assert.ok(moving.every((sample) => sample.backed), `${name}滑动时面板那一栏没垫底色：${samples.map((sample) => (sample.backed ? 1 : 0)).join("")}`);
+	assert.equal(samples.at(-1)!.backed, false, `${name}滑完了底色还垫着`);
 }
 
 /** 新面板从右边滑进来：起点在终点右边至少 200px，一路只往左走。 */
@@ -139,14 +155,11 @@ test("一个标签都没有时开第一个：对话逐帧让出，面板从右�
 	assertSlidIn(samples, "终端");
 	assertTextOneWay(samples.map((sample) => sample.text), "开第一个面板：");
 	assertTextOneWay(samples.map((sample) => sample.textRight), "开第一个面板（右缘）：");
-	// 和对话让出的宽度一起走：对话缩到一半时，面板已经不是透明的了。
-	const half = (widths[0]! + widths.at(-1)!) / 2;
-	const middle = samples.find((sample) => sample.width <= half);
-	assert.ok(middle?.opacity !== null && middle!.opacity! > 0.3, `对话缩到一半时面板的不透明度是 ${middle?.opacity}`);
+	assertOpaqueAndBacked(samples, "开第一个面板：");
 });
 
 test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以后才真关", async () => {
-	const run = app.evaluate<{ width: number; panel: number | null; opacity: number | null; unfold: boolean; text: number; textRight: number }[]>(`new Promise((resolve) => {
+	const run = app.evaluate<{ width: number; panel: number | null; opacity: number | null; backed: boolean; unfold: boolean; text: number; textRight: number }[]>(`new Promise((resolve) => {
 		const out = [];
 		let n = 60;
 		const f = () => {
@@ -155,6 +168,7 @@ test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以�
 				width: document.querySelector('[data-dock-pane="conversation"]').getBoundingClientRect().width,
 				panel: panel ? panel.getBoundingClientRect().left : null,
 				opacity: panel ? Number(getComputedStyle(panel).opacity) : null,
+				backed: document.querySelector('[data-dock-panes]').hasAttribute('data-dock-sliding'),
 				unfold: Boolean(document.querySelector('button[aria-label="展开右侧面板"]')),
 				text: document.querySelector('[data-dock-pane="conversation"] .ly-transcript').getBoundingClientRect().left,
 				textRight: document.querySelector('[data-dock-pane="conversation"] .ly-transcript').getBoundingClientRect().right,
@@ -172,10 +186,11 @@ test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以�
 	assert.ok(widths.at(-1)! - widths[0]! > 300, `对话那一格没有补回全宽：${widths.join(" ")}`);
 	assert.ok(Math.max(...steps) < 120, `对话那一格一帧弹宽了 ${Math.max(...steps)}px：${widths.join(" ")}`);
 	assert.ok(Math.min(...steps) >= 0, `对话那一格中途又变窄了：${widths.join(" ")}`);
-	// 滑的那几帧面板还在，一路往右、越来越淡；滑完就卸载了。
-	const sliding = samples.filter((sample) => sample.panel !== null && sample.opacity! > 0 && sample.opacity! < 1);
+	// 滑的那几帧面板还在，一路往右；滑完就卸载了。
+	const sliding = samples.filter((sample) => sample.panel !== null && sample.width < widths.at(-1)! - 1);
 	assert.ok(sliding.length > 5, `面板没有滑出去：${samples.map((sample) => `${Math.round(sample.panel ?? -1)}/${sample.opacity}`).join(" ")}`);
 	for (const [i, sample] of sliding.entries()) if (i) assert.ok(sample.panel! >= sliding[i - 1]!.panel!, "面板往回退了一下");
+	assertOpaqueAndBacked(samples, "关掉最后一个：");
 	assert.equal(samples.at(-1)!.panel, null, "滑完以后面板还挂着，没有真关");
 	assert.ok(!samples.some((sample) => sample.unfold), "滑出去那一下冒出了「展开右侧面板」");
 	assertTextOneWay(samples.map((sample) => sample.text), "关掉最后一个：");
@@ -198,6 +213,7 @@ test("右栏收着时开新面板：对话不跳，内容区不被滚开，新�
 	const scrolled = Math.max(...samples.map((sample) => sample.scrolled));
 	assert.equal(scrolled, 0, `内容区被滚开了 ${scrolled}px`);
 	assertSlidIn(samples, "文件");
+	assertOpaqueAndBacked(samples, "展开：");
 	assertTextOneWay(samples.map((sample) => sample.text), "展开：");
 	assertTextOneWay(samples.map((sample) => sample.textRight), "展开（右缘）：");
 });

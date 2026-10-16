@@ -392,7 +392,7 @@ export function DockView({
 								 * 新开一个标签，是在这一栏正显示着的那一格上顶替它：旧的那格立刻透明，
 								 * 新的那格要是再从透明淡入，中间 150ms 整栏（连同标签条）都是空的，看着就是闪了一下。
 								 * 这一栏本来就有面板时不淡入。从无到有（第一个面板）是真的出现：能滑的时候由
-								 * `column-slide.ts` 从右边滑进、淡入，这里再起一段淡入会盖过它——CSS 过渡在层叠里
+								 * `column-slide.ts` 从右边滑进，这里再起一段淡入会盖过它——CSS 过渡在层叠里
 								 * 比 WAAPI 动画优先；滑不了的时候照旧淡入。
 								 */
 								tile={floating ? (conversation ? "base" : "float") : undefined}
