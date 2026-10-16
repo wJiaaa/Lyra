@@ -17,6 +17,7 @@ import type { ProviderConfig } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Badge } from "./controls.tsx";
 import type { ImportEntry } from "./provider-transfer.ts";
@@ -63,20 +64,22 @@ export function ProviderImportModal({
 					status={(
 						/* 跟 `FetchModelsModal` 同一颗：方块里一个勾选框认不出是「全选」，名字写出来就够了。 */
 						<div className="flex items-center">
-							<button
-								type="button"
+							<Button
+								variant="subtle"
+								size="sm"
+								// 左边让出内衬，方块和正文左沿对齐。
+								className="-ml-3"
 								onClick={() => {
 									setSelected(allSelected ? new Set() : new Set(entries.map((entry) => entry.provider.id)));
 								}}
-								className="-ml-2 flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-							>
-								{allSelected ? (
+								icon={allSelected ? (
 									<CheckSquare size={14} className="text-accent" strokeWidth={2} />
 								) : (
 									<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
 								)}
+							>
 								{t(allSelected ? "common.deselectAll" : "common.selectAll")}
-							</button>
+							</Button>
 						</div>
 					)}
 					actions={(

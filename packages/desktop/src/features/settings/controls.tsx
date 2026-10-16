@@ -8,7 +8,6 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import type { LucideIcon } from "../../ui/icons/index.ts";
-import { Button } from "../../ui/primitives/Button.tsx";
 
 export * from "./inputs.tsx";
 export * from "./layout.tsx";
@@ -145,73 +144,6 @@ export function Badge({ tone, children }: { tone: "ok" | "muted" | "danger" | "a
 	};
 	return (
 		<span className={`shrink-0 rounded-full px-2 py-0.5 text-detail leading-[18px] whitespace-nowrap ${tones[tone]}`}>{children}</span>
-	);
-}
-
-/**
- * The outlined button every settings page uses for a secondary action.
- *
- * Laid out as a flex row so an icon can sit beside the label — three pages had copied the class
- * list verbatim rather than use this, and one of them had drifted: a different height, and a
- * press animation the others did not have.
- */
-/**
- * The two buttons this file used to define, now `Button` with a variant chosen.
- *
- * Kept as names rather than replaced at 40-odd call sites, because these two *are* the right words
- * at a settings page: `GhostButton` is the outlined one, `PrimaryButton` is the one to press. What
- * they no longer are is a second definition of what a button looks like — the height, the radius
- * and the press feedback come from `ui/primitives/Button.tsx` along with everything else's.
- */
-export function GhostButton({
-	children,
-	icon,
-	onClick,
-	tone = "default",
-	disabled,
-	title,
-}: {
-	children?: React.ReactNode;
-	icon?: React.ReactNode;
-	onClick: () => void;
-	tone?: "default" | "danger";
-	disabled?: boolean;
-	title?: string;
-}) {
-	return (
-		<Button
-			variant={tone === "danger" ? "danger" : "ghost"}
-			icon={icon}
-			onClick={onClick}
-			disabled={disabled}
-			label={title}
-		>
-			{children}
-		</Button>
-	);
-}
-
-export function PrimaryButton({
-	children,
-	icon,
-	onClick,
-	disabled,
-	title,
-	className = "",
-}: {
-	children?: React.ReactNode;
-	/** Give this and drop `children` to make it icon-only; `title` then carries the words. */
-	icon?: React.ReactNode;
-	onClick: () => void;
-	disabled?: boolean;
-	/** Tooltip and accessible name. Required in practice for an icon-only button. */
-	title?: string;
-	className?: string;
-}) {
-	return (
-		<Button variant="primary" icon={icon} onClick={onClick} disabled={disabled} label={title} className={className}>
-			{children}
-		</Button>
 	);
 }
 

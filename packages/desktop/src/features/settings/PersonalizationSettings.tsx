@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Save, Trash2 } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useListedProjects } from "../../store/listed-projects.ts";
-import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
+import { Card, InlineSelect, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
@@ -290,7 +290,7 @@ export function PersonalizationSettings() {
 								placeholder={t("memory.addPlaceholder")}
 								className="flex-1"
 							/>
-							<PrimaryButton disabled={!newMemory.trim()} onClick={handleAddMemory} icon={<Plus size={14} strokeWidth={2} />} title={t("memory.add")} />
+							<Button variant="primary" disabled={!newMemory.trim()} onClick={handleAddMemory} icon={<Plus size={14} strokeWidth={2} />} label={t("memory.add")} />
 						</div>
 
 						{memoryEntries.length > 0 ? (

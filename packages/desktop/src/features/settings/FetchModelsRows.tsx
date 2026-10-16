@@ -8,6 +8,7 @@ import { Palette, Plus } from "../../ui/icons/index.ts";
 import type { ProviderConfig } from "@plume/core";
 import { isImageModelId, isImageModel } from "@plume/core/image-models";
 import { useI18n } from "../../i18n/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import { formatWindow, ModelIcon } from "../models/index.ts";
 import { windowLabel } from "./model-defaults.ts";
@@ -46,14 +47,14 @@ export function Group({
 					<span className="ml-1.5 font-normal text-ink-faint tabular-nums">{rows.length}</span>
 				</span>
 				{rows.length > 1 && (
-					<button
-						type="button"
+					<Button
+						variant="subtle"
+						size="xs"
 						onClick={() => onToggleAll(rows.map((row) => row.modelId), !allChecked)}
-						className="rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
 						data-ly-fetch-toggle-all=""
 					>
 						{allChecked ? t("common.deselectAll") : t("common.selectAll")}
-					</button>
+					</Button>
 				)}
 			</div>
 			<div className="space-y-0.5">{children}</div>

@@ -20,7 +20,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { useAccountActions } from "../pull-requests/index.ts";
-import { Field, GhostButton, PrimaryButton, SecretInput, TextInput } from "./controls.tsx";
+import { Field, SecretInput, TextInput } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -156,14 +156,15 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 
 			{/* 动词写在按钮上。这两颗曾经是一个盾牌一个叉，名字挂在 tooltip 上——见 `DialogAction`。 */}
 			<div className="mt-4 flex items-center gap-2">
-				<PrimaryButton
+				<Button
+					variant="primary"
 					onClick={() => void save()}
 					disabled={busy || !token.trim() || !baseUrl.trim()}
 					icon={busy ? <ActionSpinner size={13} /> : <ShieldCheck size={13} strokeWidth={1.9} />}
 				>
 					{busy ? t("forge.verifying") : t("forge.verifyAndSave")}
-				</PrimaryButton>
-				<GhostButton onClick={onCancel}>{t("common.cancel")}</GhostButton>
+				</Button>
+				<Button onClick={onCancel}>{t("common.cancel")}</Button>
 			</div>
 		</div>
 	);

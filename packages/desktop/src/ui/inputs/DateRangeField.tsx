@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 
 import { translate } from "../../i18n/translate.ts";
 import { Popover, usePopover } from "../overlay/Popover.tsx";
+import { IconButton } from "../primitives/IconButton.tsx";
 import { addMonths, dayKey, isInterior, monthGrid, monthStart, parseDay, pickDay, type DayRange } from "./day-range.ts";
 
 /**
@@ -291,18 +292,16 @@ function Calendar({
 	);
 }
 
-/** 翻月的那两个。22px，和别处的图标按钮同一档——不是 26px 的那一档。 */
+/** 翻月的那两个。`sm` 那一档（22px），不是 26px 的那一档。 */
 function MonthStep({ direction, onClick, disabled }: { direction: -1 | 1; onClick: () => void; disabled?: boolean }) {
 	const Icon = direction === -1 ? ChevronLeft : ChevronRight;
 	return (
-		<button
-			type="button"
+		<IconButton
+			size="sm"
+			label={translate(direction === -1 ? "cleanup.prevMonth" : "cleanup.nextMonth")}
+			icon={<Icon size={14} strokeWidth={1.9} aria-hidden />}
 			onClick={onClick}
 			disabled={disabled}
-			aria-label={translate(direction === -1 ? "cleanup.prevMonth" : "cleanup.nextMonth")}
-			className="flex h-[22px] w-[22px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35"
-		>
-			<Icon size={14} strokeWidth={1.9} aria-hidden />
-		</button>
+		/>
 	);
 }

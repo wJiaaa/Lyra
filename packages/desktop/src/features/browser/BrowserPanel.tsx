@@ -113,7 +113,7 @@ export function BrowserPanel() {
 			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); const nextWidth = commitDraft(width, VIEW_W); const nextHeight = commitDraft(height, VIEW_H); if (nextWidth === null || nextHeight === null) return; void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: nextWidth, height: nextHeight } }); options.close(); }}>
 				<Input aria-label={t("browser.viewportWidth")} type="text" inputMode="numeric" required value={width} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_W)) setWidth(event.target.value); }} className="ly-field ly-field-compact min-w-0 flex-1 text-center tabular-nums" />×
 				<Input aria-label={t("browser.viewportHeight")} type="text" inputMode="numeric" required value={height} onChange={(event) => { if (isLegalDraft(event.target.value, VIEW_H)) setHeight(event.target.value); }} className="ly-field ly-field-compact min-w-0 flex-1 text-center tabular-nums" />
-				<button type="submit" data-ly-tip={t("browser.apply")} aria-label={t("browser.apply")} className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Check size={13} strokeWidth={2.2} aria-hidden /></button>
+				<Button type="submit" variant="subtle" size="sm" label={t("browser.apply")} icon={<Check size={13} strokeWidth={2.2} aria-hidden />} />
 			</form>}>
 			<MenuBody>
 				{menu === "actions" && <>
