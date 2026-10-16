@@ -27,6 +27,17 @@ export function peerMessage(letters: PeerLetter[]): Message {
 	};
 }
 
+/**
+ * 只装着来信的那种消息（`peerMessage` 造的）里的信；夹着后台结果的合并消息、别的消息都不算，给 null。
+ *
+ * 排队等着的信要合成一条时靠它认：后台结果的那一半只能原样送，拆开重拼会丢掉它的格式。
+ */
+export function lettersOnly(message: Message): PeerLetter[] | null {
+	if (message.role !== "user" || !message.peer || message.content.length !== message.peer.length + 1) return null;
+	const [lead] = message.content;
+	return lead?.type === "text" && lead.text === LEAD ? message.peer : null;
+}
+
 function letterText(letter: PeerLetter): string {
 	const cwd = letter.cwd ? ` cwd="${attribute(letter.cwd)}"` : "";
 	return `<session-message from="${attribute(letter.from)}"${cwd}>\n${letter.text}\n</session-message>`;

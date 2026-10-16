@@ -43,7 +43,8 @@ send_message ─▶ 路由器（electron/session-peers.ts）
                  ├─ 限速 / 去重 / 链长（electron/peer-policy.ts）
                  └─ AgentSession.receive ─▶ SessionDeliveries 攒 400ms
                                               ├─ 闲着：开一轮
-                                              ├─ 忙着、queue（默认）：排到这一轮之后，另开一次运行
+                                              ├─ 忙着、queue（默认）：排到这一轮之后，另开一次运行；
+                                              │  紧挨着排队的几封合成一条、只开一次（SessionInbox.next）
                                               └─ 忙着、steer：插进这一轮，下一个请求读到
 
 wait_for_session ─▶ 钉住收到那条消息的那一次运行（electron/peer-runs.ts）

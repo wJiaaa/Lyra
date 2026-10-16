@@ -225,6 +225,46 @@ test("忙着时排队的信：不插进这一轮，这一轮收场后另开一�
 	}
 });
 
+test("一轮里隔着几分钟排进来的几封信：收场后合成一条、只另开一次，不是一封一次", async () => {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => { release = resolve; });
+	const h = await harness(async (context) => {
+		if (context.messages.at(-1)?.role === "user" && (context.messages.at(-1) as { peer?: unknown }).peer) return says("两封都看到了。");
+		if (!context.messages.some((message) => message.role === "toolResult")) {
+			return assistant([{ type: "toolCall", id: "w1", name: "wait", arguments: {}, argumentsText: "{}" }], "toolUse");
+		}
+		return says("人交代的做完了。");
+	}, [{
+		name: "wait",
+		description: "等",
+		parameters: { type: "object", properties: {} },
+		async execute() {
+			await gate;
+			return textResult("好了");
+		},
+	}]);
+	try {
+		const turn = h.session.prompt([{ type: "text", text: "干活" }]);
+		await until(() => h.requests.length === 1, "第一轮发出请求");
+		h.session.receive({ ...letter("我要改 log_types.go。"), id: "L1" }, "followUp");
+		// 隔开攒批的那 400ms：两封各自成一条排进去，和实际里隔着几分钟到的一样。
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		h.session.receive({ ...letter("typecheck 过了。"), id: "L2" }, "followUp");
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		release();
+		await turn;
+		await until(() => h.runs() === 2 && !h.session.running, "收场后另开一次");
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		assert.equal(h.runs(), 2, "两封信只另开了一次");
+		const mail = letters(h.session.messages);
+		assert.equal(mail.length, 1, "对话里是一条消息");
+		assert.deepEqual(mail[0]?.role === "user" ? mail[0].peer?.map((one) => one.id) : null, ["L1", "L2"], "按到达的顺序，两封都在");
+	} finally {
+		release();
+		await h.cleanup();
+	}
+});
+
 test("宿主的工具在等别的会话时，人一开口就放手：工具拿到 null，下一个请求就读到人的话", async () => {
 	let gotNull = false;
 	const h = await harness((context) => {

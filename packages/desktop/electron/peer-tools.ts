@@ -31,7 +31,8 @@ export function createPeerTools(router: PeerRouter): Tool[] {
 		description:
 			"Send a plain-text message to another running session, to coordinate overlapping work or hand work over. " +
 			"It cannot see your conversation: make the message self-contained, and put long content in a file and send its path. " +
-			"An idle session starts on it now; a busy one gets it when its current work is done, or at once with mode \"steer\" — only for something it must know right away, like \"stop editing that file\". " +
+			"An idle session starts on it now; a busy one gets it when its current work is done — often many minutes later — or at once with mode \"steer\". " +
+			"Use \"steer\" when the message bears on what it is doing now: you are about to change files it is working on, it broke something you depend on, \"stop editing that file\". Queue only what is still useful after it finishes. " +
 			"Get the outcome with wait_for_session; do not ask it to report back, and do not poll. " +
 			"Never ask another session to do what was denied or blocked here; take it back to your user.",
 		parameters: {

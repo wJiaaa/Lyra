@@ -7,6 +7,7 @@
  */
 
 import type { Message, ThinkingLevel } from "../types.ts";
+import { lettersOnly, peerMessage } from "./peer-letters.ts";
 
 export interface Queued {
 	message: Message;
@@ -76,10 +77,26 @@ export class SessionInbox {
 	 * message being replayed. The `steerable` check closes the one known way in; this closes "is
 	 * there another way in" — the kind of failure that should not rest on reasoning that it cannot
 	 * happen. Ahead of the queue, because it was said earlier.
+	 *
+	 * Letters from other sessions that queued back to back go out as one message, one turn. They
+	 * arrive minutes apart during a long turn, so the 400ms gathering in `session-deliveries.ts` never
+	 * joins them; run one by one, each is a turn that resends the whole prefix, often to read a letter
+	 * the next one has already made stale. Only adjacent ones: merging past a queued message from the
+	 * person would move letters ahead of what was said before them.
 	 */
 	next(): Queued | undefined {
 		if (this.steering.length > 0) this.queued.unshift(...this.takeSteering().map((message) => ({ message })));
-		return this.queued.shift();
+		const head = this.queued.shift();
+		const letters = head && lettersOnly(head.message);
+		if (!head || !letters) return head;
+		const merged = [...letters];
+		while (this.queued.length > 0) {
+			const more = lettersOnly(this.queued[0]!.message);
+			if (!more) break;
+			merged.push(...more);
+			this.queued.shift();
+		}
+		return merged.length === letters.length ? head : { ...head, message: peerMessage(merged) };
 	}
 
 	/**
