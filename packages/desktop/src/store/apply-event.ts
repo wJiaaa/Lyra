@@ -66,6 +66,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
    */
   const handoff = event.type === "agent_end" && event.reason === "aborted" && takeHandoff(sessionId);
   if (event.type === "agent_start") dropHandoff(sessionId);
+  const aside = sideParentOf(useSide.getState(), sessionId) !== null;
   /*
    * Every conversation's state, not just the one on screen.
    *
@@ -87,9 +88,12 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      *
      * Only the finished states. `running` and `waiting` are about what is still to come and are
      * worth carrying out of the conversation with you.
+     *
+     * 侧边聊天也一样：它的结果就在旁边那一格里，而它不在会话列表上，通知里点它只会落到「会话不存在」，
+     * 留下的标记永远清不掉。它还在跑的那一段照旧记着，行首靠它亮（`sideChatRunning`）。
      */
     const finished = settled === "done" || settled === "failed";
-    const next = finished && sessionId === get().activeSessionId ? null : settled;
+    const next = finished && (aside || sessionId === get().activeSessionId) ? null : settled;
 
     if (next !== current) {
       const activity = { ...get().activity };
@@ -288,7 +292,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   if (sessionId !== get().activeSessionId) {
 		// Delegated work of a conversation that is on screen without being the live one.
 		if (event.type === "subagents") useSubAgents.getState().retain(sessionId, event.agents);
-		const aside = sideParentOf(useSide.getState(), sessionId) !== null;
 		// 侧边聊天答完不另报：人就在它旁边那一格里等着，报一声是把同一件事说两遍。
 		if (completion && !aside) {
 			const target = get().sessions.find((session) => session.id === sessionId);
