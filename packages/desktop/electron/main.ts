@@ -454,8 +454,11 @@ app.whenReady().then(async () => {
 	 * judging by `PATH` never asked there. Any launch that is not from a terminal asks.
 	 */
 	void primeCommandPath({ always: true });
-	useBundledRipgrep({ platform: process.platform, arch: process.arch, packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
-	useBundledDocs({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
+	// Not `app.isPackaged` alone, same as `window.ts`: the renamed dev Electron answers "packaged",
+	// and both lookups then pointed inside the Electron bundle — every `plume://` read failed.
+	const packaged = app.isPackaged && !process.defaultApp;
+	useBundledRipgrep({ platform: process.platform, arch: process.arch, packaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
+	useBundledDocs({ packaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
 
 	// Before any window exists, so none is ever built with the default menu's reload and DevTools
 	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.
