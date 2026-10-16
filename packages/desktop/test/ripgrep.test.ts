@@ -34,5 +34,9 @@ for (const [key, platform] of [["mac", "darwin"], ["win", "win32"], ["linux", "l
 }
 
 test("打包前由 fetch-ripgrep.mjs 备好正在打的那一份", () => {
-	assert.equal(config.beforePack, "./scripts/fetch-ripgrep.mjs");
+	// beforePack 只能挂一个脚本，before-pack.mjs 把 rg 和 macOS 的取屏小程序排在一起。
+	assert.equal(config.beforePack, "./scripts/before-pack.mjs");
+	const hook = readFileSync(join(desktop, "scripts", "before-pack.mjs"), "utf8");
+	assert.match(hook, /from "\.\/fetch-ripgrep\.mjs"/);
+	assert.match(hook, /fetchRipgrepForBuild\(context\)/);
 });

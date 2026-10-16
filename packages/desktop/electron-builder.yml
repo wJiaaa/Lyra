@@ -56,7 +56,10 @@ extraResources:
 # `PATH` never has the user's `rg` on it — so every installed copy was on the fallback. The hook
 # downloads the copy for the platform and architecture being packaged into `vendor/ripgrep/`,
 # pinned by sha256; each platform's `extraResources` below takes it from there.
-beforePack: ./scripts/fetch-ripgrep.mjs
+#
+# The same hook builds the macOS screenshot helper (`scripts/build-screen-capture.mjs`, ADR-0052)
+# into `vendor/screen-capture/`; the mac `extraResources` below takes it from there.
+beforePack: ./scripts/before-pack.mjs
 
 # Each build keeps only its own copy of the per-platform prebuilts.
 #
@@ -114,6 +117,11 @@ mac:
     - from: vendor/ripgrep/darwin-${arch}
       to: ripgrep
       filter: ["rg", "COPYING", "LICENSE-MIT", "UNLICENSE"]
+    # The screenshot helper (`electron/screen-capture-helper.ts`). One universal binary serves
+    # both architectures, so this takes the same file for arm64 and x64.
+    - from: vendor/screen-capture
+      to: screen-capture
+      filter: ["plume-screen-capture"]
     - from: build/dock-light.png
       to: build/dock-light.png
     - from: build/dock-dark.png

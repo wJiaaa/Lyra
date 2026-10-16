@@ -57,5 +57,6 @@
 | [0049](0049-session-level-operations.md) | 会话级操作：`spawn_session` 只留建议、放在环境卡片里，人点了才在后台开新会话，「已开始」记在新会话的 `spawnedFrom` 上；`archive_session` 等这一轮以 done 收尾、会话闲下来再归档 |
 | [0050](0050-worktree-lifecycle.md) | 工作树的后半生：分支比目录活得久——删除、归档收走干净的目录，取消归档在原处检出回来；合并到主分支、从主分支同步，冲突交给对话或放弃；自动清理只收自己建的、干净的；建不成就一直说 |
 | [0051](0051-sub-agents-report-one-by-one.md) | 子代理派出即放手，跑完一个送回一个：先到的那份点名还在等谁，都回来了再合并；后台还有子代理时会话不算闲、不报完成；退出时还在跑的，重开后在人下次开口时告诉主会话（取代 ADR-0029 第 2 条） |
+| [0052](0052-macos-screenshot-helper.md) | macOS 截图快照改由常驻的 Swift 取屏小程序拍（`captureImage(in:)`，15.2+）：`desktopCapturer` 的整屏没有窗口阴影；拿不到就退回 `desktopCapturer` |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

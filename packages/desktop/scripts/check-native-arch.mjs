@@ -214,6 +214,18 @@ for (const [name, build] of Object.entries(BUILDS)) {
 	if (rgArch == null) problems.push(`${name}: ripgrep missing or unreadable at ${rg.slice(dir.length + 1)}`);
 	else if (rgArch !== "universal" && rgArch !== build.arch) problems.push(`${name}: ripgrep is ${rgArch}, expected ${build.arch}`);
 
+	/*
+	 * macOS 截图用的取屏小程序（ADR-0052）。缺了它截图照样能用，只是退回 desktopCapturer，冻结画面
+	 * 里所有窗口都没有阴影——和 ripgrep 一样，是一种没人会发现的退化。
+	 */
+	if (build.platform === "darwin") {
+		const helper = join(dir, build.resources, "screen-capture", "plume-screen-capture");
+		const helperArch = binaryArch(helper);
+		checked++;
+		if (helperArch == null) problems.push(`${name}: screen-capture helper missing or unreadable at ${helper.slice(dir.length + 1)}`);
+		else if (helperArch !== "universal" && helperArch !== build.arch) problems.push(`${name}: screen-capture helper is ${helperArch}, expected ${build.arch}`);
+	}
+
 	console.log(`[arch] ${name}: ${binaries.length} native ${binaries.length === 1 ? "module" : "modules"}, ${build.arch}`);
 }
 

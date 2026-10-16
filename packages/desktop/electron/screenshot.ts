@@ -17,6 +17,7 @@ import { resolveSaveDirectory } from "./screenshot-path.ts";
 import { listWindows } from "./screenshot-windows.ts";
 import { canvasColorSpace, pickDisplaySource } from "./screenshot-displays.ts";
 import { beginCaptureLog, captureLog } from "./screenshot-debug.ts";
+import { captureWithHelper, startScreenCaptureHelper } from "./screen-capture-helper.ts";
 
 
 /**
@@ -240,6 +241,12 @@ function generateScreenshotFilename(): string {
 	return `Screenshot ${y}-${m}-${d} at ${hh}.${mm}.${ss}.png`;
 }
 
+/** Where the screen-capture helper lives — see `screen-capture-helper.ts`. */
+function helperLocation() {
+	// Not `app.isPackaged` alone, same as `main.ts`: the renamed dev Electron answers "packaged".
+	return { packaged: app.isPackaged && !process.defaultApp, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" };
+}
+
 /**
  * A picture of one display, as raw RGBA pixels.
  *
@@ -279,6 +286,37 @@ async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels:
 		// screen recording access only takes effect for a process that starts after it is granted.
 		await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }).catch(() => []);
 		return null;
+	}
+
+	/*
+	 * macOS 先走自己的取屏小程序：desktopCapturer 拍出来的整屏没有窗口阴影，冻结画面一盖上，
+	 * 所有窗口的阴影像被关掉了，按 Esc 又回来（ADR-0052）。小程序给的已经是 RGBA，省掉下面那段
+	 * 逐字节交换。拿不到就照旧走 desktopCapturer，原因记进日志——一张截图不能因为这条路走不通而失败。
+	 */
+	if (process.platform === "darwin") {
+		const askedAt = Date.now();
+		// 幂等。启动时截图若是关着的，预热没拉起它，就在第一次真截图时拉起。
+		startScreenCaptureHelper(helperLocation());
+		const viaHelper = await captureWithHelper(targetDisplay.bounds);
+		const expected = { width: Math.round(targetDisplay.bounds.width * scaleFactor), height: Math.round(targetDisplay.bounds.height * scaleFactor) };
+		if (viaHelper.ok && viaHelper.frame.width === expected.width && viaHelper.frame.height === expected.height) {
+			const { frame } = viaHelper;
+			const colorSpace = canvasColorSpace(targetDisplay.colorSpace);
+			captureLog("snapshot: taken (helper)", {
+				total: Date.now() - askedAt,
+				capture: frame.captureMs,
+				convert: frame.convertMs,
+				size: { width: frame.width, height: frame.height },
+				helperColorSpace: frame.colorSpace,
+				colorSpace,
+				displayColorSpace: targetDisplay.colorSpace,
+			});
+			return { pixels: frame.pixels, width: frame.width, height: frame.height, scaleFactor, colorSpace };
+		}
+		captureLog("snapshot: helper unavailable — using desktopCapturer", {
+			reason: viaHelper.ok ? `got ${viaHelper.frame.width}×${viaHelper.frame.height}, expected ${expected.width}×${expected.height}` : viaHelper.reason,
+			ms: Date.now() - askedAt,
+		});
 	}
 
 	try {
@@ -832,6 +870,10 @@ export function warmScreenshotOverlay(): void {
 	 */
 	const plan = warmupPlan(process.platform, currentSettingsProvider?.()?.screenshot?.enabled !== false);
 	captureLog("warm: plan", { ...plan });
+	// macOS 的取屏小程序，现在就拉起，第一次截图不付它的启动。不支持的机器上什么也不做。
+	if (plan.capture && process.platform === "darwin") {
+		startScreenCaptureHelper(helperLocation());
+	}
 	if (plan.overlay) {
 		ensureOverlay()
 			.then((win) => {
@@ -1146,6 +1188,18 @@ async function warmCapturePipeline(): Promise<void> {
 	const display = screen.getPrimaryDisplay();
 	const scale = display.scaleFactor || 1;
 	const startedAt = Date.now();
+	/*
+	 * 小程序可用就预热它，不再预热 desktopCapturer：真截图走的是它。一块 1pt 的矩形就够让
+	 * ScreenCaptureKit 把第一次的启动付掉（实测首张 32ms，之后 16–19ms）。
+	 */
+	if (process.platform === "darwin") {
+		const warmed = await captureWithHelper({ x: display.bounds.x, y: display.bounds.y, width: 1, height: 1 }, 3000);
+		if (warmed.ok) {
+			captureLog("warm: screen-capture helper ready", { ms: Date.now() - startedAt });
+			return;
+		}
+		captureLog("warm: screen-capture helper unavailable", { reason: warmed.reason });
+	}
 	try {
 		await desktopCapturer.getSources({
 			types: ["screen"],
