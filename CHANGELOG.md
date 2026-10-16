@@ -2,6 +2,47 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.36](https://github.com/wJiaaa/Plume/releases/tag/v0.9.36) - 2026-10-16
+
+<!-- plume:notes en -->
+
+### Changes
+
+- **A few buttons that were a pixel or two off their neighbours now line up.** Apply next to the browser's viewport size was 24 px tall beside two 26 px boxes; it is 26 px now. Select all in Import providers and in each group when fetching models had their own sizes and weights, and now match the other small buttons. The month arrows in Settings › Storage gained tooltips.
+
+### Fixes
+
+- **Taking a screenshot on macOS no longer strips the shadows off every other window.** The moment a screenshot started, other apps' windows lost their shadow and their 1 px outline, and got them back when you pressed Esc. The frozen frame came from Electron's `desktopCapturer`, which leaves both out on macOS. On macOS 15.2 and later it is now captured the way the system's own screenshot is, in 16–19 ms. Older systems work as before.
+- **Leaving a screenshot with Esc no longer makes the screen shake.** Three things happened at once: the dimming, selection and toolbar vanished in a single frame, the window underneath flicked between its inactive and active look, and the whole frozen frame jolted as the overlay closed. Esc now fades out the same way Cancel does, focus goes back to your window before the overlay leaves, and the overlay turns transparent before it is hidden.
+- **Folding or opening the right column no longer turns the panel grey or opens a light gap beside the conversation.** With the translucent window background on, the panel faded as it slid and the lighter window showed through (#2b2b2b behind a #171717 card in dark mode). In long conversations the conversation also lagged behind the panel, leaving a gap of up to a hundred pixels. The panel now stays opaque all the way and nothing shows through.
+- **Mermaid diagrams in dark mode no longer have a white glow around every box.** Mermaid 12 put a light grey shadow on nodes and groups, and groups and edge labels were filled with a grey meant for a #333 page, not our #171717. Boxes, groups, lines, text and labels now use the app's own colours with no gradients or shadows, and redraw when you change colours in Appearance.
+- **Some controls that only looked like buttons now work with a keyboard and a screen reader.**
+  - In Import providers, each row's checkbox was read out as just "button", without the provider's name or whether it was ticked, and showed no focus ring.
+  - The ⓘ in Release and the warning icon shown when the marketplace can't be read were buttons that did nothing; what they meant was only in a hover tooltip. Screen readers now read the explanation, and the reason the marketplace failed.
+  - In the task list's collapsed row, Pause sat inside the button that expands the row, so screen readers read the whole row as one name. They are now two separate buttons.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 变化
+
+- **几颗和旁边差一两像素的按钮对齐了。** 内置浏览器视口尺寸旁的「应用」高 24px，左边两个输入框是 26px，现在也是 26px。「导入供应商」里的「全选」和拉取模型时每组的「全选」各有各的大小和字重，现在和其他小按钮一样。设置 › 存储里翻月份的箭头有了提示。
+
+### 修复
+
+- **macOS 上截图时，其他窗口的阴影不再全部消失。** 一开始截图，其他应用窗口的阴影和那圈 1px 描边就没了，按 Esc 退出又回来。原因是冻结画面用 Electron 的 `desktopCapturer` 拍，它在 macOS 上拍不到这两样。macOS 15.2 起改成和系统截图同一种方式取屏，耗时 16–19ms。更早的系统照旧。
+- **截图时按 Esc 退出，屏幕不再抖一下。** 原来同时有三件事：压暗、选框和工具条在一帧之内消失；底下的窗口在失焦和激活两种样子之间闪一下；浮层关闭时整张冻结画面跟着动了一下。现在 Esc 和点「取消」走同一段淡出，焦点先还给你的窗口再收浮层，浮层先变透明再隐藏。
+- **右栏收起、展开时，面板不再泛灰，和对话之间也不再闪出一条亮缝。** 开着毛玻璃时，面板边滑边淡，底下更亮的窗口透了出来（暗色下卡片是 #171717，窗口是 #2b2b2b）。对话一长，对话那一格还会跟不上面板，中间拉开上百像素。现在面板全程不透明，滑动时什么也透不出来。
+- **暗色下的 mermaid 图，每个框外不再有一圈白光。** mermaid 12 给节点和分组加了浅灰阴影；分组和连线标签的底色又是按 #333 的页面算的，放在 #171717 的对话里是几块不相干的灰。现在框、分组、连线、文字、标签都用界面自己的颜色，不带渐变和阴影，在外观设置里改颜色，图也会跟着重画。
+- **几处看着像按钮的控件，键盘和读屏现在能用了。**
+  - 「导入供应商」每行的勾选框，读屏只念「按钮」，听不出是哪个供应商、勾没勾上，键盘移过去也没有焦点框。
+  - 「发版中心」里的 ⓘ，和市场读取失败时的感叹号，都是按下去没反应的按钮，说明只在鼠标悬停时出现。现在读屏会念出说明，以及读取失败的原因。
+  - 任务清单收起时那一行，「暂停」套在展开整行的按钮里，读屏把整行念成一个名字。现在是并排的两颗按钮。
+
+</details>
+
 ## [0.9.35](https://github.com/wJiaaa/Plume/releases/tag/v0.9.35) - 2026-10-16
 
 <!-- plume:notes en -->
