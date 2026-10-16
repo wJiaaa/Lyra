@@ -3,7 +3,7 @@
  * 「从这里分叉」 on a message, in the real window with the real pointer.
  *
  * A two-question conversation; the second question is forked. Measured from what is on screen and
- * on disk: the new conversation in the sidebar, what its transcript holds, what waits in its
+ * on disk: the new conversation in the sidebar (hung under the original), what its transcript holds, what waits in its
  * composer, and that the conversation it came from still has every message — then the fork's own
  * turn is sent, and the original still has every message.
  *
@@ -162,6 +162,10 @@ try {
 	await pause(900);
 	const sidebar = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-ly-row]')].map((row) => row.innerText.trim().split(String.fromCharCode(10))[0])`);
 	check("侧栏里多了一个「发布说明（分叉）」，原来那个还在", sidebar.some((title) => title.includes("发布说明（分叉）")) && sidebar.some((title) => title === "发布说明"), JSON.stringify(sidebar));
+	const rows = await app.evaluate<{ id: string; title: string; nested: boolean }[]>(`[...document.querySelectorAll('[data-ly-row]')].map((row) => ({ id: row.getAttribute('data-ly-row'), title: row.innerText.trim().split(String.fromCharCode(10))[0], nested: row.hasAttribute('data-ly-row-nested') }))`);
+	const parentAt = rows.findIndex((row) => row.id === "release-notes");
+	const forkRow = rows[parentAt + 1];
+	check("分叉挂在原会话下面：紧跟在它后面、缩进一格", Boolean(forkRow?.title.includes("（分叉）") && forkRow.nested && !rows[parentAt].nested), JSON.stringify(rows));
 	const text = await mainText();
 	check("分叉里只有第二个问题之前的那一问一答", text.includes(Q1) && text.includes(A1) && !text.includes(A2), `含第一问：${text.includes(Q1)}，含第一答：${text.includes(A1)}，含第二答：${text.includes(A2)}`);
 	const draft = await app.evaluate<string>(`document.querySelector('main textarea')?.value ?? ''`);

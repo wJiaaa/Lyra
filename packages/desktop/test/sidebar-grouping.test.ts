@@ -404,6 +404,23 @@ test("a conversation started from a suggestion sits under the one that suggested
 	assert.deepEqual(withSpawned(nested.projects[0].sessions, nested.spawned).map((s) => s.id), ["parent", "child", "grandchild", "later", "other"]);
 });
 
+test("a fork sits under the conversation it was forked from, beside that one's suggestions", () => {
+	const nested = nestSpawned(
+		groupSessions(
+			[
+				session({ id: "parent", createdAt: 1 }),
+				session({ id: "fork", createdAt: 3, forkedFrom: { sessionId: "parent" } }),
+				session({ id: "child", createdAt: 2, ...from("parent") }),
+				session({ id: "orphan-fork", createdAt: 4, forkedFrom: { sessionId: "deleted" } }),
+			],
+			projects,
+			"",
+		),
+	);
+	assert.deepEqual(nested.projects.find((group) => group.path === "/a")?.sessions.map((s) => s.id), ["parent", "orphan-fork"]);
+	assert.deepEqual(nested.spawned.parent.map((s) => s.id), ["child", "fork"]);
+});
+
 test("a child whose parent is not in the same list keeps a row of its own", () => {
 	const nested = nestSpawned(
 		groupSessions(

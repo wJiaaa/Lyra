@@ -73,6 +73,7 @@ test("forking before a message holds everything before it; the message and what 
 		assert.equal(forked!.meta.title, "长对话（分叉）");
 		assert.equal(forked!.meta.thinking, "high", "the fork continues at the same reasoning level");
 		assert.equal(forked!.meta.cwd, c.meta.cwd, "and in the same project");
+		assert.deepEqual(forked!.meta.forkedFrom, { sessionId: c.meta.id }, "and names where it came from, for the list to hang it there");
 		assert.deepEqual(texts((await c.load(c.meta))!.messages), ["q1", "a1", "q2", "a2"], "the original is untouched");
 	} finally {
 		await c.cleanup();

@@ -127,6 +127,13 @@ export interface SessionMeta {
 	 */
 	spawnedFrom?: SpawnedFrom;
 	/**
+	 * The conversation this one was forked from (`forkSession`).
+	 *
+	 * Kept apart from `spawnedFrom`: that one names a `spawn_session` call, and its card and report-back
+	 * both act on it. A fork has neither — the list only needs to know whose row to hang it under.
+	 */
+	forkedFrom?: { sessionId: string };
+	/**
 	 * 这是哪个会话的侧边聊天。
 	 *
 	 * 侧边聊天是一个完整的会话——同样的循环、工具、审批和记录——只是挂在另一个会话旁边：不进

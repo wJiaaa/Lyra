@@ -164,10 +164,11 @@ export interface Nested extends Grouped {
 }
 
 /**
- * Put each conversation started from a suggestion (`spawnedFrom`) under the conversation that made it.
+ * Put each conversation started from a suggestion (`spawnedFrom`) under the conversation that made it,
+ * and each fork (`forkedFrom`) under the conversation it was forked from.
  *
  * A follow-up handed off as a card is part of the work it came out of, not a peer of it: listed on
- * its own it reads as unrelated, and the link back is lost. Only within one list, though — the parent
+ * its own it reads as unrelated, and the link back is lost. A fork is the same work taken another way. Only within one list, though — the parent
  * pinned and the child not, or the parent archived, and the child stays a row of its own where it is
  * rather than vanishing under something that is not there. Kept out of `groupSessions` because the
  * archive and `listed-projects` group the same way and have no rows to hang children on.
@@ -177,7 +178,7 @@ export function nestSpawned(grouped: Grouped): Nested {
 	const nest = (list: SessionMeta[]) => {
 		const here = new Map(list.map((session) => [session.id, session]));
 		return list.filter((session) => {
-			const parent = here.get(session.spawnedFrom?.sessionId ?? "");
+			const parent = here.get(session.spawnedFrom?.sessionId ?? session.forkedFrom?.sessionId ?? "");
 			// A parent is always older; asking so also means two records naming each other cannot both disappear.
 			if (!parent || parent.createdAt >= session.createdAt) return true;
 			(spawned[parent.id] ??= []).push(session);
