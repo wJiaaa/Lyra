@@ -14,6 +14,10 @@ import { RunningIndicator } from "./RunningIndicator.tsx";
  *
  * 回答在来的时候它只是看不见，位置照旧占着。
  *
+ * 看不见是当帧的，不淡出。第一行字挂在它上面，它被挤下去一行，词也同一帧从「Thinking」换成
+ * 「Writing」——淡出的那 150ms 里，人看到的是字底下冒出来一行新的，又跟着转录往上滑着消失。
+ * 停顿后长回来照旧淡入：那是它自己在原地出现，没有别的东西在动。
+ *
  * 从前回答一开始它就当帧收起，指望和第一行字「一增一减抵掉」。抵不掉：正文由 `useSmoothText` 逐帧
  * 放出来，比这一行收起晚一到四帧，于是贴底的转录先掉下去 30px、再被字顶回来；回答停顿超过
  * `STALL_MS` 它又长回来，把转录往上推 30px，字接着来再掉一次。一轮里高度不变，这些就都不会发生。
@@ -53,7 +57,7 @@ export function RunningRow({ running, answering, answered, compacting }: {
 			<div>
 				<div
 					data-ly-running-quiet={(open && answering) || undefined}
-					className={`transition-opacity ${open && answering ? "opacity-0 duration-[var(--ly-t-quick)]" : "duration-[var(--ly-t-base)]"}`}
+					className={`transition-opacity ${open && answering ? "opacity-0 duration-0" : "duration-[var(--ly-t-base)]"}`}
 				>
 					{((running && !compacting && !answered) || retained) && <RunningIndicator />}
 				</div>
