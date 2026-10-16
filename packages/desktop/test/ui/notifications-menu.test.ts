@@ -41,10 +41,21 @@ test("lists the other conversations that want you back, waiting first, and opens
 		},
 	});
 	const view = await mount(h(Harness));
-	const rows = inMenu("[data-ly-notice]").map((el) => `${el.getAttribute("data-ly-notice")}:${el.textContent}`);
+	// The title is the first line; the second (project, age) depends on the clock.
+	const rows = inMenu("[data-ly-notice]").map((el) => `${el.getAttribute("data-ly-notice")}:${el.querySelector("[data-ly-notice-title]")?.textContent}`);
 	assert.deepEqual(rows, ["waiting:等批准的", "failed:出错的", "done:刚完成的", "done:早完成的"]);
 	await click(inMenu('[data-ly-notice="failed"]')[0]!);
 	assert.deepEqual(opened, ["broke"]);
+	await view.unmount();
+});
+
+test("the second line says where and when, and only waiting also says what", async () => {
+	const ago = Date.now() - 3 * 60_000;
+	useApp.setState({ activeSessionId: null, sessions: [meta("asks", "等批准的", ago), meta("done", "完成的", ago)] as never, activity: { asks: "waiting", done: "done" } });
+	const view = await mount(h(Harness));
+	const row = (state: string) => inMenu(`[data-ly-notice="${state}"]`)[0]!.textContent;
+	assert.equal(row("waiting"), "等批准的等你批准 · p · 3 分钟前");
+	assert.equal(row("done"), "完成的p · 3 分钟前");
 	await view.unmount();
 });
 

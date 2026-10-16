@@ -322,6 +322,12 @@ export async function openSession(page: Page, id: string): Promise<void> {
 	await until(page, `document.querySelector(${JSON.stringify(`${row}[aria-current]`)})`);
 }
 
+/** 点侧栏顶上的铃铛，等通知菜单弹出来。侧栏要是展开的。 */
+export async function openNotifications(page: Page): Promise<void> {
+	await click(page, 'button[aria-label="通知"]');
+	await until(page, `document.querySelector('[role="menu"][aria-label="通知"]')`);
+}
+
 /** 截一张窗口图，只在设了 `PLUME_E2E_ARTIFACTS` 时才写。拍的是这个页面，不是整块屏幕。 */
 export async function shot(page: Pick<RunningApp, "send">, name: string): Promise<void> {
 	const directory = process.env.PLUME_E2E_ARTIFACTS;
