@@ -459,7 +459,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
      * instead of having to have seen every event since.
      */
     case "subagents":
-      useSubAgents.getState().sync(event.agents, sessionId);
+      useSubAgents.getState().sync(event.agents, sessionId, true);
       break;
 
     /*

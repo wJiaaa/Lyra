@@ -84,6 +84,14 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	 * 缩回去。菜单开着的时候也不收——人正在读它。
 	 */
 	const open = agents.length > 0 || menu.open;
+	/*
+	 * 挂上的时候就在的那一条，是这个会话本来就有的，不是刚长出来的，不淡入：会话页超过
+	 * `RetainedViews` 的上限被卸下以后，再切回来就是重新挂上。挂上以后才出现的才播入场。
+	 */
+	const mounted = useRef(false);
+	useEffect(() => {
+		mounted.current = true;
+	}, []);
 	const last = useRef<SubAgentSummary[]>(agents);
 	if (agents.length > 0) last.current = agents;
 	const drawn = agents.length > 0 ? agents : last.current;
@@ -101,13 +109,14 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 					onOpen={onOpen}
 					label={t("subAgentBar.countAndRunning", { n: drawn.length, running })}
 					avatarOf={avatarOf}
+					arriving={mounted.current}
 				/>
 			)}
 		</Collapse>
 	);
 }
 
-function Line({ agents, running, queued, focused, sessionId, menu, onOpen, label, avatarOf }: {
+function Line({ agents, running, queued, focused, sessionId, menu, onOpen, label, avatarOf, arriving }: {
 	agents: SubAgentSummary[];
 	running: number;
 	queued: number;
@@ -117,8 +126,15 @@ function Line({ agents, running, queued, focused, sessionId, menu, onOpen, label
 	onOpen: () => void;
 	label: string;
 	avatarOf: ReturnType<typeof useAgentAvatars>;
+	arriving: boolean;
 }) {
 	const { t } = useI18n();
+	/*
+	 * 入场只播一次，播完就把类名摘掉。会话页切走是 `display: none`（`RetainedViews`），切回来时
+	 * 还挂着这个类名的元素会把淡入从头再播一遍——这一条本来就在那儿，看上去却像刚冒出来。
+	 * 初值定在挂上的那一刻：之后重绘再把类名加上，动画会在那时候补播。
+	 */
+	const [enter, setEnter] = useState(arriving);
 	const ordered = rosterOrder(agents);
 	/*
 	 * The whole roster on the tip, which is the question this line raises.
@@ -162,7 +178,13 @@ function Line({ agents, running, queued, focused, sessionId, menu, onOpen, label
 	const leadDoing = lead?.awaitingApproval ? t("subAgent.awaitingApproval") : lead?.status === "running" ? doingWord(lead) : lead?.status === "queued" ? t("subAgent.queued") : undefined;
 
 	return (
-		<div className="ly-enter group/bar flex w-full items-center gap-1 rounded-xl border border-line-soft bg-card/60 py-0.5 pr-2 pl-1 transition-colors hover:bg-card" data-ly-avatar-host="">
+		<div
+			className={`${enter ? "ly-enter " : ""}group/bar flex w-full items-center gap-1 rounded-xl border border-line-soft bg-card/60 py-0.5 pr-2 pl-1 transition-colors hover:bg-card`}
+			data-ly-avatar-host=""
+			onAnimationEnd={(event) => {
+				if (event.target === event.currentTarget) setEnter(false);
+			}}
+		>
 			<button
 				type="button"
 				onClick={single ? onOpen : menu.toggle}
@@ -234,28 +256,23 @@ function headline(ordered: SubAgentSummary[], running: number): string {
  * Not on every roster change — that fires on every tool call of every sub-agent, and a pane that
  * re-opened itself after being closed would be unusable. The first dispatch of a run is worth
  * surfacing; after that the bar is enough.
+ *
+ * 「派了」由 store 判定（`announced`），这里不再自己数在跑的有几个：切会话时名单先空、再读回来，
+ * 数出来也是「变多了」，人在侧边面板停着的那一页就被翻走了。
  */
 function useAnnounceSubAgents(open: () => void): void {
-	const agents = useScopedSubAgents();
-	const seen = useRef(0);
 	const session = useScopedSessionId();
+	// 对话里点了某张派发卡片：面板翻到它那一页的同时要打开。
+	useOpenOn(useSubAgents((s) => s.revealed), session, open);
+	useOpenOn(useSubAgents((s) => s.announced), session, open);
+}
 
+/** 只认本屏的会话，另一屏的请求不归这里管；挂上之前就有的那一次不算，否则切回来又打开一遍。 */
+function useOpenOn(signal: { sessionId: string | null } | null, session: string | null, open: () => void): void {
+	const handled = useRef(signal);
 	useEffect(() => {
-		seen.current = 0;
-	}, [session]);
-
-	// 对话里点了某张派发卡片：面板翻到它那一页的同时要打开。只认本屏的会话，另一屏的请求不归这里管。
-	const revealed = useSubAgents((s) => s.revealed);
-	const handled = useRef(revealed?.at ?? 0);
-	useEffect(() => {
-		if (!revealed || revealed.at === handled.current) return;
-		handled.current = revealed.at;
-		if (revealed.sessionId === session) open();
-	}, [revealed, session, open]);
-
-	useEffect(() => {
-		const running = agents.filter((one) => one.status === "running").length;
-		if (running > seen.current) open();
-		seen.current = running;
-	}, [agents, open]);
+		if (!signal || signal === handled.current) return;
+		handled.current = signal;
+		if (signal.sessionId === session) open();
+	}, [signal, session, open]);
 }

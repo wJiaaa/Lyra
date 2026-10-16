@@ -390,7 +390,7 @@ export function sessionSlice(set: Set, get: Get) {
      * simply sit there — showing sub-agents from the conversation you just left, under the name of
      * the one you just opened.
      */
-    useSubAgents.getState().clear();
+    useSubAgents.getState().clear(meta.id);
 
     /*
      * The project, on its own errand — the transcript must never wait for it.

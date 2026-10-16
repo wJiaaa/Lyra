@@ -28,15 +28,18 @@ function summary(over: Partial<SubAgentSummary> & { id: string; tokens?: number;
 	};
 }
 
+const { useApp } = await import("../../src/store/index.ts");
+
 /** A roster event, as the main process would send one. */
 async function roster(agents: SubAgentSummary[]): Promise<void> {
 	await act(async () => {
-		useSubAgents.getState().sync(agents);
+		useSubAgents.getState().sync(agents, "s1", true);
 	});
 }
 
 beforeEach(() => {
-	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [], settled: {} });
+	useApp.setState({ activeSessionId: "s1" });
+	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [], settled: {}, rosters: {}, announced: null });
 });
 
 test("the first dispatch of a run opens the pane; the rest of the batch does not", async () => {
@@ -46,6 +49,12 @@ test("the first dispatch of a run opens the pane; the rest of the batch does not
 
 	await roster([summary({ id: "a" })]);
 	assert.equal(opened, 1, "work was delegated: the pane opens");
+	// 入场只播一次：会话页切走再切回来是 `display: none` 到显示，还挂着类名就会重播。
+	const line = view.find<HTMLElement>(".ly-enter");
+	await act(async () => {
+		line.dispatchEvent(new Event("animationend", { bubbles: true }));
+	});
+	assert.equal(view.all(".ly-enter").length, 0, "播完就摘掉");
 
 	// The roster is re-broadcast on every tool call of every sub-agent.
 	await roster([summary({ id: "a", toolCalls: 3, lastActivity: "读取文件" })]);
@@ -57,6 +66,35 @@ test("the first dispatch of a run opens the pane; the rest of the batch does not
 	await roster([summary({ id: "a", status: "done" }), summary({ id: "b" })]);
 	assert.equal(opened, 2, "a later batch opens it again — the first was put away long ago");
 	await view.unmount();
+});
+
+test("切回一个子智能体还在跑的会话：条本来就在、不播入场，面板也不被翻走", async () => {
+	/*
+	 * 切会话时实时名单先清空、再异步读回来。从前条在空着的那一段收起、读回来再展开一遍，自动打开面板
+	 * 的逻辑也把「读回来」数成「又派了活」——人在侧边面板停着的那一页每次都被翻到子 Agent。
+	 */
+	await roster([summary({ id: "a" })]);
+	// 离开 s1、再切回来：会话切换先摆上它登记过的名单。会话页被 `RetainedViews` 卸下过的，这一条是重新挂上的。
+	await act(async () => {
+		useSubAgents.getState().clear("s1");
+	});
+	let opened = 0;
+	const view = await mount(h(SubAgentBar, { onOpen: () => void (opened += 1) }));
+	try {
+		assert.equal(view.find<HTMLElement>(".ly-reveal").dataset.open, "true", "第一帧就是展开的，不从 0 长出来");
+		assert.equal(view.all(".ly-enter").length, 0, "本来就在的，不淡入");
+
+		await act(async () => {
+			useSubAgents.getState().sync([summary({ id: "a", toolCalls: 4 })], "s1");
+		});
+		await roster([summary({ id: "a", toolCalls: 5 })]);
+		assert.equal(opened, 0, "读回来的、接着广播的都是同一个，不是新派的");
+
+		await roster([summary({ id: "a", toolCalls: 5 }), summary({ id: "b" })]);
+		assert.equal(opened, 1, "真派了新的，照旧打开");
+	} finally {
+		await view.unmount();
+	}
 });
 
 test("整批的合计不在这条线上——那笔钱已经进了这一轮的总数", async () => {
@@ -147,8 +185,6 @@ test("派出去四个、闸门只放了一个：条上四张脸叠成一摞，�
 });
 
 test("都结束了、主智能体也把结果用上了（这一轮收尾），这一行自己收起来；记录还在", async () => {
-	const { useApp } = await import("../../src/store/index.ts");
-	useApp.setState({ activeSessionId: "s1" });
 	const view = await mount(h(SubAgentBar, { onOpen: () => {} }));
 	try {
 		await act(async () => {

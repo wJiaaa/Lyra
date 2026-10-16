@@ -54,8 +54,13 @@ interface SubAgentState {
 	settled: Record<string, number>;
 	settle(sessionId: string): void;
 
-	/** Take the roster the session in the live slot just broadcast. */
-	sync(agents: SubAgentSummary[], sessionId?: string): void;
+	/**
+	 * Take the roster the session in the live slot just broadcast.
+	 *
+	 * `live`：这份名单是运行时刚广播出来的，而不是切回会话时从磁盘读回来的。只有前者能说「刚派了活」
+	 * （见 `announced`）。
+	 */
+	sync(agents: SubAgentSummary[], sessionId?: string, live?: boolean): void;
 	/** Keep the roster a conversation that is not in the live slot just broadcast. */
 	retain(sessionId: string, agents: SubAgentSummary[]): void;
 	/** A conversation's finished sub-agents were put away. */
@@ -74,10 +79,23 @@ interface SubAgentState {
 	 */
 	revealed: { id: string; sessionId: string | null; at: number } | null;
 	reveal(id: string, sessionId: string | null): void;
+	/**
+	 * 某个会话刚派出了新的子智能体，面板该打开了。
+	 *
+	 * 只看实时广播里冒出来的、这个会话从没登记过的 id。从前是输入框上方那条自己数「在跑的变多了」，
+	 * 而切会话时实时名单先被清空、再异步读回来——读回来那一下也是「变多了」，于是每次切回一个子智能体
+	 * 还在跑的会话，人在侧边面板里停着的那一页都被翻到子 Agent。读回来的名单不是派发，不算。
+	 */
+	announced: { sessionId: string } | null;
 	/** Read one sub-agent's transcript. Idempotent while a read is in flight. */
 	load(sessionId: string, id: string): Promise<void>;
-	/** A different conversation is in front of you; this one's delegated work is not. */
-	clear(): void;
+	/**
+	 * A different conversation is in front of you; this one's delegated work is not.
+	 *
+	 * 换进来的会话（`next`）在别处登记过名单，就先摆上它：实时名单要等一次异步读才回来，空着的那
+	 * 一段里输入框上方那条会先收起、读回来再展开一遍。
+	 */
+	clear(next?: string): void;
 }
 
 export const useSubAgents = create<SubAgentState>((set, get) => ({
@@ -89,6 +107,7 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 	rosters: {},
 	settled: {},
 	revealed: null,
+	announced: null,
 
 	settle(sessionId) {
 		set({ settled: { ...get().settled, [sessionId]: Date.now() } });
@@ -107,9 +126,13 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		set({ rosters: { ...get().rosters, [sessionId]: kept } });
 	},
 
-	sync(agents, sessionId) {
+	sync(agents, sessionId, live) {
 		const { focused } = get();
+		const known = new Set((sessionId ? get().rosters[sessionId] : undefined)?.map((one) => one.id) ?? []);
+		const fresh = live === true && agents.some((one) => isActive(one) && !known.has(one.id));
 		set({
+			// 每次一个新对象：听的那一头按引用认「又派了一次」，同一毫秒里的两次也分得开。
+			...(fresh && sessionId ? { announced: { sessionId } } : {}),
 			...(sessionId ? { rosters: { ...get().rosters, [sessionId]: agents } } : {}),
 			agents,
 			/*
@@ -174,8 +197,8 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		}
 	},
 
-	clear() {
-		set({ agents: [], transcripts: {}, hookRuns: {}, focused: null, loading: [] });
+	clear(next) {
+		set({ agents: (next ? get().rosters[next] : undefined) ?? [], transcripts: {}, hookRuns: {}, focused: null, loading: [] });
 	},
 }));
 
