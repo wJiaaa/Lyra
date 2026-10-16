@@ -16,7 +16,7 @@ import { GeneratedImages } from "./ImageCanvas.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { isNudge, runs, runKey, turnBlocks, withoutThinking, type Run } from "./grouping.ts";
+import { currentTurnStart, runs, runKey, turnBlocks, withoutThinking, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { LiveToolCard, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
@@ -136,6 +136,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
     const list = runs(messages, compactions, commandRuns, hiccups);
     return showThinking ? list : withoutThinking(list);
   }, [messages, compactions, commandRuns, hiccups, showThinking]);
+  const turnStart = useMemo(() => currentTurnStart(messages), [messages]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
   /*
@@ -521,8 +522,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
                 upTo={run.upTo}
                 from={run.from}
                 lead={run.lead}
-                /* A turn the runtime carried straight on from did not end where it stopped. */
-                continued={isNudge(messages[run.index + 1])}
+                /* 页脚只给一轮的最后一句；还在跑的那一轮谁是最后一句还没定，见 `currentTurnStart`。 */
+                continued={!run.closes || (running && run.index >= turnStart)}
                 /* Computed with the grouping, so its identity changes only when the transcript
                  * does — see `Run` in `grouping.ts` for what recomputing it here used to cost. */
                 turnStats={run.turnStats}

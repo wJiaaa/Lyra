@@ -99,3 +99,17 @@ test("a reply cut off by the output limit is continued, not nudged as an empty o
 	assert.equal(said.length, 1);
 	assert.match(textOf(said[0]), /输出长度上限/);
 });
+
+/*
+ * 桌面端靠 `synthetic` 分辨「人开了新一轮」和「运行时续跑」：漏标的那句会被当成人开口，一轮切成两段，
+ * 页脚提前贴在前一段正文底下（会话 d372d301）。所以真表在正文之后说的每一句都得带着它。
+ */
+test("every sentence the real table says after prose is marked synthetic", async () => {
+	const { control } = runConfig();
+	const cases = [reply([{ type: "text", text: "做完了" }], "stop"), reply([], "length"), reply([], "stop")];
+	for (const assistant of cases) {
+		const { said } = await askRealTable(control, assistant);
+		assert.equal(said.length, 1, assistant.stopReason);
+		assert.equal(said[0].role === "user" && said[0].synthetic, true, textOf(said[0]));
+	}
+});

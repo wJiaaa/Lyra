@@ -63,8 +63,10 @@ export type Run =
 	 * and every visible reply was rebuilt whenever anything re-rendered the transcript. Computed
 	 * here it is derived from the messages alone, which is what it is a fact about, and its
 	 * identity changes exactly when the transcript does.
+	 *
+	 * `closes` 标在一轮里最后一条落定的回复上：时间、耗时、复制那一行只属于它，见 `runs` 里的 `closer`。
 	 */
-	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; key?: string }
+	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; closes?: true; key?: string }
 	/**
 	 * A stretch of tool work, and whether it is the stretch being worked on right now.
 	 *
@@ -289,6 +291,19 @@ function opensTurn(message: Message): boolean {
 	if (message.role !== "user" || isNudge(message)) return false;
 	if (!message.synthetic) return true;
 	return Boolean(message.delivery || message.peer) && !message.steered;
+}
+
+/**
+ * 最新那一轮从哪一条消息开始，切法和 `runs` 换轮的地方是同一条。
+ *
+ * 会话还在跑时，这一轮的 `closes` 只是「到目前为止」的最后一句：清单追问之后模型可能接着干活、
+ * 再说一段，页脚要等跑完才知道该落在谁身上。调用方拿这个下标判断一行是不是还在跑的这一轮里。
+ */
+export function currentTurnStart(messages: Message[]): number {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (opensTurn(messages[i]) && !resumesTurn(messages, i)) return i;
+	}
+	return 0;
 }
 
 /**
@@ -553,6 +568,26 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		used = next;
 	};
 
+	/*
+	 * 这一轮到目前为止最后一条落定的回复行，轮换了（或者走完了）才把 `closes` 落到它身上。
+	 *
+	 * 不看紧跟在后面的是不是「自动继续」那一句：运行时在正文后面插话续跑的不止那一种——清单没勾完
+	 * 的追问（`openPlanNote`）用的是「（自动提示）」，英文界面下连「自动继续」的译文都对不上 core
+	 * 写进去的中文。按前缀认，每加一种续跑都得记得来这里登记，漏一次就是一轮跑到一半先贴出页脚。
+	 * 只问「这一轮最后一句是哪条」，插进来的是什么都无所谓。
+	 */
+	let closer: Extract<Run, { kind: "message" }> | null = null;
+	const closeTurn = () => {
+		if (closer) closer.closes = true;
+		closer = null;
+	};
+	// 还在写的（pending）、说完要接着调工具的（toolUse）都不是一轮的最后一句，和 `rows.tsx` 的 `settled` 同一条线。
+	const consider = (row: Extract<Run, { kind: "message" }>) => {
+		const { message } = row;
+		if (row.lead || message.role !== "assistant" || message.stopReason === "pending" || message.stopReason === "toolUse") return;
+		closer = row;
+	};
+
 	let clock = newClock();
 	let currentTodos: ReturnType<typeof todosFrom> = [];
 	for (const [index, message] of messages.entries()) {
@@ -569,7 +604,10 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		}
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
-		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock(index);
+		if (opensTurn(message) && !resumesTurn(messages, index)) {
+			closeTurn();
+			clock = newClock(index);
+		}
 		if (message.role === "toolResult" && message.toolName === "todo_write" && !message.isError) {
 			const details = message.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
 			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;
@@ -651,7 +689,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * is exactly what ends the first and starts the second.
 		 */
 		if (think > 0 && written(message.content, think)) {
-			out.push({
+			const row: Extract<Run, { kind: "message" }> = {
 				kind: "message", message, index, upTo: think,
 				/*
 				 * A lead-in only when the reply has a row of its own below this one.
@@ -663,7 +701,9 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 				lead: own > think || undefined,
 				// Its own identity, distinct from the prose row of the same message. See `runKey`.
 				key: `thinking-${message.timestamp}-${index}`,
-			});
+			};
+			out.push(row);
+			consider(row);
 		}
 
 		/*
@@ -687,17 +727,23 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		}
 		// `own` never ends on a call, so the reply keeps a piece of its own after the last page.
 		if (own > from) {
-			out.push({ kind: "message", message, index, upTo: own, from, turnStats: snapshot(clock) });
+			const row: Extract<Run, { kind: "message" }> = { kind: "message", message, index, upTo: own, from, turnStats: snapshot(clock) };
+			out.push(row);
+			consider(row);
 		} else if (think === 0 && calls.length === 0 && message.stopReason !== "pending") {
 			/*
 			 * Nothing thought, nothing said, nothing done, and the turn is over: a failure with no
 			 * output. This message's only chance to show it, so it gets a row.
 			 */
-			out.push({ kind: "message", message, index, upTo: message.content.length, turnStats: snapshot(clock) });
+			const row: Extract<Run, { kind: "message" }> = { kind: "message", message, index, upTo: message.content.length, turnStats: snapshot(clock) };
+			out.push(row);
+			consider(row);
 		}
 
 		work(calls, index);
 	}
+
+	closeTurn();
 
 	// A compaction recorded after the last message still belongs at the end.
 	while (nextMark < marks.length) {
