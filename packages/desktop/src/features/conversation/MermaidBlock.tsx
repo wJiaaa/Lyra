@@ -50,6 +50,39 @@ function currentScheme(): "dark" | "light" {
 	return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+/*
+ * 图的颜色取自页面自己的颜色变量，不用 mermaid 主题的原色。
+ *
+ * neo 主题自带蓝到红的渐变描边、偏红的节点底；分组和连线标签的底色按它假定的 `#333` 页面推出来，
+ * 放在用户自己调的底色上就是一块块不相干的灰。这些变量是 `settings/theme.ts` 写在根元素上的十六进制
+ * 值——mermaid 要从它们再推导别的颜色，认不了 `var()`，所以在这里读成字面量。
+ */
+const PALETTE = {
+	background: "--color-shell",
+	primaryColor: "--color-card",
+	mainBkg: "--color-card",
+	nodeBorder: "--color-ink-faint",
+	clusterBkg: "--color-input",
+	clusterBorder: "--color-line",
+	lineColor: "--color-ink-muted",
+	primaryTextColor: "--color-ink",
+	textColor: "--color-ink",
+	titleColor: "--color-ink-muted",
+	edgeLabelBackground: "--color-shell",
+} as const;
+
+/** 明暗加上那几个变量的当前值，拼成一个字符串：任何一项变了，图都要重画。 */
+function currentLook(): string {
+	const style = getComputedStyle(document.documentElement);
+	const colours = Object.fromEntries(
+		Object.entries(PALETTE)
+			.map(([key, name]) => [key, style.getPropertyValue(name).trim()])
+			// 变量还没写上（外观设置未应用）时留给主题自己的默认色。
+			.filter(([, value]) => value !== ""),
+	);
+	return JSON.stringify({ scheme: currentScheme(), colours });
+}
+
 /** 渲染同一张图的两次之间，id 不能撞——mermaid 用它在文档里挂临时节点。 */
 let seq = 0;
 
@@ -70,7 +103,7 @@ export function MermaidBlock({
 	 */
 	fallback: ReactNode;
 }) {
-	const scheme = useSyncExternalStore(subscribeScheme, currentScheme, () => "light" as const);
+	const look = useSyncExternalStore(subscribeScheme, currentLook, () => JSON.stringify({ scheme: "light", colours: {} }));
 	const [svg, setSvg] = useState<string | null>(null);
 	/*
 	 * 「还没画出来」和「画不出来」是两种状态，不能合成一个。
@@ -88,11 +121,23 @@ export function MermaidBlock({
 			try {
 				const mermaid = (await import("mermaid")).default;
 				if (!alive) return;
+				const { scheme, colours } = JSON.parse(look) as { scheme: "dark" | "light"; colours: Record<string, string> };
 				mermaid.initialize({
 					startOnLoad: false,
 					// 见上：围栏内容是不可信输入，标签里的 HTML 一律当文本。
 					securityLevel: "strict",
-					theme: scheme === "dark" ? "dark" : "default",
+					/*
+					 * mermaid 12 的流程图默认外观是 neo，它会给节点和分组框套上主题的 `dropShadow`。
+					 * 老的 dark/default 主题不是为 neo 配的：dark 的阴影是不透明的浅灰，
+					 * 在暗底上成了每个框外的一圈白光。用和 neo 成套的主题，颜色再换成页面的（见 `PALETTE`）。
+					 */
+					theme: scheme === "dark" ? "neo-dark" : "neo",
+					themeVariables: {
+						...colours,
+						useGradient: false,
+						// 图本来就画在消息里，节点不需要再从这一层浮起来。
+						dropShadow: "none",
+					},
 					fontFamily: "var(--ly-font-sans, inherit)",
 				});
 				/*
@@ -114,7 +159,7 @@ export function MermaidBlock({
 		return () => {
 			alive = false;
 		};
-	}, [code, scheme]);
+	}, [code, look]);
 
 	/*
 	 * 画不出来，和还没画出来，显示的是同一个东西——那段原文。
