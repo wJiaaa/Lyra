@@ -2,6 +2,59 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.35](https://github.com/wJiaaa/Plume/releases/tag/v0.9.35) - 2026-10-16
+
+<!-- plume:notes en -->
+
+### New
+
+- **Notifications open in a panel, and you can tell at a glance which one needs you.** The bell used to open an ordinary 224 px menu: long conversation titles wrapped in the middle of a word, and every finished item said "Done" right next to a green tick that already said so. Each notification now starts with a coloured block for its state (waiting for approval, failed, done), followed by the title on one line and "project · time ago" under it. Only "Waiting for your approval" keeps its words, because a hand icon on its own doesn't tell you what to do.
+- **Deleting a conversation tells you how many are nested under it.** Conversations started from a suggestion sit under the one that suggested them. The confirmation used to mention only the message count, and once you deleted, the nested ones quietly became standalone. It now says how many are nested and offers "Delete only this one" or "Delete all N". Archived ones count too, since only archived conversations can be deleted and their children are often archived as well.
+
+### Changes
+
+- **The "⚓ N" button under replies only appears when a hook didn't go through.** Every reply used to carry something like "⚓ 80", which only meant your hooks ran as usual. Now it appears only when a hook in that stretch blocked a tool call, failed or timed out, and opening it still lists every hook from that stretch. Subagent panels follow the same rule.
+- **Settings › Plugins no longer has an Extensions tab.** Runtime extensions (third-party code under `.plume/extensions/`, run in a worker) were never documented, and the tab only ever said "No extensions". They have been removed. Skills, plugins, MCP servers and hooks are not affected.
+- **After your first message from the welcome page, the composer rises into place instead of sliding down.** In 0.9.34 it travelled from where it sat on the welcome page to the bottom while widening. It now appears at the bottom at full width and rises 16 px as it fades in. With "Reduce motion" on it is simply there.
+- **The highlight in Settings' left column jumps straight to the section you pick.** It used to slide 220 ms between rows. Hovering a row highlights it instantly as well.
+
+### Fixes
+
+- **Opening an existing conversation from the welcome page no longer slides the composer down from under the title.** It is at the bottom from the first frame.
+- **The time and actions under a reply sit right under the text again.** There were 14 px between the end of a reply and that row, so on hover it looked like a paragraph of its own. It is now 4 px, the same as under your own messages.
+- **A conversation pinned to the bottom no longer jumps while Plume is answering.** The status line at the end shrank the moment an answer started, grew back whenever the answer paused, and the time and copy row popped in when it finished — each one moved the conversation by 5 to 38 px. The line now fades in and out without changing height, and when the answer finishes it gives way to the actions row, which moves things by 8 px.
+- **Sending a message while Plume is answering no longer makes the queue above the composer jump.** It overshot when a message joined the queue and grew by an extra 1 px at the end. When a queued message went out, the conversation was dragged back 10–14 px for 26 frames. Dragging to reorder made rows shrink and grow back, ending up to 68 px off, and deleting cut the last 14 px of the animation short. Each of these is now one movement in one direction.
+- **Picking an option after scrolling a question card's list no longer pushes the card out of view.** The question and the first options went off the top of the card and left an empty space below. Scrolled far enough (1812 px in our test), only the title bar was left.
+- **Ticking off the task list after an answer no longer shows up as an extra line under the reply.** If an answer finished with an item still in progress, the model ticked it with one more `todo_write`, and that call was drawn under the reply and its footer, as if work had carried on after the answer. It now belongs to the answer.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **通知改成一块面板，哪条在等你、哪条出错，一眼就能看出来。** 从前点铃铛弹出的是一个 224px 宽的普通菜单：会话标题长了会在词中间折行，每条已完成的通知都写着「已完成」，旁边的绿勾说的是同一件事。现在每条通知左边是按状态着色的色块（等批准、出错、完成），右边一行标题，下面一行「项目 · 多久以前」。只有「等你批准」保留文字，因为光一个手形图标看不出要你去做什么。
+- **删除会话时，会先说清下面嵌套着几个会话。** 从建议里开出来的会话嵌套在发起建议的会话下面。原来确认框只提消息条数，删完以后，下面那几个悄悄变成了独立会话。现在确认框写明嵌套了几个，并给出「删除此会话」和「删除 N 个会话」两个选择。已归档的也算在内：只有归档的会话能删，它下面的会话往往也一起归档了。
+
+### 变化
+
+- **回复底下的「⚓ 数字」按钮，只在有钩子没顺利跑完时出现。** 原来每条回复底下都挂着一个「⚓ 80」，意思只是钩子照常跑了。现在只有这一段里有钩子拦下了工具调用、失败或超时，按钮才出现；点开照样能看到这一段的全部钩子。子代理面板也按这条规则显示。
+- **设置 › 插件里不再有「扩展」标签。** 运行时扩展（放在 `.plume/extensions/` 里、在 worker 中运行的第三方代码）从来没有文档，那个标签也只显示过「暂无扩展」。这次整个删掉了。技能、插件、MCP 服务和钩子都不受影响。
+- **在欢迎页发出第一条消息后，输入框改为在底部原地升起，不再滑下来。** 0.9.34 里，它从欢迎页上的位置一路滑到底部，同时横向拉宽。现在它第一帧就在底部、宽度就是对话栏的宽度，上升 16px 并淡入。开了「减少动态效果」时直接到位。
+- **设置页左侧切换章节时，选中底色直接换到新的一行。** 原来底色要用 220ms 从上一行滑过去。鼠标悬停时的高亮现在也是即时出现的。
+
+### 修复
+
+- **从欢迎页点开已有会话时，输入框不再从标题下面滑到底部。** 现在第一帧就在底部。
+- **回复底下的时间和操作按钮不再离正文隔一大截。** 回复末尾到这一行原来有 14px，鼠标悬停时看上去像是另起了一段。现在是 4px，和你自己的消息底下一样。
+- **Plume 回答时，贴着底部的对话不再来回跳。** 对话末尾那行状态，回答一开始就收起，回答停顿时又长回来，写完时下面再冒出时间和复制那一行，每一次都让对话跳 5 到 38px。现在一轮里它只淡入淡出、高度不变；回答写完时给操作行让位，对话只挪 8px。
+- **Plume 回答时发消息，输入框上方的排队条不再来回跳。** 新消息进队时会先冲过头，最后一帧还会多出 1px；排着的消息送出时，对话被往回拖 10–14px，持续 26 帧；拖动调整顺序时，几行先缩没再长出来，最远偏离 68px；删除时动画的最后 14px 被一刀切掉。现在这几种情况都是一次朝一个方向的移动。
+- **提问卡的选项列表滚下去以后再点选项，卡片不再被推出视野。** 原来问题和前几个选项会被推出卡片顶部，下面空出一块；滚得够多时（我们测到 1812px），整张卡只剩标题栏。
+- **回答之后补勾任务清单，不再在回复下面单独多出一行。** 回答写完时清单里还有一项是进行中，模型会再调一次 `todo_write` 把它勾掉，这次调用原来画在回复和页脚的下面，看上去像回答完又接着干了点什么。现在它归在这条回答里。
+
+</details>
+
 ## [0.9.34](https://github.com/wJiaaa/Plume/releases/tag/v0.9.34) - 2026-10-15
 
 <!-- plume:notes en -->
