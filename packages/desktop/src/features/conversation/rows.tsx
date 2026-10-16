@@ -256,7 +256,7 @@ function AssistantRow({
       {!lead && settled(message.stopReason) && !continued && <TurnDeliveryCard timestamp={message.timestamp} />}
       {!lead && settled(message.stopReason) && !continued && text.trim() && (
         <MessageActions
-          className={watched ? "ly-actions-in" : undefined}
+          className={watched ? "-mt-1.5 ly-actions-in" : "-mt-1.5"}
           timestamp={message.timestamp}
           text={() => copyableReply(text, sessionId)}
           durationMs={turnStats?.durationMs ?? message.durationMs}

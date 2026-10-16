@@ -34,7 +34,7 @@ export function CommandRunRow({ command }: { command: CommandRun }) {
 				<span className="ly-command-token">/compact</span>{command.input.slice(8)}
 			</p>
 		</div>
-		<MessageActions timestamp={command.timestamp} text={command.input} className="justify-end pr-1" />
+		<MessageActions timestamp={command.timestamp} text={command.input} className="mt-1 justify-end pr-1" />
 		<FlowRow
 			icon={<Icon size={13} strokeWidth={1.8} />}
 			summary={compactText(command, command.detail)}

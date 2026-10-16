@@ -26,6 +26,10 @@ import { hourStyle } from "../../lib/hour-style.ts";
  * bubble, that fill landed *on* the bubble: pointing at 复制 drew a grey rectangle overlapping
  * the message it belongs to. Sizing the row to its tallest child is what keeps the fill inside
  * it; the 4px above is what keeps it off the bubble.
+ *
+ * That 4px is the caller's to set, not this row's: under a bubble it is `mt-1`, but a reply sits
+ * in a column that already has `gap-2.5`, and the two stacked to 14px of air under the last line.
+ * It cannot be overridden from outside either — Tailwind orders `-mt-1.5` before `mt-1`.
  */
 export function MessageActions({
 	timestamp,
@@ -85,7 +89,7 @@ export function MessageActions({
 			 * would compete with the conversation it belongs to.
 			 */
 			data-ly-hover-reveal
-			className={`mt-1 flex h-6 items-center gap-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/msg:opacity-100 has-[:focus-visible]:opacity-100 ${className}`}
+			className={`flex h-6 items-center gap-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/msg:opacity-100 has-[:focus-visible]:opacity-100 ${className}`}
 		>
 			<span data-ly-tip={timeTip || undefined} className="inline-flex items-center">
 				<Text size="caption" tone="faint" numeric>

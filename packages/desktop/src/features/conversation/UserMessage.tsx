@@ -578,7 +578,7 @@ export function UserMessage({
       <MessageActions
         timestamp={message.timestamp}
         text={text}
-        className="pr-1"
+        className="mt-1 pr-1"
       >
         {!aside && <IconButton
           data-message-undo=""
