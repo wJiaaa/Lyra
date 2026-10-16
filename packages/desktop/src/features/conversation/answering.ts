@@ -26,3 +26,5 @@
 
 // 判断本身挪到了 `@plume/client-runtime/running`：手机消息流末尾那一行要和这里同时收起、同时回来。
 export { proseLength, STALL_MS } from "@plume/client-runtime/running";
+// 字上一次落下的时刻记在消息合并那一步，不在这里看见的那一刻：见 `message-event.ts` 的 `proseAt`。
+export { proseGrewAt } from "@plume/client-runtime/messages";

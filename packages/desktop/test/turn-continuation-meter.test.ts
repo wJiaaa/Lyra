@@ -28,7 +28,7 @@ const storage: Record<string, string> = {};
 
 const { useApp } = await import("../src/store/index.ts");
 const { applyAgentEvent } = await import("../src/store/apply-event.ts");
-const { computeTurnStats } = await import("../src/features/conversation/grouping.ts");
+const { computeTurnStats, liveTurnMeter } = await import("../src/features/conversation/grouping.ts");
 const { CARRY_ON_PROMPTS } = await import("../src/store/derive.ts");
 
 const SESSION = "test-session";
@@ -159,4 +159,31 @@ test("grouping resumesTurn recognizes CARRY_ON_PROMPTS[2] after normal stop with
 	// Paused for 5 minutes, running time was (3s-0s)+10s = 13s for first part, plus 1s+5s = 6s for second part => 19s
 	assert.ok(stats.durationMs < 60 * SECOND, `reading pause should not be counted into duration, got: ${stats.durationMs}`);
 	assert.equal(stats.outputTokens, 1700, "tokens should carry across continuation");
+});
+
+test("a running turn the window missed the start of reads its clock back from the transcript, pause excluded", () => {
+	// 刷新过窗口，`turns` 里没有这一轮的表；运行行要从转录里读回同一块表，不然耗时一格是空的。
+	const messages: Message[] = [
+		user("请完成这些任务", T0),
+		assistant([call("c1", "todo_write")], "toolUse", T0 + SECOND, SECOND, 500),
+		todoResult("c1", [
+			{ content: "任务 1", status: "completed" },
+			{ content: "任务 2", status: "pending" },
+		], T0 + 2 * SECOND),
+		assistant([{ type: "text", text: "第一步做完了，接下来做第二步。" }], "stop", T0 + 3 * SECOND, 10 * SECOND, 1000),
+		user(CARRY_ON_PROMPTS[2], T0 + 5 * MINUTE),
+		assistant([{ type: "text", text: "正在写" }], "pending", T0 + 5 * MINUTE + SECOND, 0, 300),
+	];
+	const meter = liveTurnMeter(messages);
+	assert.ok(meter);
+	// 前一段跑了 13 秒，读清单停下的五分钟不算；第二段从「继续」那一刻起，到现在 20 秒。
+	assert.equal(T0 + 5 * MINUTE + 20 * SECOND - meter.startedAt, 33 * SECOND);
+	// 正在流的那条由运行行另外数（`live`），这里只算收了尾的。
+	assert.equal(meter.tokens, 1500);
+	// 和这一轮结束时印在回复底下的那份是同一个钟：截到同一条消息，两边一样长。
+	assert.equal(T0 + 5 * MINUTE + SECOND - meter.startedAt, computeTurnStats(messages, 5).durationMs);
+});
+
+test("a transcript with no turn yet has no clock to read back", () => {
+	assert.equal(liveTurnMeter([]), null);
 });

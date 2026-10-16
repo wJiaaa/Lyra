@@ -16,6 +16,7 @@ import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { formatElapsed } from "@plume/client-runtime/running";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
+import { liveTurnMeter } from "./grouping.ts";
 
 /**
  * What the agent is spending while it works: elapsed time and tokens so far.
@@ -49,7 +50,16 @@ export function RunningIndicator() {
 	 * running at once drew that one line under both: the same clock, count and activity, which
 	 * jumped to the right ones only when focus arrived.
 	 */
-	const { startedAt, tokens } = useScopedTurnMeter();
+	const meter = useScopedTurnMeter();
+	/*
+	 * 窗口错过了这一轮的 `agent_start`（刷新过，或者这一轮在窗口打开之前就开始了）就没有那块表，
+	 * 从转录里读回来，见 `liveTurnMeter`。两个数分开取：选择器交回对象，每次都是新的身份。
+	 */
+	const missed = meter.startedAt === null;
+	const since = useScopedFromMessages((messages) => (missed ? (liveTurnMeter(messages)?.startedAt ?? null) : null));
+	const spent = useScopedFromMessages((messages) => (missed ? (liveTurnMeter(messages)?.tokens ?? 0) : 0));
+	const startedAt = meter.startedAt ?? since;
+	const tokens = missed ? spent : meter.tokens;
 	const retrying = useScopedRetrying();
 	const compactedAt = useScopedCompactedAt();
 	const waiting = useScopedApprovals()[0];
@@ -234,14 +244,17 @@ export function RunningIndicator() {
 			 * the same weight before, which made a row of five things with no order to read them in.
 			 */}
 			{phrase && (
+				<span key={phrase} className="ly-fade-in">
+					{phrase}…
+				</span>
+			)}
+			{/* 点跟着耗时走：没有耗时的时候它和 token 前面那个点挨在一起，读出来是「Thinking… · · 本轮」。 */}
+			{startedAt && (
 				<>
-					<span key={phrase} className="ly-fade-in">
-						{phrase}…
-					</span>
-					<span className="text-ink-faint">·</span>
+					{phrase && <span className="text-ink-faint">·</span>}
+					<span className="text-ink-faint tabular-nums">{formatElapsed(now - startedAt)}</span>
 				</>
 			)}
-			{startedAt && <span className="text-ink-faint tabular-nums">{formatElapsed(now - startedAt)}</span>}
 			{total > 0 && (
 				<>
 					<span className="text-ink-faint">·</span>

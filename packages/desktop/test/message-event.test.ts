@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 import { drawnAt, messageEvent } from "../src/store/message-event.ts";
+import { proseGrewAt } from "../src/features/conversation/answering.ts";
 
 const pending: Message = { role: "user", content: [{ type: "text", text: "相同的问题" }], timestamp: 1 };
 const confirmed: Message = { ...pending, timestamp: 2 };
@@ -45,4 +46,26 @@ test("a message nobody drew earlier is keyed by its own timestamp", () => {
 	const reply: Message = { role: "user", content: [{ type: "text", text: "另一句" }], timestamp: 5 };
 	const next = messageEvent({ messages: [], pendingUserMessage: null }, { type: "message_start", message: reply }, "a");
 	assert.equal(drawnAt(next.messages[0]), 5);
+});
+
+test("a reply's prose remembers when it last grew, not when it was last delivered", (t) => {
+	// 运行行的停顿从这一刻算起；切会话不经过这里，所以切回来不会让钟重新走。
+	let now = 1_000;
+	t.mock.method(Date, "now", () => now);
+	const reply = (text: string): Message => ({
+		role: "assistant", content: [{ type: "thinking", thinking: "先想" }, ...(text ? [{ type: "text" as const, text }] : [])],
+		api: "anthropic-messages", provider: "p", model: "m", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		stopReason: "pending", timestamp: 10,
+	});
+	let state = { messages: [] as Message[], pendingUserMessage: null };
+	state = messageEvent(state, { type: "message_start", message: reply("") }, "a");
+	assert.equal(proseGrewAt(state.messages[0]), undefined, "no prose yet, so nothing is being written");
+	state = messageEvent(state, { type: "message_update", message: reply("第一句"), delta: { type: "text_delta" } } as never, "a");
+	assert.equal(proseGrewAt(state.messages[0]), 1_000);
+	now = 5_000;
+	// 同样长的一次更新（用量刷新、签名到了）不算字在长。
+	state = messageEvent(state, { type: "message_update", message: reply("第一句"), delta: { type: "text_delta" } } as never, "a");
+	assert.equal(proseGrewAt(state.messages[0]), 1_000, "an update that added no words restarted the stall");
+	state = messageEvent(state, { type: "message_update", message: reply("第一句，第二句"), delta: { type: "text_delta" } } as never, "a");
+	assert.equal(proseGrewAt(state.messages[0]), 5_000);
 });

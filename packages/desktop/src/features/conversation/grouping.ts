@@ -14,6 +14,7 @@
 import { isNudge } from "../../lib/spoken.ts";
 import { routedBlock } from "../../lib/tool-summary.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
+import { freshTokens } from "@plume/core/tokens";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import { isPlanTick } from "../../store/turn-stop.ts";
 import { drawnAt } from "../../store/message-event.ts";
@@ -316,6 +317,29 @@ export function currentTurnStart(messages: Message[]): number {
  * 结果和自动继续都属于这一轮，一并记进去。
  */
 export function computeTurnStats(messages: Message[], endMessageIndex: number): TurnStats {
+	return snapshot(clockThrough(messages, endMessageIndex));
+}
+
+/**
+ * 还在跑的这一轮，从转录里读出来的那块表：`startedAt` 是停顿扣掉之后的起点（和 `relight` 同一种
+ * 算法，`now - startedAt` 就是这一轮跑了多久），`tokens` 是已经收尾的回复花掉的。
+ *
+ * 给窗口错过了这一轮开头的时候用：`turns` 里那块表是 `agent_start` 点亮的，刷新过窗口、或者这一轮
+ * 在窗口打开之前就开始了，就没有它，运行行上的耗时是空的。读的是同一份时钟，所以这一轮结束时印在
+ * 回复底下的数字接得上。委派出去的子代理不在转录里，它们的 token 这里数不到。
+ */
+export function liveTurnMeter(messages: Message[]): { startedAt: number; tokens: number } | null {
+	const clock = clockThrough(messages, messages.length - 1);
+	if (clock.from === null) return null;
+	let tokens = 0;
+	for (let i = clock.start; i < messages.length; i++) {
+		const message = messages[i];
+		if (message.role === "assistant" && message.stopReason !== "pending") tokens += freshTokens(message.usage);
+	}
+	return { startedAt: clock.from - clock.closedMs, tokens };
+}
+
+function clockThrough(messages: Message[], endMessageIndex: number): Clock {
 	// Walk backwards from endMessageIndex until we hit a real user message or index 0
 	let startIndex = 0;
 	for (let i = endMessageIndex; i >= 0; i--) {
@@ -340,7 +364,7 @@ export function computeTurnStats(messages: Message[], endMessageIndex: number): 
 			clock.halted = true;
 		}
 	}
-	return snapshot(clock);
+	return clock;
 }
 
 /**

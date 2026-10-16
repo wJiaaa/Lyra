@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Message } from "@plume/core";
-import { proseLength, STALL_MS } from "./answering.ts";
+import { proseGrewAt, proseLength, STALL_MS } from "./answering.ts";
 
 /**
  * True only while the answer is genuinely arriving; see `answering.ts` for why that is not the same
@@ -8,31 +8,24 @@ import { proseLength, STALL_MS } from "./answering.ts";
  *
  * The clock is the half that cannot be derived from the messages alone. Text that has stopped
  * growing looks exactly like text that grew a moment ago — the difference is how long ago, and
- * nothing re-renders to mark the passing of time on its own. So the length is watched, and a timer
- * is set each time it changes: another chunk cancels and restarts it, silence lets it fire.
+ * nothing re-renders to mark the passing of time on its own. So a timer is set for the moment the
+ * stall will have lasted `STALL_MS`, and another chunk moves that moment on.
  *
- * One timer, restarted, rather than a tick that runs for the whole reply. A quarter-second interval
- * through a long answer is a wake-up several hundred times per turn to recompute a boolean that is
- * almost always the same; this fires once per stall.
+ * Counted from when the text last grew (`proseGrewAt`), not from when this hook first saw it. Timed
+ * from sight, switching to another conversation and back restarted the clock: a reply whose words
+ * had stopped a minute ago hid the running line for another 2.5s, which is exactly when the model
+ * has finished a paragraph and gone quiet to think.
  */
 export function useAnswering(messages: Message[]): boolean {
-	const prose = proseLength(messages);
-	/*
-	 * Keyed on the length *and* the count, so the timer restarts when a new reply begins.
-	 *
-	 * A fresh message whose first chunk happens to be as long as the last one's final text would
-	 * otherwise leave the previous message's timer running — and the stall it is measuring would be
-	 * counted from words that belong to a different reply.
-	 */
-	const key = prose === null ? null : `${messages.length}:${prose}`;
-	const [stalled, setStalled] = useState(false);
-
+	const at = proseLength(messages) === null ? undefined : proseGrewAt(messages[messages.length - 1]);
+	// Nothing in the store changes when a stall begins, so the timer re-renders on its own.
+	const [, wake] = useState(0);
 	useEffect(() => {
-		setStalled(false);
-		if (key === null) return;
-		const timer = setTimeout(() => setStalled(true), STALL_MS);
+		if (at === undefined) return;
+		const left = STALL_MS - (Date.now() - at);
+		if (left <= 0) return;
+		const timer = setTimeout(() => wake((n) => n + 1), left);
 		return () => clearTimeout(timer);
-	}, [key]);
-
-	return key !== null && !stalled;
+	}, [at]);
+	return at !== undefined && Date.now() - at < STALL_MS;
 }

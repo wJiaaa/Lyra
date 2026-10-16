@@ -131,7 +131,11 @@ export const STALL_MS = 2_500;
  * `features/conversation/answering.ts`。
  */
 export function proseLength(messages: Message[]): number | null {
-	const last = messages[messages.length - 1];
+	return tailProse(messages[messages.length - 1]);
+}
+
+/** 同一个判断，问的是一条消息。消息合并时要拿前后两份比一比正文长没长，见 `message-event.ts`。 */
+export function tailProse(last: Message | undefined): number | null {
 	if (last?.role !== "assistant" || last.stopReason !== "pending") return null;
 	const block = last.content[last.content.length - 1];
 	if (block?.type !== "text") return null;
