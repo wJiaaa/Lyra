@@ -924,6 +924,8 @@ export interface PlumeApi {
 	system: {
 		openPath(path: string): Promise<void>;
 		openExternal(url: string): Promise<void>;
+		/** The system default browser's name, or "" where the platform cannot tell. */
+		defaultBrowser(): Promise<string>;
 		/** `target` is an id from `openTargets`; see `electron/open-targets.ts`. */
 		openIn(target: string, path: string): Promise<void>;
 		/**

@@ -39,6 +39,7 @@ import { FadeText } from "./FadeText.tsx";
 import { usePathMenu } from "./PathMenu.tsx";
 import { useLocatedPaths } from "./located-path.ts";
 import { FileChoices } from "./FileChoices.tsx";
+import { WebLink } from "./WebLink.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
 /**
@@ -648,8 +649,6 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 	 * great many links.
 	 */
 	const project = useScopedProjectPath();
-	// Context reads, not subscriptions: only a press needs them, and it reads the store then.
-	const scoped = useContext(SessionScope);
 	const safe = href.startsWith("http://") || href.startsWith("https://");
 	const target = href.replace(/:\d+(?:-\d+)?$/, "");
 	const guess = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), target);
@@ -663,23 +662,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 	const path = located.length === 1 ? located[0] : guess;
 	if (preview || (!safe && !path)) return <>{children}</>;
 	if (path) return <FileLink href={href} path={path} choices={located.length > 1 ? located : undefined}>{children}</FileLink>;
-	return (
-		<a
-			href={href}
-			onClick={(event) => {
-				event.preventDefault();
-				const state = useApp.getState();
-				if (state.settings?.browser?.openLinks === "builtin" && !event.shiftKey) {
-					// A tab of this screen's conversation, whichever screen has the focus.
-					const sessionId = scoped === undefined ? state.activeSessionId : scoped;
-					// Its tab opens in this screen, live or not — see `reveal` in `useBrowserWorkspace`.
-					void bridge.browser.command({ type: "open", url: href, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
-				} else void bridge.system.openExternal(href);
-			}}
-		>
-			{children}
-		</a>
-	);
+	return <WebLink href={href}>{children}</WebLink>;
 }
 
 /**

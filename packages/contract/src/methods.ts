@@ -224,6 +224,7 @@ export const METHODS = {
 	system: {
 		openPath: { channel: "system:openPath" },
 		openExternal: { channel: "system:openExternal" },
+		defaultBrowser: { channel: "system:defaultBrowser" },
 		openIn: { channel: "system:openIn" },
 		openTargets: { channel: "system:openTargets" },
 		revealSkillsDir: { channel: "system:revealSkillsDir" },

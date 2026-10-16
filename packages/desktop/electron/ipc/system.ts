@@ -8,7 +8,7 @@
 import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { plumeHome } from "@plume/core";
-import { clipboard, ipcMain, nativeImage, shell } from "electron";
+import { app, clipboard, ipcMain, nativeImage, shell } from "electron";
 import { documentImage } from "../avatars.ts";
 import { writeClipboardImage } from "../clipboard-image.ts";
 import { openExternalSafely } from "../window-security.ts";
@@ -19,6 +19,9 @@ export function registerSystemIpc(): void {
 
 	// One door for every external link; see `window-security.ts` for what it lets through and why.
 	ipcMain.handle("system:openExternal", async (_event, url: string) => openExternalSafely(url));
+
+	// 链接右键菜单里「在 Google Chrome 中打开」的那个名字。Linux 上常常问不到，空串由调用方换成通用说法。
+	ipcMain.handle("system:defaultBrowser", async (): Promise<string> => app.getApplicationNameForProtocol("https://"));
 
 	/*
 	 * 「用什么打开」, which is a different question on every platform — see `open-targets.ts`.
