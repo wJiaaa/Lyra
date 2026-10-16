@@ -576,8 +576,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
              * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。
              */
             const pages = pageOpens(block);
-            // 这一轮里生成的图，同样画在外面，见 `GeneratedImages`。
-            const drawn = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call.id) : []));
             /*
              * 按**回合**算，不是按块的位置算：正文一开始流式输出，过程就不再排在末尾。
              */
@@ -586,14 +584,21 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
             return (
               <Fragment key={key}>
                 <TurnWork
-                  entries={block.items.map((item) => ({
-                    key: `${activeSessionId}:${item.key}`,
-                    // 正在做的那一段是这一轮的最后一行：后面有了别的（下一段活、一句话），它就做完了。
-                    node: item.kind === "step" ? <WorkStep step={item.step} live={live && item === tail} draw={draw} drawCall={drawCall} /> : draw(item.run),
-                  }))}
+                  entries={block.items.flatMap((item) => {
+                    const entry = {
+                      key: `${activeSessionId}:${item.key}`,
+                      // 正在做的那一段是这一轮的最后一行：后面有了别的（下一段活、一句话），它就做完了。
+                      node: item.kind === "step" ? <WorkStep step={item.step} live={live && item === tail} draw={draw} drawCall={drawCall} /> : draw(item.run),
+                    };
+                    /*
+                     * 图紧跟在画它的那段活后面，不排到整轮末尾：末尾是收尾那句话和它的结算行，排在那后面，
+                     * 时间、耗时就压在了这一轮产出的图上面。挂在段外面而不是段里面，见 `GeneratedImages`。
+                     */
+                    const drawn = item.kind === "step" ? item.step.calls.filter(({ block: call }) => call.name === "image_generate").map(({ block: call }) => call.id) : [];
+                    return drawn.length > 0 ? [entry, { key: `${entry.key}:images`, node: <GeneratedImages calls={drawn} /> }] : [entry];
+                  })}
                 />
                 {pages.length > 0 && <BrowserCards calls={pages} later={laterPages[range.start + at]} />}
-                {drawn.length > 0 && <GeneratedImages calls={drawn} />}
               </Fragment>
             );
           })}
