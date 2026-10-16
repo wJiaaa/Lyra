@@ -10,7 +10,6 @@ import type { ArtifactSink } from "../../agent/prune.ts";
 import type { StreamFn } from "../../agent/run-config.ts";
 import type { streamAssistant } from "../../ai/index.ts";
 import type { Settings } from "../../config/settings.ts";
-import type { ExtensionHost } from "../../extensions/host.ts";
 import type { Skill } from "../../skills/loader.ts";
 import type { AgentDefinition } from "../../tools/task.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, Tool } from "../../types.ts";
@@ -67,13 +66,6 @@ export interface SubAgentOptions {
 	 * old behaviour exactly. Delegation works the same either way; the registry only adds a window.
 	 */
 	registry?: SubAgentRegistry;
-	/**
-	 * 派它的会话的扩展，同一个宿主往下传。
-	 *
-	 * 扩展能拦工具调用（`tool_call`）。从前这里没有它，主对话里被扩展拦下的命令，派给子代理就能跑——
-	 * 和沙箱、钩子当初漏掉是同一种事。可选只是为了直接调 `runSubAgent` 的测试；会话那条路一定给。
-	 */
-	extensions?: ExtensionHost;
 	/** Passed through to the subagent; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ReadonlySet<string>;
 	/** The dispatching conversation's messages, which is what `recall` searches from inside a delegation; see `ToolContext.transcript`. */

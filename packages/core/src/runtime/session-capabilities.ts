@@ -11,8 +11,6 @@
  */
 
 import { createHash } from "node:crypto";
-import { ExtensionHost } from "../extensions/host.ts";
-import { plumeHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { McpManager, type McpServerConfig, type McpServerStatus } from "../mcp/client.ts";
 import type { AskPerson } from "../mcp/elicitation.ts";
@@ -77,15 +75,6 @@ export class SessionCapabilities {
 	 * shows up under concurrency and looks like a skill occasionally holding someone else's text.
 	 */
 	readonly resources = buildRouter();
-
-	/**
-	 * Third-party extensions, each in its own worker.
-	 *
-	 * Session-scoped like everything else here, and disposed with the session — a worker left
-	 * running is a thread nobody owns. Empty until `load` finds extension directories, so a session
-	 * with none pays nothing.
-	 */
-	readonly extensions = new ExtensionHost();
 
 	/**
 	 * 被剪枝折叠掉的大块输出，按 id 存着，`artifact://` 从这里取。
@@ -205,14 +194,6 @@ export class SessionCapabilities {
 		this.baseTools = loaded.tools;
 		this.rerouting = settings.rerouteShellCommands !== false;
 		this.pinMcp(settings);
-		/*
-		 * Extensions load after everything else, because they can only affect what already exists.
-		 *
-		 * Failures here are diagnostics rather than exceptions: a broken extension must not stop a
-		 * session from starting, which is the same reason a broken skill does not.
-		 */
-		// Replaced, not added to: a reload that loaded them again left the previous workers running.
-		await this.extensions.replaceAll(await extensionDirs(cwd));
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
@@ -276,7 +257,6 @@ export class SessionCapabilities {
 		finally {
 			// A process kill failure must not skip unrelated session resources.
 			await this.mcp.dispose();
-			await this.extensions.dispose().catch(() => {});
 			/*
 			 * Language servers are hundreds of megabytes each and outlive the session that started them
 			 * unless something kills them. The manager is created lazily by the `lsp` tool and parked in
@@ -308,22 +288,4 @@ export function buildRouter(schemes?: readonly string[]): ResourceRouter {
 	const router = new ResourceRouter();
 	for (const handler of BUILTIN_RESOURCES) if (!schemes || schemes.includes(handler.scheme)) router.register(handler);
 	return router;
-}
-
-/**
- * Where extensions live: `<cwd>/.plume/extensions/*` and `~/.plume/extensions/*`.
- *
- * One directory per extension, each with its own `extension.json`. Missing directories are the
- * normal case and are not reported — most projects have none.
- */
-export async function extensionDirs(cwd: string): Promise<string[]> {
-	const { readdir } = await import("node:fs/promises");
-	const { join } = await import("node:path");
-	const roots = [join(cwd, ".plume", "extensions"), join(plumeHome(), "extensions")];
-	const found: string[] = [];
-	for (const root of roots) {
-		const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
-		for (const entry of entries) if (entry.isDirectory()) found.push(join(root, entry.name));
-	}
-	return found;
 }

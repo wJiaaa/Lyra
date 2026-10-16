@@ -94,25 +94,13 @@ export interface TurnInputs {
  * request in any sense the log or the user would recognise.
  */
 export async function driveTurn(input: TurnInputs): Promise<void> {
-	const { cwd, can, log } = input;
+	const { cwd, log } = input;
 	const onEvent = (event: AgentEvent) => recordTurnEvent(input.log, event);
 	const hooks = await loadTurnHooks({ settings: input.settings, cwd, sessionId: log.meta.id, signal: input.signal, emit: input.emit });
 	if (!(await runPromptHooks(input, hooks))) return;
 	// 在钩子之后：UserPromptSubmit 要查的是人刚说的那句，往回找第一条 user 消息，先注入就会查到这一条。
 	await injectMessage(input, (await input.context?.()) ?? null);
 	const { config, systemPrompt } = await assembleTurn(input, hooks);
-
-	/*
-	 * 扩展的 `turn_start` / `turn_end`。
-	 *
-	 * 这两个事件（连同 `tool_result`、`session_start`）在清单里认得、校验过、存下来了，
-	 * **而从来没有被派发过**——扩展宿主此前只有一个调用点，就是工具调用前的那次拦截。
-	 * 一个声明了 `events: ["turn_end"]` 的扩展装上去、加载成功、然后什么也收不到。
-	 *
-	 * `dispatch` 不是 `intercept`：这两个事件是观察，不接受 `block`。一个能否决整轮开始的
-	 * 扩展，跟一个能让会话卡住的扩展是同一个东西。
-	 */
-	void can.extensions.dispatch("turn_start", { cwd, sessionId: log.meta.id }).catch(() => {});
 
 	// 抛出来的异常也是一种没收尾，照样告诉 StopFailure，再原样往上抛。
 	const failed = async (error: unknown): Promise<never> => {
@@ -129,8 +117,6 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		notify: (notice) => input.emit({ type: "notice", level: "info", ...notice }),
 	}).catch(failed);
 	if (final.reason !== "done") await runStopFailureHooks(hooks, final).catch(() => {});
-
-	void can.extensions.dispatch("turn_end", { cwd, sessionId: log.meta.id, messages: log.messages.length }).catch(() => {});
 }
 
 /**
@@ -386,8 +372,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			summaryStream: summaryStream(input.streamFn, { retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }, compactionSpent(log)),
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
-			...toolHooks(hooks, can.extensions),
-			extensions: can.extensions,
+			...toolHooks(hooks),
 			// Stop 钩子先说：它是用户自己写的规则。钩子没意见，再看计划模式是不是漏交了计划。
 			onStop: async (info) => (await stopHook(info)) ?? unsubmittedPlan(),
 			drainSteering: input.drainSteering,

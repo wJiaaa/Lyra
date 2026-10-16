@@ -67,8 +67,6 @@ import type {
 	BundleKind,
 	ContextBreakdown,
 	DiffHunk,
-	ExtensionDiagnostic,
-	ExtensionStats,
 	InstallRecord,
 	CompactCode,
 	ConfigProblem,
@@ -1079,14 +1077,6 @@ export interface PlumeApi {
 		 */
 		onNotice(handler: (notice: SchedulerNotice) => void): () => void;
 	};
-	extensions: {
-		/**
-		 * 扩展的可观测：有会话就是那个会话宿主里的数字，没有就只有磁盘上的清单（`live: false`）。
-		 * 每个事件一行，包括一次都没派到过的——「0 次」是在说处理器没被够到。
-		 */
-		stats(sessionId: string | null, cwd: string): Promise<{ live: boolean; extensions: ExtensionStats[]; diagnostics: ExtensionDiagnostic[] }>;
-	};
-
 	capabilities: {
 		/** Trash a discovered loose definition, preserving built-ins and plugin bundles. */
 		trash(kind: "command" | "skill", cwd: string, path: string): Promise<void>;

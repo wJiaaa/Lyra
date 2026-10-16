@@ -77,7 +77,6 @@ import { registerSkillsIpc } from "./ipc/skills.ts";
 import { registerWorktreeIpc } from "./ipc/worktree.ts";
 import { registerAgentDefinitionsIpc } from "./ipc/agent-definitions.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
-import { registerExtensionsIpc } from "./ipc/extensions.ts";
 import { registerLayersIpc } from "./ipc/layers.ts";
 import { registerHooksIpc } from "./ipc/hooks.ts";
 import { registerProjectMemoryIpc } from "./ipc/project-memory.ts";
@@ -898,7 +897,6 @@ function registerIpc(): void {
 	registerWorktreeIpc({ store: () => store });
 	registerAgentDefinitionsIpc();
 	registerCapabilitiesIpc();
-	registerExtensionsIpc();
 	registerLayersIpc();
 	registerHooksIpc();
 	registerProjectMemoryIpc({ store: () => store });

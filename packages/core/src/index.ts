@@ -390,8 +390,6 @@ export type { ImageGenerateDetails } from "./images/types.ts";
 export { GalleryReader, type Gallery, type GalleryInput, type GalleryPicture, type GallerySession } from "./images/gallery.ts";
 export type { Ask as GalleryAsk } from "./images/lineage.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
-export { extensionDirs } from "./runtime/session-capabilities.ts";
-export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
 export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory/memory-injected.ts";
 export { readLessons } from "./runtime/memory/project-memory.ts";
 export { forgetAllLessons, forgetExtractedMemory, forgetLesson, writeLessons } from "./runtime/memory/project-memory.ts";

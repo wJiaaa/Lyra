@@ -411,13 +411,6 @@ export class AgentSession {
 		 */
 		this.can.state.set(SESSIONS_KEY, sessionLookup(this.store));
 		await this.restoreSubAgents();
-		/*
-		 * 扩展的 `session_start`。
-		 *
-		 * 在 `can.load` 之后：这时扩展自己才刚被加载起来，而一个还没起来的 worker 收不到事件。
-		 * 不 await——一个扩展在启动时慢，不该让打开一个对话跟着慢。
-		 */
-		void this.can.extensions.dispatch("session_start", { cwd: this.cwd, sessionId: this.log.meta.id }).catch(() => {});
 		this.startWatching();
 	}
 

@@ -24,7 +24,6 @@
 	"electron/ipc/browser.ts": 2,
 	"electron/ipc/commands.ts": 4,
 	"electron/ipc/delivery.ts": 2,
-	"electron/ipc/extensions.ts": 1,
 	"electron/ipc/files.ts": 2,
 	"electron/ipc/git.ts": 14,
 	"electron/ipc/hooks.ts": 1,

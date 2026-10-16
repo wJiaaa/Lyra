@@ -12,12 +12,8 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 
-import { ExtensionHost } from "../src/extensions/host.ts";
 
 import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
 import { inheritedToolEnv } from "../src/runtime/run-policy.ts";
@@ -262,72 +258,6 @@ test("a hook that blocks a call in the main conversation blocks it one level dow
 	const result = sent[1]?.messages.at(-1);
 	assert.equal(result?.role, "toolResult");
 	assert.match(JSON.stringify(result), /子代理也不许/, "what the model reads back is the hook's reason");
-});
-
-test("an extension that blocks a call in the main conversation blocks it in a sub-agent the session dispatched", async () => {
-	/*
-	 * 走会话真实的那条路：`buildTurnConfig` 交给 `task` 的 `spawnSubAgent`。直接调 `runSubAgent` 证明不了
-	 * 会话有没有把扩展交下去，而漏掉的正是那一步。
-	 */
-	const dir = await mkdtemp(join(tmpdir(), "ly-sub-ext-"));
-	await writeFile(join(dir, "extension.json"), JSON.stringify({ name: "no-probe", main: "index.mjs", events: ["tool_call"], intercepts: true }), "utf8");
-	await writeFile(
-		join(dir, "index.mjs"),
-		`export default { tool_call: (payload) => payload.toolName === "probe" ? { block: { reason: "扩展说子代理也不许" } } : undefined };`,
-		"utf8",
-	);
-	const extensions = new ExtensionHost();
-	try {
-		assert.equal(await extensions.load(dir), true);
-		let ran = false;
-		const probe: Tool = {
-			name: "probe",
-			snippet: "does nothing",
-			description: "does nothing",
-			parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
-			summarize: () => "看了一眼",
-			async execute() {
-				ran = true;
-				return { content: [{ type: "text", text: "ok" }] };
-			},
-		};
-		const sent: LlmContext[] = [];
-		let turn = 0;
-		const config = buildTurnConfig(
-			{
-				sessionId: "s1",
-				cwd: "/tmp",
-				provider: PROVIDER,
-				model: MODEL,
-				settings: { thinking: "off", hooks: [], projects: [] } as unknown as Settings,
-				state: new Map(),
-				tools: [probe],
-				skills: [],
-				agents: [],
-				requestApproval: async () => "allow",
-				emit: async () => {},
-				streamFn: async (context: LlmContext) => {
-					sent.push(structuredClone(context));
-					return turn++ === 0 ? callsProbe() : says("好了");
-				},
-				extensions,
-				beforeToolCall: undefined,
-				afterToolCall: undefined,
-				drainSteering: undefined,
-			} as unknown as Parameters<typeof buildTurnConfig>[0],
-			{ systemPrompt: "", messages: [], tools: [], cwd: "/tmp" },
-			"",
-		);
-		await config.tools.env.spawnSubAgent!({ description: "跑一下", prompt: "去", agentType: "general" });
-
-		assert.equal(ran, false, "the extension should have stopped the call before the tool ran");
-		const result = sent[1]?.messages.at(-1);
-		assert.equal(result?.role, "toolResult");
-		assert.match(JSON.stringify(result), /扩展说子代理也不许/, "what the model reads back is the extension's reason");
-	} finally {
-		await extensions.dispose();
-		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
-	}
 });
 
 test("旧网络配置被丢弃，始终允许记录继续保留在配置中", () => {

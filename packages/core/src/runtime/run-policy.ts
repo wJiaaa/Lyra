@@ -13,7 +13,6 @@
 import type { AgentEvent } from "../agent/events.ts";
 import type { AfterToolCall, BeforeToolCall, PermissionRequestHook, ToolEnvironment } from "../agent/run-config.ts";
 import type { Settings } from "../config/settings.ts";
-import type { ExtensionHost } from "../extensions/host.ts";
 import { plumeHome } from "../session/store.ts";
 import type { Message } from "../types.ts";
 import { loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makePermissionRequest, type TurnHooks } from "./hooks.ts";
@@ -76,13 +75,10 @@ export async function loadTurnHooks(input: {
 }
 
 /** 围着每一次工具调用的三个钩子。一轮开始和收尾的钩子不在这里：那属于拥有这一轮的对话。 */
-export function toolHooks(
-	hooks: TurnHooks,
-	extensions?: ExtensionHost,
-): { beforeToolCall: BeforeToolCall; afterToolCall: AfterToolCall; permissionRequest: PermissionRequestHook } {
+export function toolHooks(hooks: TurnHooks): { beforeToolCall: BeforeToolCall; afterToolCall: AfterToolCall; permissionRequest: PermissionRequestHook } {
 	return {
-		beforeToolCall: makeBeforeToolCall(hooks, extensions),
-		afterToolCall: makeAfterToolCall(hooks, extensions),
+		beforeToolCall: makeBeforeToolCall(hooks),
+		afterToolCall: makeAfterToolCall(hooks),
 		permissionRequest: makePermissionRequest(hooks),
 	};
 }

@@ -1,4 +1,4 @@
-import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Sparkles, Store } from "../../ui/icons/index.ts";
+import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Sparkles, Store } from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -13,7 +13,6 @@ import { useLayout } from "../../app/layout.tsx";
 import { type ExtensionsTab, useApp } from "../../store/index.ts";
 import { usePluginsProject } from "./usePluginsProject.ts";
 import { ProjectScope } from "./ProjectScope.tsx";
-import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { newMcpServer } from "./mcp-defaults.ts";
 import { PluginsSettings } from "./PluginsSettings.tsx";
@@ -25,7 +24,7 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 type Tab = ExtensionsTab;
 
 /** The strip's order, which is also the direction a page slides in from. */
-const TAB_ORDER: readonly Tab[] = ["plugins", "mcp", "skills", "extensions"];
+const TAB_ORDER: readonly Tab[] = ["plugins", "mcp", "skills"];
 
 /**
  * 设置 › 插件：已经装上的东西，逐项管理。
@@ -58,10 +57,8 @@ export function ExtensionsSettings() {
 		if (wanted.query !== undefined) setQuery(wanted.query);
 		setExtensionsFocus(null);
 	}, [wanted, setExtensionsFocus]);
-	const [counts, setCounts] = useState({ extensions: 0 });
 	const add = usePopover();
 	const more = usePopover();
-	const extensionsNonce = useApp((s) => s.extensionsNonce);
 	const updates = useApp((s) => s.pluginUpdates);
 	const [updatingAll, setUpdatingAll] = useState(false);
 	// The same scan the tabs below read — one trip to the main process, not three. See `useLocalScan`.
@@ -101,26 +98,12 @@ export function ExtensionsSettings() {
 	 */
 	const browse = () => setView("plugins");
 
-	useEffect(() => {
-		const cwd = workspace?.path ?? "";
-		// 插件和技能的数字来自上面那一次共用的扫盘；扩展读的是别处，单独问。
-		void bridge.extensions
-			.stats(null, cwd)
-			.then((scan) => setCounts((was) => ({ ...was, extensions: scan.extensions.length })))
-			.catch(() => {});
-	}, [workspace?.path, settings?.disabledPlugins.length, extensionsNonce]);
-
 	// Same order as the catalogue's tabs. They are the two halves of one subject, and a page where
 	// 技能 is second and another where it is third is two orders for one list.
 	const tabs: { id: Tab; label: string; count: number; icon: typeof Blocks }[] = [
 		{ id: "plugins", label: t("common.plugins"), count: scan?.plugins.length ?? 0, icon: Blocks },
 		{ id: "mcp", label: "MCP", count: settings?.mcpServers.length ?? 0, icon: Cable },
 		{ id: "skills", label: t("common.skills"), count: scan?.skills.length ?? 0, icon: Sparkles },
-		/*
-		 * 扩展在最后：它不是「给模型的东西」，是「看着模型的东西」——跑在 worker 里的代码，
-		 * 收事件、可以拦截。这一页答的是它有没有在跑、跑得多慢（10 §7.3）。
-		 */
-		{ id: "extensions", label: t("extensions.title"), count: counts.extensions, icon: Puzzle },
 	];
 
 	return (
@@ -288,7 +271,7 @@ export function ExtensionsSettings() {
 				</Popover>
 			)}
 
-			<RetainedViews key={workspace?.path ?? ""} active={tab} limit={4} pageClassName="" slide={TAB_ORDER} render={(shown) => (
+			<RetainedViews key={workspace?.path ?? ""} active={tab} limit={3} pageClassName="" slide={TAB_ORDER} render={(shown) => (
 				<Scroller className="flex-1" contentClassName="pb-10">
 					{/*
 					 * Column is inside the viewport, not the viewport itself.
@@ -302,7 +285,6 @@ export function ExtensionsSettings() {
 						{shown === "plugins" && <PluginsSettings filter={query} markOf={markOf} />}
 						{shown === "skills" && <SkillsSettings filter={query} />}
 						{shown === "mcp" && <McpSettings filter={query} markOf={markOf} />}
-						{shown === "extensions" && <ExtensionHostSettings filter={query} />}
 					</div>
 				</Scroller>
 			)} />

@@ -34,10 +34,9 @@ test("one unkillable background process cannot leak the other processes and sess
 		});
 	}
 	capabilities.mcp.closeAll = async () => { closed.push("mcp"); };
-	capabilities.extensions.dispose = async () => { closed.push("extensions"); };
 	let failure: unknown;
 	await assert.rejects(capabilities.dispose(), error => { failure = error; return true; });
-	assert.deepEqual(closed, ["denied", "owned", "mcp", "extensions"]);
+	assert.deepEqual(closed, ["denied", "owned", "mcp"]);
 	assert.ok(failure instanceof AggregateError);
 	assert.deepEqual(failure.errors, [denied]);
 	assert.equal(jobs.get("denied")?.status, "failed");

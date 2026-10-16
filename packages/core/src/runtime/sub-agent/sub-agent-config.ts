@@ -32,7 +32,6 @@ export async function subAgentRunConfig(options: SubAgentOptions, dispatched: Di
 	/*
 	 * 工具钩子跟着委派下去——同一个 `bash` 调用，主对话里被审计、下一层就不被审计，那钩子就形同虚设。
 	 * 一轮开始和收尾的钩子不跟：那是这场对话的开头和结尾，不是这个子代理的。
-	 * 扩展也跟着下去（`options.extensions`），理由同上。
 	 *
 	 * 它跑的钩子记在它自己名下（`subagent_event`），进它自己的面板，不进主对话那个钩子按钮——
 	 * 和 ZCode 一样：子代理的调用被拦下时，主对话看得到那次调用失败，是哪条钩子拦的去它那里看。
@@ -127,7 +126,7 @@ export async function subAgentRunConfig(options: SubAgentOptions, dispatched: Di
 				spawnSubAgent: undefined,
 			},
 			requestApproval: approvalFrom(options, dispatched),
-			...toolHooks(hooks, options.extensions),
+			...toolHooks(hooks),
 		},
 		control: {
 			signal: controller.signal,

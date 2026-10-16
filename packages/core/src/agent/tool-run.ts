@@ -312,7 +312,7 @@ async function executeOne(
 	/*
 	 * bash 改道成原生工具：只换执行的那一下，钩子仍按模型调用的 `bash` 跑一遍。
 	 *
-	 * 这里曾经是再调一次 `executeOne`，于是扩展拦截、PreToolUse、PostToolUse 各跑两遍（先按
+	 * 这里曾经是再调一次 `executeOne`，于是 PreToolUse、PostToolUse 各跑两遍（先按
 	 * `bash`、再按改道后的名字），外层 PreToolUse 的放行也传不进里层。按 `bash` 跑，因为转录里、
 	 * 模型眼里、人写钩子时对着的都是那条命令；改道是执行细节，跟「这条命令直接由 bash 跑」应当
 	 * 对钩子毫无区别。PreToolUse 改过的命令也要在改道之前生效——上面已经换进 `call` 了。

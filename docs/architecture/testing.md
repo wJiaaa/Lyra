@@ -16,8 +16,7 @@
 跨平台测试用 `node:fs` 遍历源码，不依赖 POSIX shell 或 `grep`；文件路径断言用 `node:path`
 构造完整预期值。隔离用户目录时同时设置 `HOME` 与 `USERPROFILE`，清理文件前先释放会话。
 能力监听用真实路径交给 `fs.watch`，避免 Windows 短路径通知导致 libuv 断言退出，并在 Linux
-递归监听异步启动前拒绝不存在的目录。扩展入口经 `pathToFileURL` 加载，Windows 盘符和文件名中
-的 `#`、`%` 都按文件路径处理。对应回归在 `capability-watch.test.ts` 与 `extension-host.test.ts`。
+递归监听异步启动前拒绝不存在的目录。对应回归在 `capability-watch.test.ts`。
 
 ## 组件测试
 

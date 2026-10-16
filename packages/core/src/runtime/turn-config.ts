@@ -38,7 +38,6 @@ import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
 import { inheritedToolEnv } from "./run-policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
-import type { ExtensionHost } from "../extensions/host.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -80,8 +79,6 @@ export interface TurnConfigDeps {
 	beforeToolCall: BeforeToolCall;
 	afterToolCall: AfterToolCall;
 	permissionRequest?: PermissionRequestHook;
-	/** 会话的扩展。这一轮的工具钩子已经带着它；这里是为了交给派出去的子代理。 */
-	extensions?: ExtensionHost;
 	onStop?: StopHook;
 	drainSteering: () => Message[];
 	/** The session's address space. Session-scoped: its handlers hold session state. */
@@ -147,7 +144,6 @@ export function buildTurnConfig(
 				onRegistered: (id) => {
 					registered = id;
 				},
-				extensions: deps.extensions,
 				allowedPaths: deps.allowedPaths,
 				transcript: deps.transcript,
 				addresses: { artifacts: deps.artifacts, lookups: addressLookups(deps.state), scratchDir: deps.scratchDir },

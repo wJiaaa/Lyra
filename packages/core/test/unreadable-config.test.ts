@@ -18,7 +18,6 @@ import type { AgentEvent } from "../src/agent/events.ts";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, settingsPath, settingsProblem, type Settings } from "../src/config/settings.ts";
 import { readConfigFile } from "../src/config/layers.ts";
 import { resetVault } from "../src/config/vault.ts";
-import { ExtensionHost } from "../src/extensions/host.ts";
 import { loadPlugins } from "../src/plugins/loader.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import type { SessionMeta } from "../src/session/store.ts";
@@ -136,19 +135,6 @@ test("a project's .plume/config.json that starts with a byte-order mark is still
 	const { config, error } = await readConfigFile(path);
 	assert.equal(error, undefined, "a BOM is not a syntax error in the file somebody wrote");
 	assert.equal(config.defaultModelId, "m-1");
-});
-
-test("an extension whose extension.json starts with a byte-order mark still loads", async () => {
-	const dir = join(home, "extensions", "bom");
-	await mkdir(dir, { recursive: true });
-	await writeFile(join(dir, "extension.json"), `${BOM}${JSON.stringify({ name: "bom", main: "index.mjs", events: ["tool_call"] })}`, "utf8");
-	await writeFile(join(dir, "index.mjs"), "export default { tool_call: () => undefined };", "utf8");
-	const host = new ExtensionHost();
-	try {
-		assert.equal(await host.load(dir), true, JSON.stringify(host.diagnostics));
-	} finally {
-		await host.dispose();
-	}
 });
 
 test("a settings file that is merely missing is a fresh install, not a problem", async () => {

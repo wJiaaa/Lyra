@@ -12,7 +12,6 @@ import type { AgentEvent } from "../agent/events.ts";
 import type { AfterToolCall, AgentRunResult, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/run-config.ts";
 import { appendHookContexts } from "../agent/tool-run.ts";
 import type { Settings } from "../config/settings.ts";
-import type { ExtensionHost } from "../extensions/host.ts";
 import { hookEntries, normalizeHooksConfig, readProjectHooks, type SessionEndReason } from "../hooks/config.ts";
 import { createHookRunner, hookMatchValues, type HookInput, type HookRunner } from "../hooks/runner.ts";
 import { trustedHookDigests } from "../hooks/trust.ts";
@@ -132,18 +131,9 @@ export function makeOnStop(scope: TurnHooks): StopHook {
 	};
 }
 
-/**
- * 工具调用前：先问扩展，再跑 PreToolUse。
- *
- * 扩展在前是有意的：钩子是用户自己为这台机器写的命令，扩展是别人写的代码。两者都要拦的时候，
- * 值得说出来的是用户没写的那个——自己的钩子做了什么，用户已经知道。
- */
-export function makeBeforeToolCall(scope: TurnHooks, extensions?: ExtensionHost): BeforeToolCall {
+/** 工具调用前：跑 PreToolUse。 */
+export function makeBeforeToolCall(scope: TurnHooks): BeforeToolCall {
 	return async ({ toolName, args, toolCallId }) => {
-		if (extensions) {
-			const verdict = await extensions.intercept("tool_call", { toolName, args, cwd: scope.cwd });
-			if (verdict.block) return { block: true, reason: `一个扩展拦下了 "${toolName}"：${verdict.block}` };
-		}
 		if (!scope.runner.has("PreToolUse")) return undefined;
 		const result = await scope.runner.run(
 			{ ...base(scope, "PreToolUse"), toolName, toolInput: args, toolCallId },
@@ -183,10 +173,9 @@ export function makePermissionRequest(scope: TurnHooks): PermissionRequestHook {
 	};
 }
 
-/** 工具调用后：扩展的 `tool_result` 只观察；PostToolUse / PostToolUseFailure 的附加上下文接在结果后面。 */
-export function makeAfterToolCall(scope: TurnHooks, extensions?: ExtensionHost): AfterToolCall {
+/** 工具调用后：PostToolUse / PostToolUseFailure 的附加上下文接在结果后面。 */
+export function makeAfterToolCall(scope: TurnHooks): AfterToolCall {
 	return async ({ toolName, args, result, toolCallId, contexts = [] }) => {
-		void extensions?.dispatch("tool_result", { toolName, args, ok: !result.isError }).catch(() => {});
 		const failed = result.isError === true;
 		const event = failed ? "PostToolUseFailure" : "PostToolUse";
 		let added: string[] = [];

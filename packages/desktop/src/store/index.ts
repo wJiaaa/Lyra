@@ -92,7 +92,7 @@ export type SettingsSection =
   | "archived";
 
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
-export type ExtensionsTab = "plugins" | "skills" | "mcp" | "extensions";
+export type ExtensionsTab = "plugins" | "skills" | "mcp";
 
 /** Text left for a composer by something that is not the composer — see `composerDraft`. */
 interface ComposerDraft {

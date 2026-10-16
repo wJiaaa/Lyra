@@ -258,9 +258,6 @@ export const METHODS = {
 	scheduler: {
 		runNow: { channel: "scheduler:runNow" },
 	},
-	extensions: {
-		stats: { channel: "extensions:stats" },
-	},
 	capabilities: {
 		trash: { channel: "capabilities:trash" },
 		diff: { channel: "capabilities:diff" },
