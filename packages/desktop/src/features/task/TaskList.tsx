@@ -84,6 +84,15 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 	 */
 	if (done === todos.length) return null;
 
+	const headline = {
+		paused: t("taskList.pausedAt", { step: active?.content ?? "" }),
+		step: active?.activeForm ?? active?.content ?? "",
+		// 名字，不是进行时：这一步停在这里，没有谁正在做它。
+		stalled: t("taskList.stalledAt", { step: active?.content ?? "" }),
+		allDone: t("taskList.allDone"),
+		notStarted: t("taskList.notStarted"),
+	}[taskListHeadline({ running, stopped, active, done, total: todos.length })];
+
 	return (
 		<div
 			// 认它不靠样式：这张卡片什么时候在、什么时候该消失，是 `e2e/revert-empties-session-probe.ts` 要量的东西。
@@ -94,12 +103,25 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 					: "ly-enter overflow-hidden rounded-xl border border-line-soft bg-card/40"
 			}
 		>
-			<button
-				type="button"
-				onClick={() => setOpen((value) => !value)}
-				aria-expanded={open}
-				className="ly-scroll flex h-9 w-full items-center gap-2 px-3 text-left transition-colors hover:bg-card-hover"
-			>
+			{/*
+			 * Two buttons side by side on one row, not one inside the other.
+			 *
+			 * The disclosure is a transparent layer over the whole row and the step's control sits
+			 * above it. It used to be a `span role="button"` nested in the disclosure button: HTML
+			 * has no interactive content inside a button, so a screen reader flattened the row into
+			 * one name and the pause could not be reached as a control of its own.
+			 *
+			 * Everything else on the row lets the pointer through to the layer. The headline scrolls
+			 * by `transform`, which paints it above a positioned sibling, and it swallowed the click.
+			 */}
+			<div className="ly-scroll relative flex h-9 items-center gap-2 px-3 transition-colors hover:bg-card-hover [&>:not(button)]:pointer-events-none">
+				<button
+					type="button"
+					onClick={() => setOpen((value) => !value)}
+					aria-expanded={open}
+					aria-label={`${headline} ${done}/${todos.length}`}
+					className="absolute inset-0"
+				/>
 				<ListTodo size={13} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
 				{/*
 				 * What is happening now, not what the list is called.
@@ -107,19 +129,7 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				 * Folded, this row is the whole feature — a title saying "任务" would spend it
 				 * telling you something you can see.
 				 */}
-				<ScrollText
-					text={
-						{
-							paused: t("taskList.pausedAt", { step: active?.content ?? "" }),
-							step: active?.activeForm ?? active?.content ?? "",
-							// 名字，不是进行时：这一步停在这里，没有谁正在做它。
-							stalled: t("taskList.stalledAt", { step: active?.content ?? "" }),
-							allDone: t("taskList.allDone"),
-							notStarted: t("taskList.notStarted"),
-						}[taskListHeadline({ running, stopped, active, done, total: todos.length })]
-					}
-					className="ly-fade-tail min-w-0 flex-1 text-label"
-				/>
+				<ScrollText text={headline} className="ly-fade-tail min-w-0 flex-1 text-label" />
 				<Text size="caption" tone="faint" numeric className="shrink-0">
 					{done}/{todos.length}
 				</Text>
@@ -127,39 +137,27 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 				 * Reachable without opening the list.
 				 *
 				 * Pausing is something you want at the moment you decide it, and going through a
-				 * disclosure first is one gesture too many for "stop". Nested inside the toggle's
-				 * button, so the click is taken here and does not also expand the list.
+				 * disclosure first is one gesture too many for "stop". `relative` puts it above the
+				 * disclosure layer, so the click is taken here and does not also expand the list.
 				 */}
 				{active && (
-					// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a <button> cannot be
-					// nested inside the disclosure <button> this sits in; HTML forbids it.
-					<span
-						role="button"
-						tabIndex={0}
+					<button
+						type="button"
 						data-ly-tip={action.label}
 						data-ly-tip-side="bottom"
 						aria-label={action.label}
-						onClick={(event) => {
-							event.stopPropagation();
-							action.run();
-						}}
-						onKeyDown={(event) => {
-							if (event.key !== "Enter" && event.key !== " ") return;
-							event.preventDefault();
-							event.stopPropagation();
-							action.run();
-						}}
-						className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-elevated hover:text-ink"
+						onClick={action.run}
+						className="relative flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-elevated hover:text-ink"
 					>
 						<action.icon size={11.5} strokeWidth={2} />
-					</span>
+					</button>
 				)}
 				<ChevronDown
 					size={12.5}
 					strokeWidth={1.9}
 					className={`shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-base)] ${open ? "rotate-180" : ""}`}
 				/>
-			</button>
+			</div>
 
 			{/*
 			 * CSS grid transition via ly-reveal avoids ResizeObserver layout thrashing and reflows.

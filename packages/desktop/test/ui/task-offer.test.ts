@@ -68,7 +68,8 @@ async function headlineOf(state: { running: boolean; stopped: "user" | null }) {
 		],
 	});
 	const view = await mount(h(TaskList, { placement: "inline" }));
-	const text = view.find("button").textContent ?? "";
+	// 读的是画出来的那一行：开合按钮是盖在行上的一层，字在它旁边，不在它里面。
+	const text = view.find("button[aria-expanded]").parentElement?.textContent ?? "";
 	await view.unmount();
 	useApp.setState(previous, true);
 	return text;

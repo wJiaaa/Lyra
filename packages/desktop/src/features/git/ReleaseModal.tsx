@@ -198,9 +198,10 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 				) : (
 					<>
 						<span className="flex min-w-0 flex-1 items-center gap-1 truncate text-detail text-ink-muted">
-							<button type="button" aria-label={t("release.whatHappens")} data-ly-tip={t("release.whatHappensDetail")} className="shrink-0 text-ink-faint transition-colors hover:text-ink">
+							{/* 只是一句说明，按下去没有事可做。说明本身放进名字：tooltip 不随焦点出现，键盘和读屏拿不到它。 */}
+							<span role="img" aria-label={t("release.whatHappensDetail")} data-ly-tip={t("release.whatHappensDetail")} className="shrink-0 text-ink-faint transition-colors hover:text-ink">
 								<Info size={12} aria-hidden />
-							</button>
+							</span>
 							<span className="truncate">
 								{t("release.target")} <span className="font-mono font-semibold text-ink">v{currentTargetVersion}</span>
 							</span>

@@ -133,7 +133,8 @@ function Row({ entry, checked, onToggle }: { entry: ImportEntry; checked: boolea
 				checked ? "border-accent/40 bg-accent/[0.04]" : "border-line bg-card hover:bg-card-hover/40"
 			}`}
 		>
-			<button type="button" onClick={onToggle} className="shrink-0 focus:outline-none">
+			{/* 一颗勾选框：读屏要听到是哪个供应商、勾没勾上。焦点环走全局的 focus-visible，不在这里关掉。 */}
+			<button type="button" role="checkbox" aria-checked={checked} aria-label={provider.name} onClick={onToggle} className="shrink-0">
 				{checked ? (
 					<CheckSquare size={16} className="text-accent" strokeWidth={2} />
 				) : (

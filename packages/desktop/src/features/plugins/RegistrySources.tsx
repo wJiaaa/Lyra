@@ -86,7 +86,8 @@ export function RegistrySources({
 									<ScrollText text={url} />
 								</span>
 								{list === "skill" && <span className="shrink-0 text-caption text-ink-faint">{t("common.skills")}</span>}
-								{failed && <button type="button" aria-label={t("registry.readFailed")} data-ly-tip={failed.message} className="shrink-0 text-danger"><CircleAlert size={14} /></button>}
+								{/* 状态，不是控件：按下去没有事可做。原因并进名字里，tooltip 不随焦点出现，读屏只能从这里听到。 */}
+								{failed && <span role="img" aria-label={t("registry.readFailedBecause", { message: failed.message })} data-ly-tip={failed.message} className="shrink-0 text-danger"><CircleAlert size={14} aria-hidden /></span>}
 								<RowDeleteButton
 									label={t("registry.removeOne", { url })}
 									onClick={() =>
