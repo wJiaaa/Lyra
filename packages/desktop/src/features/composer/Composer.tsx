@@ -62,6 +62,7 @@ import { takePageStates } from "../../store/page-state.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { blankDraftKey } from "../../lib/draft-key.ts";
 import { compactText } from "../../lib/notice-text.ts";
 import { acceleratorLabel } from "../../ui/keyboard.ts";
 
@@ -145,11 +146,7 @@ export function Composer({ centered = false }: {
 			{ duration: DURATION.base, easing: EASING.out },
 		);
 	}, [centered]);
-	const draftKey = activeSessionId
-		? activeSessionId
-		: workspace
-			? `new:project:${workspace.path}`
-			: `new:scratch:${scratchCwd ?? "general"}`;
+	const draftKey = activeSessionId ?? blankDraftKey(workspace, scratchCwd);
 
 	const savedDraft = useApp((s) => s.drafts[draftKey]);
 	const setDraft = useApp((s) => s.setDraft);

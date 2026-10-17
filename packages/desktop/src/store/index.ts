@@ -266,7 +266,7 @@ export interface AppState extends QueueSlice {
 
   /**
    * Unsent drafts in the composer, keyed by session id or blank conversation key:
-   * - `new:project:<path>` for blank session in a specific project
+   * - `new:project:<id>` / `new:folder:<path>` for blank session in a project, or a folder opened on its own (`blankDraftKey`)
    * - `new:scratch` for blank session without a project (Chat / 不在项目中工作)
    * - `<sessionId>` for drafts typed in an existing session
    */

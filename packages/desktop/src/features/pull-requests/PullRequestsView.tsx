@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { blankDraftKey } from "../../lib/draft-key.ts";
 import { useApp } from "../../store/index.ts";
 import { PullRequestDetail, type PrTab } from "./PullRequestDetail.tsx";
 import { PullRequestList } from "./PullRequestList.tsx";
@@ -118,11 +119,7 @@ export function PullRequestsView() {
 			// The checkout was found among the projects' folders: open it as that project, the most recent one first.
 			await openWorkspace(local, projects.find((p) => p.path === local)?.id);
 			const state = useApp.getState();
-			const key = state.activeSessionId
-				? state.activeSessionId
-				: state.workspace
-					? `new:project:${state.workspace.path}`
-					: `new:scratch:${state.scratchCwd ?? "general"}`;
+			const key = state.activeSessionId ?? blankDraftKey(state.workspace, state.scratchCwd);
 			useApp.getState().setDraft(key, { text: draftText, attachments: [], sessionRefs: [] });
 		} else {
 			// No project: a scratch directory with the pull request's facts written into it.

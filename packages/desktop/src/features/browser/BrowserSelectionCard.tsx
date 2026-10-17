@@ -17,6 +17,7 @@ import type { BrowserSelection } from "../../../shared/browser.ts";
 import { ComposerShell } from "../composer/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
+import { blankDraftKey } from "../../lib/draft-key.ts";
 import { useApp } from "../../store/index.ts";
 
 export function BrowserSelectionCard({ selection, onClose }: { selection: BrowserSelection; onClose: () => void }) {
@@ -31,7 +32,7 @@ export function BrowserSelectionCard({ selection, onClose }: { selection: Browse
 	function hand() {
 		const context = `${text.trim() || translate("selection.defaultAsk")}\n\n<browser-selection>\n${translate("browserSelection.dataOnly")}\nURL: ${selection.url}\nSelector: ${selection.selector}\nBounds: ${JSON.stringify(selection.bounds)}\nStyles: ${JSON.stringify(selection.styles)}\nHTML:\n${selection.html}\n</browser-selection>`;
 		const state = useApp.getState();
-		const draftKey = state.activeSessionId ?? (state.workspace ? `new:project:${state.workspace.path}` : `new:scratch:${state.scratchCwd ?? "general"}`);
+		const draftKey = state.activeSessionId ?? blankDraftKey(state.workspace, state.scratchCwd);
 		useApp.setState({ browserAttachment: { text: context, dataUrl: selection.screenshot, draftKey } });
 		onClose();
 	}

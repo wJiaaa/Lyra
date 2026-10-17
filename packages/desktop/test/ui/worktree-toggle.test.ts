@@ -38,7 +38,7 @@ async function blank({ gitRepo = true, byDefault = false, sessionId = null }: { 
 		settings: { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: byDefault } },
 		messages: [],
 		running: false,
-		drafts: { [sessionId ?? `new:project:${path}`]: { text: "改一下登录页", attachments: [], sessionRefs: [] } },
+		drafts: { [sessionId ?? `new:folder:${path}`]: { text: "改一下登录页", attachments: [], sessionRefs: [] } },
 		send: async (_content, options) => {
 			sent.push(options);
 			return true;

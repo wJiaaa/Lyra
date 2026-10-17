@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { folderChoiceName, onePerFolder, pathHints, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
+import { folderChoiceName, namesake, onePerFolder, pathHints, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
 
 const one = { id: "uuid-1", path: "/w/app", name: "app" };
 const two = { id: "uuid-2", path: "/w/app", name: "B" };
@@ -74,4 +74,15 @@ test("a conversation is captioned with its project's name now, or its folder's w
 	assert.equal(projectLabel([one, two], at("b", "/w/app", two.id)), "B");
 	assert.equal(projectLabel([one], at("c", "/w/app")), "app", "in no project: the folder's name");
 	assert.equal(projectLabel([], at("d", "/w/app", one.id)), "app", "its project removed: the folder's name");
+});
+
+test("a project with the same name on the same main folder is the one thing a new one cannot be", () => {
+	const projects = [
+		{ id: "a", name: "app", path: "/work/app" },
+		{ id: "b", name: "app", path: "/other/app" },
+	];
+	assert.equal(namesake(projects, { name: "app", path: "/work/app" })?.id, "a");
+	assert.equal(namesake(projects, { name: "web", path: "/work/app" }), undefined, "another name on the same folder is told apart by its name");
+	assert.equal(namesake(projects, { name: "app", path: "/third/app" }), undefined, "the same name elsewhere is told apart by its path");
+	assert.equal(namesake(projects, { id: "a", name: "app", path: "/work/app" }), undefined, "a project being edited is not its own namesake");
 });

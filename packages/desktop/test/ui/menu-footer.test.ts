@@ -26,11 +26,12 @@ afterEach(async () => {
 	view = undefined;
 });
 
-test("the project picker's footer rows sit in the menu gutter, the projects in the list", async () => {
+async function pickerRows(workspace: AppState["workspace"]) {
 	const previous = useApp.getState();
 	Object.defineProperty(window, "plume", { configurable: true, value: { sessions: { list: async () => [] } } });
 	useApp.setState({
 		settings: { projects: [{ id: "/work/alpha", path: "/work/alpha", name: "alpha-app", pinned: true, lastOpenedAt: 1 }], editor: {} } as unknown as AppState["settings"],
+		workspace,
 	});
 	try {
 		const anchor = { x: 0, y: 0, width: 10, height: 10 } as unknown as Parameters<typeof ProjectPicker>[0]["anchor"];
@@ -41,12 +42,22 @@ test("the project picker's footer rows sit in the menu gutter, the projects in t
 			footer: Boolean(row.closest(".ly-menu-foot")),
 			list: Boolean(row.closest(".ly-menu-scroll")),
 		}));
-		assert.deepEqual(rows.filter((row) => row.footer).map((row) => row.text), ["新建项目", "不在项目中工作"]);
-		assert.deepEqual(rows.filter((row) => row.list).map((row) => row.text), ["alpha-app"]);
+		return { footer: rows.filter((row) => row.footer).map((row) => row.text), list: rows.filter((row) => row.list).map((row) => row.text) };
 	} finally {
 		useApp.setState(previous, true);
 		Reflect.deleteProperty(window, "plume");
 	}
+}
+
+test("the project picker's footer rows sit in the menu gutter, the projects in the list", async () => {
+	const rows = await pickerRows({ path: "/work/alpha", name: "alpha-app", projectId: "/work/alpha" } as AppState["workspace"]);
+	assert.deepEqual(rows.footer, ["新建项目", "不在项目中工作"]);
+	assert.deepEqual(rows.list, ["alpha-app"]);
+});
+
+test("out of a project already, the picker's footer offers no way out of one", async () => {
+	const rows = await pickerRows(null);
+	assert.deepEqual(rows.footer, ["新建项目"]);
 });
 
 test("no popover puts menu rows in its footer without MenuFooter", () => {

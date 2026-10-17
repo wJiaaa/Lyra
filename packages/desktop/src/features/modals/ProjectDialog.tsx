@@ -17,9 +17,11 @@ import { useState } from "react";
 import { projectFolders } from "@plume/core/project-folders";
 import { useI18n } from "../../i18n/index.ts";
 import { baseName } from "../../lib/paths.ts";
+import { namesake } from "../../lib/project-identity.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Dialog, DialogAction } from "../../ui/overlay/Dialog.tsx";
 import type { Dismiss } from "../../ui/overlay/Overlay.tsx";
+import type { ProjectEntry } from "@plume/core";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -113,6 +115,8 @@ function SourceFolders({
 	);
 }
 
+const NO_PROJECTS: readonly ProjectEntry[] = [];
+
 export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; onClose: () => void }) {
 	const { t } = useI18n();
 	const editing = project !== undefined;
@@ -124,6 +128,10 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 	const [name, setName] = useState(project?.name ?? "");
 	const [folders, setFolders] = useState<string[]>(project ? projectFolders(project) : []);
 	const [confirmingRemove, setConfirmingRemove] = useState(false);
+	const projects = useApp((s) => s.settings?.projects ?? NO_PROJECTS);
+	// The name it would be saved under: an empty field keeps the old name, or takes the folder's.
+	const savedName = name.trim() || (editing ? project.name : baseName(folders[0] ?? ""));
+	const clash = folders[0] ? namesake(projects, { id: project?.id, name: savedName, path: folders[0] }) : undefined;
 
 	async function addFolder() {
 		const picked = await bridge.workspace.pick();
@@ -137,7 +145,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 
 	/** Saved on the way out rather than under a dialog still on screen — see the completion note in `Overlay`. */
 	function submit(dismiss: Dismiss) {
-		if (folders.length === 0) return;
+		if (folders.length === 0 || clash) return;
 		dismiss(() => {
 			if (editing) void updateProject(project.id, { name, folders });
 			else void createProject(name, folders);
@@ -197,7 +205,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 					)}
 					<div className="flex-1" />
 					<DialogAction onClick={() => dismiss()}>{t("common.cancel")}</DialogAction>
-					<DialogAction tone="primary" disabled={folders.length === 0} onClick={() => submit(dismiss)}>
+					<DialogAction tone="primary" disabled={folders.length === 0 || clash !== undefined} onClick={() => submit(dismiss)}>
 						{editing ? t("common.save") : t("project.create")}
 					</DialogAction>
 				</>
@@ -215,7 +223,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 						submit(dismiss);
 					}}
 				>
-					<div className="ly-field mb-5 gap-2.5">
+					<div className={`ly-field gap-2.5 ${clash ? "mb-2" : "mb-5"}`}>
 						<Folder size={15} strokeWidth={1.8} className="shrink-0 text-ink-muted" aria-hidden />
 						<Input
 							autoFocus
@@ -226,6 +234,11 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 							className="min-w-0 flex-1 bg-transparent text-label text-ink outline-none placeholder:text-ink-faint"
 						/>
 					</div>
+					{clash && (
+						<p data-ly-project-namesake="" role="alert" className="mb-5 px-1 text-caption leading-snug text-danger">
+							{t("project.namesake", { name: savedName })}
+						</p>
+					)}
 
 					<SourceFolders
 						folders={folders}

@@ -37,6 +37,20 @@ export function pathHints<T extends Pick<ProjectEntry, "id" | "name" | "path">>(
 	return hints;
 }
 
+/**
+ * The project another would be indistinguishable from: the same name on the same main folder.
+ *
+ * Namesakes are told apart by where they are (`pathHints`); with the place the same as well, every
+ * list, menu and label shows the two the same way, so the dialog asks for another name instead.
+ * `id` is the project being edited, which is not its own namesake.
+ */
+export function namesake<T extends Pick<ProjectEntry, "id" | "name" | "path">>(
+	projects: readonly T[],
+	candidate: { id?: string; name: string; path: string },
+): T | undefined {
+	return projects.find((project) => project.id !== candidate.id && project.path === candidate.path && project.name === candidate.name);
+}
+
 /** The project a conversation records, while that project is still on the list. */
 export function sessionProject<T extends Pick<ProjectEntry, "id">>(projects: readonly T[], session: Pick<SessionMeta, "project">): T | undefined {
 	return session.project ? projects.find((project) => project.id === session.project) : undefined;
