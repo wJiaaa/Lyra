@@ -14,6 +14,7 @@ import { after, beforeEach, test } from "node:test";
 import { magpieProvider } from "../src/config/magpie.ts";
 import { loadSettings, resolveModel, saveSettings } from "../src/config/settings.ts";
 import { resetVault } from "../src/config/vault.ts";
+import { catalogModelFor, catalogPricing } from "../src/model-catalog.ts";
 
 let home: string;
 const made: string[] = [];
@@ -67,6 +68,16 @@ test("magpie 的档位名换成 Plume 的，未知的上下文和输出按目录
 	assert.equal(glm.contextWindow, 200_000);
 	assert.equal(glm.supportsImages, false);
 	assert.equal(glm.name, "group/auto-glm");
+});
+
+test("magpie 不给价格：去掉网关前缀按目录取参考价，路由组匹配不上就不定价", () => {
+	const [luna, glm] = magpieProvider(gateway)!.models;
+	// 没有价格时每次请求都记成 0 美元，会话卡片只能写「未定价」
+	const reference = catalogModelFor({ baseUrl: "" }, "gpt-6-luna");
+	assert.ok(reference, "打包的目录里应有 gpt-6-luna");
+	assert.deepEqual(luna.pricing, catalogPricing(reference.model));
+	assert.equal(luna.pricing?.source, "catalog");
+	assert.equal(glm.pricing, undefined);
 });
 
 test("读入时多一个 Magpie 供应商，magpie 选的默认模型找得到", async () => {

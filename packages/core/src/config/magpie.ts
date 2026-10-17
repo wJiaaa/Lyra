@@ -8,7 +8,7 @@
  * `providers`，也不进 vault，开关全由 magpie 管。
  */
 
-import { DEFAULT_MODEL_LIMITS } from "../model-catalog.ts";
+import { catalogModelFor, catalogPricing, DEFAULT_MODEL_LIMITS } from "../model-catalog.ts";
 import { thinkingOptionsFor } from "../ai/thinking-options.ts";
 import type { ModelConfig, ProviderConfig, ThinkingLevel } from "../types.ts";
 
@@ -53,13 +53,15 @@ export function magpieProvider(gateway: unknown): ProviderConfig | null {
 		api: "openai-responses",
 		apiKey,
 		enabled: true,
-		models: (Array.isArray(models) ? models : []).filter((model) => typeof model?.id === "string" && model.id).map(toModel),
+		models: (Array.isArray(models) ? models : []).filter((model) => typeof model?.id === "string" && model.id).map((model) => toModel(model, baseUrl)),
 	};
 }
 
-function toModel(model: MagpieModel): ModelConfig {
+function toModel(model: MagpieModel, baseUrl: string): ModelConfig {
 	// magpie 把「不思考」叫 none，Plume 叫 off；其余档位名两边相同，不认识的由 thinkingOptionsFor 丢掉。
 	const levels = (model.efforts ?? []).map((effort): ThinkingLevel => (effort === "none" ? "off" : effort));
+	const catalog = catalogModelFor({ baseUrl }, model.id);
+	const pricing = catalog ? catalogPricing(catalog.model) : undefined;
 	return {
 		id: `${MAGPIE_PROVIDER_ID}/${model.id}`,
 		providerId: MAGPIE_PROVIDER_ID,
@@ -72,6 +74,9 @@ function toModel(model: MagpieModel): ModelConfig {
 		...(levels.length > 0 ? { thinkingOptions: thinkingOptionsFor(levels) } : {}),
 		supportsImages: model.images ?? DEFAULT_MODEL_LIMITS.supportsImages,
 		supportsTools: DEFAULT_MODEL_LIMITS.supportsTools,
+		// magpie 不给价格，没有它每次请求都记成 0 美元、会话卡片只能写「未定价」。按目录取参考价：
+		// `company/gpt-6-astra` 这类网关前缀由 catalogModelFor 去掉再按型号家族找；路由组的名字匹配不上，照旧不定价。
+		...(pricing ? { pricing } : {}),
 	};
 }
 
