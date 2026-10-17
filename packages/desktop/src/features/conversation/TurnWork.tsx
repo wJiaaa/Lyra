@@ -17,8 +17,9 @@ export function TurnWork({ entries }: {
 	return (
 		<div data-ly-turn-process>
 			{entries.map((entry, index) => (
-				// 第一行贴着上面那行，和一句回答离它同一个距离。
-				<div key={entry.key} className={index === 0 ? undefined : "pt-2.5"}>
+				// 第一行贴着上面那行，和一句回答离它同一个距离。里面那行什么也没画出来（一条空正文的回复），
+				// 这层行距跟着不要，否则看不见的一行在两行之间多空出 10px。
+				<div key={entry.key} className={index === 0 ? "has-[>:empty]:hidden" : "pt-2.5 has-[>:empty]:hidden"}>
 					{entry.node}
 				</div>
 			))}

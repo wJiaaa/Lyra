@@ -40,13 +40,13 @@ function outcome(report: DeliveredReport): string {
 	return translate("subAgentReturn.done");
 }
 
-export function DeliveryRow({ delivery, spaced }: { delivery: DeliveredReport[]; spaced?: boolean }) {
+export function DeliveryRow({ delivery }: { delivery: DeliveredReport[] }) {
 	const jobs = delivery.filter((report) => report.kind === "job");
 	const sessions = delivery.filter((report) => report.kind === "session");
 	const agents = delivery.filter((report) => report.kind === undefined);
 	return (
 		<>
-			{agents.length > 0 && <AgentDelivery delivery={agents} spaced={spaced} />}
+			{agents.length > 0 && <AgentDelivery delivery={agents} />}
 			{jobs.length > 0 && <JobDelivery jobs={jobs} />}
 			{sessions.map((report) => (
 				<SessionDelivery key={report.id} report={report} />
@@ -126,7 +126,7 @@ function JobDelivery({ jobs }: { jobs: DeliveredReport[] }) {
  * 一段。这一行说的是「下面这段话是因为谁回来了」，所以和来信、后台命令同一个骨架，不是一颗按钮：
  * 从前它是一颗带底色的胶囊，一轮里回来三个就是三颗，比主智能体自己的话还显眼。
  */
-function AgentDelivery({ delivery, spaced }: { delivery: DeliveredReport[]; spaced?: boolean }) {
+function AgentDelivery({ delivery }: { delivery: DeliveredReport[] }) {
 	const { t } = useI18n();
 	const avatarOf = useAgentAvatars();
 	const sessionId = useScopedSessionId();
@@ -136,15 +136,11 @@ function AgentDelivery({ delivery, spaced }: { delivery: DeliveredReport[]; spac
 	const tip = delivery.map((report) => t("subAgentReturn.tipLine", { name: report.description || report.agent, agent: report.agent, outcome: outcome(report) })).join("\n");
 	return (
 		/*
-		 * 题注贴着它引出的那段话：转录里行与行之间是 10px（`data-ly-transcript-rows` 的 `gap-2.5`），
-		 * 往下收 6px，字到字剩 4px。
-		 *
-		 * 上面那段空白通常是现成的：上一句说完的话底下有一排悬停才显示的操作（24px，`-mt-1.5`），看不见
-		 * 但占着位置，字到题注 38px——叫醒会话时那是上一轮的结尾，插进一轮中间时那是 `pauses` 的那一句。
-		 * 再加就叠成两段空。只有上面是工具行时（`spaced`，见 `grouping.ts`）没有那排操作，只剩 10px，
-		 * 和工具行挤成一串——这里补 28px 凑齐同一个 38px。
+		 * 自己不出空白，和工具行一样排（Claude 桌面端的后台任务行也是 `margin: 0`）。上一句话说完了的，
+		 * 那句话底下有一排悬停才显示的时间和复制，空白是它带来的；一轮中间接着干活的，就是行距。
+		 * 给它加过上下边距：要按前后是什么分几种情况补，补出来的空白悬停又什么都没有，越补越乱。
 		 */
-		<div className={spaced ? "mt-7 -mb-1.5" : "-mb-1.5"} data-delivery-row="" data-delivery-kind="agent" data-ly-avatar-host="">
+		<div data-delivery-row="" data-delivery-kind="agent" data-ly-avatar-host="">
 			<FlowRow
 				icon={one ? (
 					<AgentAvatar avatar={avatarOf(one.agent)} size={14} mood={moodOf(one)} seed={one.agent} host="[data-ly-avatar-host]" />

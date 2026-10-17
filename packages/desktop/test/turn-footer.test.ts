@@ -95,15 +95,15 @@ function delivered(id: string, steered: boolean): Message {
 	};
 }
 
-function marked(rows: Run[], flag: "pauses" | "spaced"): number[] {
-	return rows.flatMap((row) => (row.kind === "message" && row[flag] ? [row.index] : []));
+function pausing(rows: Run[]): number[] {
+	return rows.flatMap((row) => (row.kind === "message" && row.pauses ? [row.index] : []));
 }
 
 /*
  * 会话 eb8d33e0：「API 评审支持……」写完时下一路子代理的结果正好到了，被插进这一轮。那句话说完了，
- * 底下却没有时间和复制——一轮还没收尾——而题注替那排操作补出来的空白让人去悬停，什么也没有。
+ * 底下却没有时间和复制——一轮还没收尾——而它和下一行题注之间那段空白让人去悬停，什么也没有。
  */
-test("说完一句时插进来的送达：那句有自己的页脚，送达不另出空白，整轮的页脚仍在最后", () => {
+test("说完一句时插进来的送达：那句有自己的页脚，整轮的页脚仍在最后", () => {
 	const rows = runs([
 		user("分头查"),
 		assistant([text("派出去了")], "stop"),
@@ -112,12 +112,11 @@ test("说完一句时插进来的送达：那句有自己的页脚，送达不�
 		delivered("b", true),
 		assistant([text("B 的结论")], "stop"),
 	]);
-	assert.deepEqual(marked(rows, "pauses"), [3]);
-	assert.deepEqual(marked(rows, "spaced"), []);
+	assert.deepEqual(pausing(rows), [3]);
 	assert.deepEqual(closing(rows), [1, 5]);
 });
 
-test("干活时插进来的送达：上面是工具，空白由送达自己出，没有哪句被当成一段的结尾", () => {
+test("干活时插进来的送达：上面是工具，没有哪句被当成一段的结尾", () => {
 	const rows = runs([
 		user("分头查"),
 		assistant([text("先读一下"), call("a")], "toolUse"),
@@ -125,7 +124,6 @@ test("干活时插进来的送达：上面是工具，空白由送达自己出�
 		delivered("b", true),
 		assistant([text("B 的结论")], "stop"),
 	]);
-	assert.deepEqual(marked(rows, "pauses"), []);
-	assert.deepEqual(marked(rows, "spaced"), [3]);
+	assert.deepEqual(pausing(rows), []);
 	assert.deepEqual(closing(rows), [4]);
 });

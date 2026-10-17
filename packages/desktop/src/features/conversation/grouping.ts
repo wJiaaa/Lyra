@@ -70,10 +70,9 @@ export type Run =
 	 *
 	 * `pauses` 标在一轮中间说完了的一句上：它说完时一条子代理的结果正好到了、被插进这一轮（`steered`），
 	 * 这一轮于是没在它这里收尾。对读的人它和收尾那句一样是说完了的一段，所以也有时间和复制，只是没有
-	 * 整轮的统计和交付卡片。`spaced` 标在送达上：它上面既没有这样一句、也不是上一轮的结尾，那排操作
-	 * 让出来的空白要它自己出。
+	 * 整轮的统计和交付卡片。
 	 */
-	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; closes?: true; pauses?: true; spaced?: true; key?: string }
+	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; closes?: true; pauses?: true; key?: string }
 	/**
 	 * A stretch of tool work, and whether it is the stretch being worked on right now.
 	 *
@@ -694,13 +693,11 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 					if (next.role === "assistant" || opensTurn(next)) break;
 				}
 			}
-			const row: Extract<Run, { kind: "message" }> = { kind: "message", message, index, upTo: message.content.length };
-			// 插进一轮中间的送达：紧挨着一句说完了的话，那句话就是一段的结尾；挨着的是工具，空白自己出。
+			// 插进一轮中间的送达紧挨着一句说完了的话：那句话就是一段的结尾。
 			if (message.role === "user" && message.delivery && !(opensTurn(message) && !resumesTurn(messages, index))) {
 				if (closer && out[out.length - 1] === closer && spoke(closer)) closer.pauses = true;
-				else row.spaced = true;
 			}
-			out.push(row);
+			out.push({ kind: "message", message, index, upTo: message.content.length });
 			continue;
 		}
 

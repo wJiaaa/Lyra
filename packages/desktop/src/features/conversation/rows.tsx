@@ -60,7 +60,6 @@ export const MessageRow = memo(function MessageRow({
   lead,
   continued,
   pauses,
-  spaced,
   turnStats,
   viewKey,
   showTime,
@@ -94,8 +93,6 @@ export const MessageRow = memo(function MessageRow({
   continued?: boolean;
   /** 一轮中间说完了的一句，见 `Run.pauses`：有时间和复制，没有交付卡片。 */
   pauses?: boolean;
-  /** 送达上面那段空白要自己出，见 `Run.spaced`。 */
-  spaced?: boolean;
   /** Accumulated statistics for the turn this message concludes. */
   turnStats?: TurnStats;
   viewKey?: string;
@@ -128,7 +125,7 @@ export const MessageRow = memo(function MessageRow({
      */
     // 后台子智能体的结果送回来了：一行说明，不是人说的话。见 `DeliveryRow`。
     // 另一个会话发来的消息：一行，不是人说的话。见 `PeerLetterRow`。和送达合在一条里时两样都画。
-    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} spaced={spaced} />}</>;
+    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} />}</>;
     if (message.synthetic || isNudge(message)) return null;
     return <>{showTime && <ConversationTime timestamp={message.timestamp} />}<UserMessage message={message} index={index} /></>;
   }
@@ -196,8 +193,9 @@ function AssistantRow({
 
   // `group/msg` is what reveals the row below, and it names the whole reply as the target.
   // `data-ly-quote`: a selection inside one reply can be quoted, see `QuoteMenu`.
+  // `empty:hidden`：只剩一块空正文的回复（想完开了个头、一个字没写就停了）什么也画不出，不该占一份行距。
   return (
-    <div data-ly-quote="assistant" className="group/msg ly-enter flex flex-col gap-2.5">
+    <div data-ly-quote="assistant" className="group/msg ly-enter flex flex-col gap-2.5 empty:hidden">
       {/*
        * Grouped before rendering, not after.
        *

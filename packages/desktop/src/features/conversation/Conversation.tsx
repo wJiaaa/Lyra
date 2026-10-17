@@ -525,7 +525,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
                 /* 页脚只给一轮的最后一句；还在跑的那一轮谁是最后一句还没定，见 `currentTurnStart`。 */
                 continued={!run.closes || (running && run.index >= turnStart)}
                 pauses={run.pauses}
-                spaced={run.spaced}
                 /* Computed with the grouping, so its identity changes only when the transcript
                  * does — see `Run` in `grouping.ts` for what recomputing it here used to cost. */
                 turnStats={run.turnStats}
