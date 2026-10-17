@@ -24,7 +24,7 @@ import { ArrowRight, CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
-import { groupNotices, TOAST_LIFETIME, TOAST_Z, visibleToasts, type ToastGroup } from "./stack.ts";
+import { groupNotices, schedule, TOAST_Z, visibleToasts, type Deadline, type ToastGroup } from "./stack.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { portal } from "../../ui/overlay/portal.ts";
 
@@ -91,6 +91,34 @@ export function Toaster() {
 	const shown = useMemo(() => visibleToasts(groups), [groups]);
 
 	/*
+	 * When each card is due, and a clock that reads it rather than a timer per card.
+	 *
+	 * A `setTimeout` each would have to be torn down and rebuilt on every change to the list — and
+	 * the list changes whenever anything anywhere raises a notice, which is how a card ends up
+	 * living twice as long as it should. A deadline is a fact about the card; the tick is the only
+	 * thing that has to be scheduled.
+	 */
+	const due = useRef(new Map<string, Deadline>());
+	/** Set while the pointer is over the stack. Hovering stops the clock, so a long one is readable. */
+	const [held, setHeld] = useState(false);
+	const heldSince = useRef(0);
+
+	/** Give back the time the pointer took, so hovering pauses rather than merely delaying. */
+	const release = useCallback(() => {
+		const paused = Date.now() - heldSince.current;
+		if (heldSince.current > 0 && paused > 0) {
+			for (const [key, deadline] of due.current) due.current.set(key, { ...deadline, at: deadline.at + paused });
+		}
+		heldSince.current = 0;
+		setHeld(false);
+	}, []);
+
+	const hold = useCallback(() => {
+		if (heldSince.current === 0) heldSince.current = Date.now();
+		setHeld(true);
+	}, []);
+
+	/*
 	 * Held on screen for the length of the exit animation.
 	 *
 	 * The store drops a notice the moment it is dismissed, and a card that has left the array
@@ -101,6 +129,12 @@ export function Toaster() {
 
 	const dismiss = useCallback(
 		(group: ToastGroup) => {
+			/*
+			 * The card under the pointer is about to unmount, and an unmounted card never gets its
+			 * `mouseleave` — the stack would stay held, and every toast after it would wait for a
+			 * hover nobody makes. A card that slides up under the pointer holds it again on its own.
+			 */
+			release();
 			setLeaving((current) => (current.includes(group.key) ? current : [...current, group.key]));
 			const ids = [...group.ids];
 			setTimeout(() => {
@@ -108,33 +142,11 @@ export function Toaster() {
 				setLeaving((current) => current.filter((key) => key !== group.key));
 			}, LEAVE_MS);
 		},
-		[remove],
+		[remove, release],
 	);
 
-	/*
-	 * When each card is due, and a clock that reads it rather than a timer per card.
-	 *
-	 * A `setTimeout` each would have to be torn down and rebuilt on every change to the list — and
-	 * the list changes whenever anything anywhere raises a notice, which is how a card ends up
-	 * living twice as long as it should. A deadline is a fact about the card; the tick is the only
-	 * thing that has to be scheduled.
-	 */
-	const due = useRef(new Map<string, number>());
-	/** Set while the pointer is over the stack. Hovering stops the clock, so a long one is readable. */
-	const [held, setHeld] = useState(false);
-	const heldSince = useRef(0);
-
 	useEffect(() => {
-		const now = Date.now();
-		const live = new Set(groups.map((group) => group.key));
-		for (const key of due.current.keys()) if (!live.has(key)) due.current.delete(key);
-		for (const group of groups) {
-			// A repeat re-arms the clock: the message is current again, so its time starts again.
-			const stamp = now + TOAST_LIFETIME[group.level];
-			const existing = due.current.get(group.key);
-			if (existing === undefined || stamp > existing) due.current.set(group.key, stamp);
-		}
-		// Counted rather than compared, so a repeat of an identical message still re-arms above.
+		due.current = schedule(due.current, groups, Date.now());
 	}, [groups]);
 
 	useEffect(() => {
@@ -144,26 +156,11 @@ export function Toaster() {
 			const now = Date.now();
 			for (const group of groups) {
 				const deadline = due.current.get(group.key);
-				if (deadline !== undefined && deadline <= now) dismiss(group);
+				if (deadline !== undefined && deadline.at <= now) dismiss(group);
 			}
 		}, TICK_MS);
 		return () => window.clearInterval(tick);
 	}, [groups, held, dismiss]);
-
-	/** Give back the time the pointer took, so hovering pauses rather than merely delaying. */
-	const release = useCallback(() => {
-		const paused = Date.now() - heldSince.current;
-		if (heldSince.current > 0 && paused > 0) {
-			for (const [key, deadline] of due.current) due.current.set(key, deadline + paused);
-		}
-		heldSince.current = 0;
-		setHeld(false);
-	}, []);
-
-	const hold = useCallback(() => {
-		if (heldSince.current === 0) heldSince.current = Date.now();
-		setHeld(true);
-	}, []);
 
 	if (shown.length === 0) return null;
 

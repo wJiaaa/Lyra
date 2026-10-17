@@ -99,6 +99,29 @@ export function groupNotices(notices: readonly Notice[]): ToastGroup[] {
 	return [...byKey.values()];
 }
 
+/** When a card goes, and the newest notice it had seen when that was decided. */
+export interface Deadline {
+	at: number;
+	last: string;
+}
+
+/**
+ * Bring the deadlines up to date with the cards.
+ *
+ * Only a notice the card has not seen re-arms it — a repeat makes the message current again. The
+ * list also changes when some *other* card arrives or leaves, and re-arming on that kept the whole
+ * column up for as long as anything kept happening.
+ */
+export function schedule(due: ReadonlyMap<string, Deadline>, groups: readonly ToastGroup[], now: number): Map<string, Deadline> {
+	const next = new Map<string, Deadline>();
+	for (const group of groups) {
+		const last = group.ids[group.ids.length - 1];
+		const existing = due.get(group.key);
+		next.set(group.key, existing?.last === last ? existing : { at: now + TOAST_LIFETIME[group.level], last });
+	}
+	return next;
+}
+
 /**
  * Which cards are drawn, newest last.
  *
