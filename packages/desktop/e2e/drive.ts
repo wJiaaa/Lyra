@@ -285,6 +285,15 @@ export async function openModelMenu(page: Page, within = "main"): Promise<void> 
 	await frames(page, 60);
 }
 
+export const PROJECT_MENU = '[role="menu"][aria-label="切换项目"]';
+
+/** 点输入框那一行的项目按钮（按钮上写的是当前项目名），等项目菜单挂上再走完过渡。 */
+export async function openProjectMenu(page: Page, project: string, within = "main"): Promise<void> {
+	await click(page, `${within} button`, project);
+	await until(page, `document.querySelector(${JSON.stringify(PROJECT_MENU)})`);
+	await frames(page, 60);
+}
+
 /** 打开设置并切到某一页（按左侧导航里写的名字，比如「外观」），再等它画完。 */
 export async function openSettings(page: Page, section: string): Promise<void> {
 	await click(page, "[data-ly-open-settings]");

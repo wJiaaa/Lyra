@@ -730,9 +730,12 @@ export function Popover({
 						 * false of a diff: its own bottom rows and its sideways scrollbar were dissolving
 						 * into a card that stops right there, and a scrollbar you can half-see reads as a
 						 * rendering fault rather than as a boundary. The rounded clip is the boundary.
+						 *
+						 * Nor beside a pinned header or footer: its hairline already marks that edge, and
+						 * rows dissolving into a line drawn right there say the same boundary twice.
 						 */
-						top={kind === "menu" ? "fade" : "none"}
-						bottom={kind === "menu" ? "fade" : "none"}
+						top={kind === "menu" && !header ? "fade" : "none"}
+						bottom={kind === "menu" && !footer ? "fade" : "none"}
 					>
 						{children}
 					</Scroller>
