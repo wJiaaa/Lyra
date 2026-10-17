@@ -63,9 +63,12 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 					<MenuItem icon={<Plus size={13} strokeWidth={1.9} />} onClick={() => setCreating(true)}>
 						{t("project.new")}
 					</MenuItem>
-					<MenuItem icon={<X size={13} strokeWidth={1.9} />} onClick={() => choose(clearWorkspace)}>
-						{t("project.without")}
-					</MenuItem>
+					{/* Already out of a project, the way out of one leads back to where you are. */}
+					{workspace && (
+						<MenuItem icon={<X size={13} strokeWidth={1.9} />} onClick={() => choose(clearWorkspace)}>
+							{t("project.without")}
+						</MenuItem>
+					)}
 				</MenuFooter>
 			}
 		>
