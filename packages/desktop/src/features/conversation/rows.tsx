@@ -59,6 +59,8 @@ export const MessageRow = memo(function MessageRow({
   from,
   lead,
   continued,
+  pauses,
+  spaced,
   turnStats,
   viewKey,
   showTime,
@@ -90,6 +92,10 @@ export const MessageRow = memo(function MessageRow({
   lead?: boolean;
   /** The runtime told it to keep going, so this is a pause rather than a finish. */
   continued?: boolean;
+  /** 一轮中间说完了的一句，见 `Run.pauses`：有时间和复制，没有交付卡片。 */
+  pauses?: boolean;
+  /** 送达上面那段空白要自己出，见 `Run.spaced`。 */
+  spaced?: boolean;
   /** Accumulated statistics for the turn this message concludes. */
   turnStats?: TurnStats;
   viewKey?: string;
@@ -122,7 +128,7 @@ export const MessageRow = memo(function MessageRow({
      */
     // 后台子智能体的结果送回来了：一行说明，不是人说的话。见 `DeliveryRow`。
     // 另一个会话发来的消息：一行，不是人说的话。见 `PeerLetterRow`。和送达合在一条里时两样都画。
-    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} steered={message.steered} />}</>;
+    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} spaced={spaced} />}</>;
     if (message.synthetic || isNudge(message)) return null;
     return <>{showTime && <ConversationTime timestamp={message.timestamp} />}<UserMessage message={message} index={index} /></>;
   }
@@ -131,7 +137,7 @@ export const MessageRow = memo(function MessageRow({
   if (message.role === "toolResult") return null;
 
   return (
-    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} continued={continued} turnStats={turnStats} viewKey={viewKey} />
+    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} continued={continued} pauses={pauses} turnStats={turnStats} viewKey={viewKey} />
   );
 });
 
@@ -158,6 +164,7 @@ function AssistantRow({
   from = 0,
   lead,
   continued,
+  pauses,
   turnStats,
   viewKey,
 }: {
@@ -167,6 +174,7 @@ function AssistantRow({
   from?: number;
   lead?: boolean;
   continued?: boolean;
+  pauses?: boolean;
   turnStats?: TurnStats;
   viewKey?: string;
 }) {
@@ -179,6 +187,7 @@ function AssistantRow({
   const [watched] = useState(() => message.stopReason === "pending");
 
   const own = message.content.slice(from, upTo);
+  const stats = continued ? undefined : turnStats;
 
   const text = own
     .filter((block) => block.type === "text")
@@ -254,18 +263,22 @@ function AssistantRow({
        * four times. The row belongs to the message that finished the turn.
        */}
       {!lead && settled(message.stopReason) && !continued && <TurnDeliveryCard timestamp={message.timestamp} />}
-      {!lead && settled(message.stopReason) && !continued && text.trim() && (
+      {/*
+       * 一轮中间说完的一句（`pauses`）也是说完了的一段：跑着的时候它也已经定了，不等这一轮收尾。
+       * 它的数只说它自己——整轮的统计（`turnStats`）这时还在往上涨，归收尾那一句。
+       */}
+      {!lead && settled(message.stopReason) && (!continued || pauses) && text.trim() && (
         <MessageActions
           className={watched ? "-mt-1.5 ly-actions-in" : "-mt-1.5"}
           timestamp={message.timestamp}
           text={() => copyableReply(text, sessionId)}
-          durationMs={turnStats?.durationMs ?? message.durationMs}
-          requestMs={turnStats?.requestMs ?? message.durationMs}
-          sseDurationMs={turnStats?.sseDurationMs ?? message.sseDurationMs}
-          tokens={turnStats?.outputTokens ?? message.usage?.output}
-          requests={turnStats?.requestCount}
+          durationMs={stats?.durationMs ?? message.durationMs}
+          requestMs={stats?.requestMs ?? message.durationMs}
+          sseDurationMs={stats?.sseDurationMs ?? message.sseDurationMs}
+          tokens={stats?.outputTokens ?? message.usage?.output}
+          requests={stats?.requestCount}
         >
-          <HookRunsAction from={turnStats?.startIndex ?? index} to={index + 1} />
+          <HookRunsAction from={stats?.startIndex ?? index} to={index + 1} />
         </MessageActions>
       )}
     </div>

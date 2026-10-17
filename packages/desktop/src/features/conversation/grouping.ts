@@ -67,8 +67,13 @@ export type Run =
 	 * identity changes exactly when the transcript does.
 	 *
 	 * `closes` 标在一轮里最后一条落定的回复上：时间、耗时、复制那一行只属于它，见 `runs` 里的 `closer`。
+	 *
+	 * `pauses` 标在一轮中间说完了的一句上：它说完时一条子代理的结果正好到了、被插进这一轮（`steered`），
+	 * 这一轮于是没在它这里收尾。对读的人它和收尾那句一样是说完了的一段，所以也有时间和复制，只是没有
+	 * 整轮的统计和交付卡片。`spaced` 标在送达上：它上面既没有这样一句、也不是上一轮的结尾，那排操作
+	 * 让出来的空白要它自己出。
 	 */
-	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; closes?: true; key?: string }
+	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; closes?: true; pauses?: true; spaced?: true; key?: string }
 	/**
 	 * A stretch of tool work, and whether it is the stretch being worked on right now.
 	 *
@@ -602,7 +607,8 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	 * 写进去的中文。按前缀认，每加一种续跑都得记得来这里登记，漏一次就是一轮跑到一半先贴出页脚。
 	 * 只问「这一轮最后一句是哪条」，插进来的是什么都无所谓。
 	 */
-	let closer: Extract<Run, { kind: "message" }> | null = null;
+	// 断言而不是标注：它只在闭包里被赋值，标注的话 TS 在循环里把它收窄成初值 `null`。
+	let closer = null as Extract<Run, { kind: "message" }> | null;
 	const closeTurn = () => {
 		if (closer) closer.closes = true;
 		closer = null;
@@ -688,7 +694,13 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 					if (next.role === "assistant" || opensTurn(next)) break;
 				}
 			}
-			out.push({ kind: "message", message, index, upTo: message.content.length });
+			const row: Extract<Run, { kind: "message" }> = { kind: "message", message, index, upTo: message.content.length };
+			// 插进一轮中间的送达：紧挨着一句说完了的话，那句话就是一段的结尾；挨着的是工具，空白自己出。
+			if (message.role === "user" && message.delivery && !(opensTurn(message) && !resumesTurn(messages, index))) {
+				if (closer && out[out.length - 1] === closer && spoke(closer)) closer.pauses = true;
+				else row.spaced = true;
+			}
+			out.push(row);
 			continue;
 		}
 
@@ -866,6 +878,11 @@ function isProcess(run: Run): boolean {
 	 * 拆在页面前面的那一段（见 `runs` 里切页面那一步）可能有话，话不收。
 	 */
 	return thinkingOnly(run);
+}
+
+/** 这一行有话：时间和复制那一行只挂在有话的回复下面（`rows.tsx` 的 `text.trim()`）。 */
+function spoke(run: Extract<Run, { kind: "message" }>): boolean {
+	return run.message.content.slice(run.from ?? 0, run.upTo).some((block) => block.type === "text" && block.text.trim() !== "");
 }
 
 /**

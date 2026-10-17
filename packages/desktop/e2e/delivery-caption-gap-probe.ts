@@ -1,11 +1,13 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 「消息来自 @谁」那一行和上一行之间的空白，在两种位置上量一遍、各拍一张。
+ * 「消息来自 @谁」那一行和上一行之间的空白，在三种位置上量一遍、各拍一张。
  *
  *   回合结尾之后：后台结果叫醒了会话，上一轮收尾那句话底下有一排悬停才显示的操作，它占着位置；
- *   一轮中间：结果在主智能体干活时到达（`steered`），上面是一行工具，没有那排操作。
+ *   一轮中间、上面是工具：结果在主智能体干活时到达（`steered`），没有那排操作；
+ *   一轮中间、上面是说完的一句：那句话说完时结果正好到了，被插进这一轮。
  *
- * 两处题注到上一行可见内容的距离应当一样，题注到它引出的那段话的距离也一样。
+ * 三处题注到上一行可见内容的距离应当一样，题注到它引出的那段话的距离也一样。第三种那句话悬停时
+ * 要有时间和复制：它让出来的空白里得真有东西。
  *
  * 用法：PLUME_E2E_ARTIFACTS=<目录> node --experimental-strip-types e2e/delivery-caption-gap-probe.ts <标签>
  */
@@ -14,7 +16,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
-import { openSession, shot, until } from "./drive.ts";
+import { hover, openSession, shot, until } from "./drive.ts";
 import { seedSessions } from "./session-fixture.ts";
 
 const LABEL = process.argv[2] ?? "probe";
@@ -23,7 +25,8 @@ const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost
 const said = (text: string, timestamp: number, stopReason: "stop" | "toolUse" = "stop", calls: { id: string; path: string }[] = []) => ({
 	role: "assistant",
 	content: [{ type: "text", text }, ...calls.map((call) => ({ type: "toolCall", id: call.id, name: "read", arguments: { path: call.path } }))],
-	api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason, timestamp,
+	// 这条回复自己用了 1.5 秒：一轮中间说完的那句，页脚说的是这个数，不是这一轮到它为止的 3 秒。
+	api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason, timestamp, durationMs: 1500,
 });
 const report = (id: string, description: string, timestamp: number, steered = false) => ({
 	role: "user", synthetic: true, ...(steered ? { steered: true } : {}),
@@ -57,6 +60,9 @@ const app = await startApp({
 			// 一轮中间到达的送达：上面是一行工具。
 			report("sub-c", "反证任务会话竞态", 7000, true),
 			said("任务写入的反证结论一致：跨账号的迟到响应是既有风险，不是这轮引入的回归。", 8000),
+			// 一轮中间到达的送达：上面是一句说完的话。
+			report("sub-d", "反证代理凭据泄露链", 9000, true),
+			said("代理凭据那条链核实过了：新签发的 Session 不会经头像删除接口回到沙箱。", 10000),
 		];
 		const meta = { id: ID, title: "题注间距", projectId, projectName: "间距验证", cwd, createdAt: 1, updatedAt: 2, modelId: "qa/model", messageCount: messages.length, usage, seq: messages.length + 1 };
 		// oxlint-disable-next-line typescript/no-explicit-any -- fixture 写的就是日志里的原样记录，类型由 seedSessions 那边校验
@@ -69,7 +75,7 @@ const app = await startApp({
 try {
 	await until(app, `document.querySelector('[data-ly-row="${ID}"]')`, 20_000);
 	await openSession(app, ID);
-	await until(app, `document.querySelectorAll('[data-delivery-kind="agent"]').length === 3`, 10_000);
+	await until(app, `document.querySelectorAll('[data-delivery-kind="agent"]').length === 4`, 10_000);
 	// 鼠标挪到转录外面：操作行只在悬停时显示，量的是平时的样子。
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 2, y: 2 });
 	/*
@@ -89,9 +95,21 @@ try {
 	for (const gap of gaps) console.log(`   ${gap.what}：上 ${gap.above}px，下 ${gap.below}px`);
 	const aboves = new Set(gaps.map((gap) => gap.above));
 	const belows = new Set(gaps.map((gap) => gap.below));
-	check("三行题注到上一行可见内容的距离一样", aboves.size === 1, [...aboves].join(" / "));
-	check("三行题注到下面那段话的距离一样", belows.size === 1, [...belows].join(" / "));
+	check("四行题注到上一行可见内容的距离一样", aboves.size === 1, [...aboves].join(" / "));
+	check("四行题注到下面那段话的距离一样", belows.size === 1, [...belows].join(" / "));
 	await shot(app, `${LABEL}_题注间距`);
+
+	const PAUSED = "任务写入的反证结论一致";
+	await hover(app, '[data-ly-quote="assistant"] .prose-dw p', PAUSED, "starts");
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	const actions = await app.evaluate<string | null>(`(() => {
+		const reply = [...document.querySelectorAll('[data-ly-quote="assistant"]')].find((el) => el.textContent.startsWith(${JSON.stringify(PAUSED)}));
+		const row = reply && [...reply.children].find((el) => el.hasAttribute("data-ly-hover-reveal"));
+		return row && getComputedStyle(row).opacity === "1" ? row.textContent.trim() : null;
+	})()`);
+	check("插进结果之前说完的那句，悬停有时间和复制", actions !== null, actions ?? "没有那一行");
+	check("它的耗时是它自己的 1.5 秒，不是整轮到它为止的", actions?.includes("1.5s") === true && !actions.includes("3.0s"), actions ?? "");
+	await shot(app, `${LABEL}_悬停说完的那句`);
 } finally {
 	await app.stop();
 }
