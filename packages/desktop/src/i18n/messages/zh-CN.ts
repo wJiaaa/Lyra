@@ -337,7 +337,6 @@ export const zhCN = {
 	"project.mainFolderHint": "会话在这个文件夹里运行，换成别的要用「移动到项目」",
 	"project.removeLocal": "移除本地项目",
 	"project.folderAlready": "{name} 已经在这个项目里了",
-	"project.namesake": "这个文件夹已经有一个叫「{name}」的项目了，换个名字才分得开",
 	"model.unavailable": "模型不可用",
 	"sidebar.manual": "手动排序",
 	"general.autoSummarizeTitle": "智能标题总结",

@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { folderChoiceName, namesake, onePerFolder, pathHints, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
+import { folderChoiceName, onePerFolder, pathHints, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
 
 const one = { id: "uuid-1", path: "/w/app", name: "app" };
 const two = { id: "uuid-2", path: "/w/app", name: "B" };
@@ -49,12 +49,30 @@ test("the hint reads further back only when the nearest folders are the same", (
 	assert.deepEqual([...hints], [["1", "one/src"], ["2", "two/src"]]);
 });
 
-test("two projects on one folder under one name get the same hint rather than none", () => {
+// Read back to the root, the same folder only ever hung its whole parent path on both rows.
+test("two projects on one folder under one name get no hint: a path cannot tell them apart", () => {
 	const hints = pathHints([
-		{ id: "1", name: "app", path: "/w/app" },
-		{ id: "2", name: "app", path: "/w/app" },
+		{ id: "1", name: "app", path: "/Users/x/work/app" },
+		{ id: "2", name: "app", path: "/Users/x/work/app" },
 	]);
-	assert.deepEqual([...hints], [["1", "w"], ["2", "w"]]);
+	assert.deepEqual([...hints], []);
+});
+
+test("the folder two namesakes share reads once beside a third elsewhere", () => {
+	const hints = pathHints([
+		{ id: "1", name: "app", path: "/Users/x/work/app" },
+		{ id: "2", name: "app", path: "/Users/x/work/app" },
+		{ id: "3", name: "app", path: "/Users/x/home/app" },
+	]);
+	assert.deepEqual([...hints], [["1", "work"], ["2", "work"], ["3", "home"]]);
+});
+
+test("folders side by side are told apart by their own names, not the parent they share", () => {
+	const hints = pathHints([
+		{ id: "1", name: "web", path: "/Users/x/work/a" },
+		{ id: "2", name: "web", path: "/Users/x/work/b" },
+	]);
+	assert.deepEqual([...hints], [["1", "a"], ["2", "b"]]);
 });
 
 test("a choice about the folder lists each folder once", () => {
@@ -74,15 +92,4 @@ test("a conversation is captioned with its project's name now, or its folder's w
 	assert.equal(projectLabel([one, two], at("b", "/w/app", two.id)), "B");
 	assert.equal(projectLabel([one], at("c", "/w/app")), "app", "in no project: the folder's name");
 	assert.equal(projectLabel([], at("d", "/w/app", one.id)), "app", "its project removed: the folder's name");
-});
-
-test("a project with the same name on the same main folder is the one thing a new one cannot be", () => {
-	const projects = [
-		{ id: "a", name: "app", path: "/work/app" },
-		{ id: "b", name: "app", path: "/other/app" },
-	];
-	assert.equal(namesake(projects, { name: "app", path: "/work/app" })?.id, "a");
-	assert.equal(namesake(projects, { name: "web", path: "/work/app" }), undefined, "another name on the same folder is told apart by its name");
-	assert.equal(namesake(projects, { name: "app", path: "/third/app" }), undefined, "the same name elsewhere is told apart by its path");
-	assert.equal(namesake(projects, { id: "a", name: "app", path: "/work/app" }), undefined, "a project being edited is not its own namesake");
 });
