@@ -2,6 +2,63 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.38](https://github.com/wJiaaa/Plume/releases/tag/v0.9.38) - 2026-10-17
+
+<!-- plume:notes en -->
+
+### Changes
+
+- **A project is now a project, not just its folder.** One folder can belong to several projects, and two projects can have the same name. Each conversation remembers the project it was started in, instead of being sorted into one by its folder. Opening a folder no longer adds it to the sidebar as a project, and removing a conversation from a project leaves it in its folder.
+  - **After updating, all your existing conversations show up under Chats.** They were never recorded as belonging to a project, and guessing from the folder is what caused the project bugs below. Move the ones you want back with Move to a project in the conversation's menu.
+- **Hovering a project in the sidebar shows a card** with how many conversations it has and the full path of each of its folders. Paths wrap instead of being cut off, because two projects with the same name usually differ only in the last few folders.
+- **A forked conversation now sits under the one it came from**, indented the same way as conversations started from a suggestion card. Forks made before this update stay at the top level.
+- **Right-click a link in a reply** to open it in your default browser (the menu names it, e.g. "Open in Google Chrome"), open it in the built-in browser, or copy it. Left click works as before. On Linux the browser's name often isn't available, and the item reads "Open in system browser".
+
+### Fixes
+
+- **Adding an existing project as an extra folder no longer takes its conversations away.** They were moved under the new project, the old project's row went empty, and archiving or removing the new project archived them too.
+- **New chat from a conversation in a worktree no longer drops the project.** The composer showed the folder's name, and the next conversation didn't belong to any project.
+- **A scheduled task created while a worktree conversation was open no longer runs inside that worktree.** It ran every day in a copy checked out for another conversation, and broke once that copy was cleaned up. It now uses the main checkout.
+- **On mobile, the conversation list, chat header and search show the project's current name.** They showed the folder name recorded when the conversation was created, so renamed projects kept their old name there.
+- **Work without a project is no longer offered when you're already not in one.** Clicking it did nothing.
+- **Toasts no longer stay on screen while new ones keep coming.** Every new notice, including ones that are never shown, restarted the timer of every card already on screen; one "Marked as unread" stayed for 10.4 seconds. A card now only restarts its timer when the same message is repeated.
+- **Folding the right column no longer makes the top bar buttons jump 30 px left before sliding right.** Show side panel used to appear at full width in the first frame while the conversation was still narrow. Its space now grows with the panel, and shrinks the same way when you open it again. The panel's own New window and Full screen buttons no longer hop right before the panel starts moving either.
+- **Menus with a search box or a footer no longer fade the list out right next to the separator line.** The line already marks the edge; the fade on top of it looked like two layers. This applies to the project, model, branch and worktree menus.
+- **A paragraph that a subagent's result arrived right after now shows its time, duration and copy on hover.** Because the result was slipped into the same turn, the paragraph wasn't the turn's last, and hovering the space under it showed nothing. The duration is that paragraph's own; the turn's totals stay with the final answer.
+- **The "From @agent" caption is spaced like a tool row wherever it appears.** Below a tool row it used to sit 10 px away while elsewhere it was 38 px, and a reply that stopped before writing a word added another 10 px of blank space above it.
+- **Conversations going through Magpie now show a cost instead of "Unpriced".** Magpie hands Plume its models without prices, so every request was recorded as $0. Prices now come from the model catalog by model family, with gateway prefixes like `company/gpt-6-astra` stripped. Route group names and models not in the catalog stay unpriced. Prices are recorded at request time, so existing conversations aren't recalculated.
+- **An empty project no longer gets 4–5 px taller when you expand it.**
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 变化
+
+- **项目不再等于它的文件夹。** 一个文件夹可以放进好几个项目，两个项目也可以重名。会话记住自己是在哪个项目里开的，不再按文件夹去猜。打开一个文件夹，侧栏不再给它登记成项目；把会话从项目里移出来，它还留在原来的文件夹。
+  - **升级以后，已有的会话全部出现在「聊天」下面。** 旧会话从来没记过自己属于哪个项目，而按文件夹猜正是下面那几个项目问题的根源。想放回项目的，在会话菜单里点「移动到项目」。
+- **鼠标停在侧栏的项目上，会出一张卡**，写着有几个聊天、每个文件夹的完整路径。路径折行，不截断：两个同名项目通常就差在末尾那几级。
+- **分叉出来的会话挂在原会话下面**，缩进的样子和从建议卡开出来的会话一样。这次更新之前分叉的会话仍在顶层。
+- **回复里的链接可以右键了**：在默认浏览器中打开（菜单里写出浏览器的名字，比如「在 Google Chrome 中打开」）、在内置浏览器打开、复制链接。左键照旧。Linux 上常常拿不到浏览器名字，这时写「在系统浏览器中打开」。
+
+### 修复
+
+- **把已有项目加成附加文件夹，它的会话不再被划走。** 原来它的会话全被归到新项目下，旧项目那一行变空；归档或移除新项目，还会把它们一起归档。
+- **在工作树会话里点「新对话」，不再丢掉项目。** 输入框上写的是文件夹名，接下来开的会话不属于任何项目。
+- **开着工作树会话去新建定时任务，任务不再跑在那棵工作树里。** 它每天跑进为另一场对话检出的副本，副本一清理就跑不起来。现在用主检出。
+- **手机上的会话列表、聊天页头和搜索，显示的是项目现在的名字。** 原来读的是建会话时记下的文件夹名，项目改过名，手机上还是旧名字。
+- **已经不在项目里时，项目菜单不再给「不在项目中工作」。** 点了也是原地不动。
+- **提示卡片不再因为后面接连来消息而迟迟不走。** 每来一条新通知（哪怕是不显示的），屏幕上所有卡片都重新计时，一张「已标记为未读」挂了 10.4 秒。现在只有同一句话再说一遍，那张卡才续期。
+- **收起右栏时，顶栏那几颗按钮不再先往左跳 30px 再往右滑。** 收起的第一帧，「展开右侧面板」就整颗挂了上去，而对话那一格还窄着。现在它占的宽度跟着面板一点点长出来，展开时同样一点点缩回去。面板标题栏里的「新窗口」「全屏」也不再在面板还没动时先往右跳一格。
+- **带搜索框或页脚的菜单，列表不再紧挨着分隔线渐隐。** 分隔线已经画出了边界，再叠一层渐隐，看着像两层。项目、模型、分支、工作树菜单都一样。
+- **子 Agent 结果紧跟着插进来的那段话，悬停能看到时间、耗时和复制了。** 结果插进了同一轮，这段话就不算这一轮的最后一句，悬停它底下那块空白什么也没有。耗时是这段话自己的，整轮的统计还在最后那句回答底下。
+- **「消息来自 @谁」这一行，不管出现在哪，间距都和工具行一样。** 原来在工具行下面只隔 10px，别处是 38px；一条一个字没写就停了的回复，还会在它上面多空出 10px。
+- **走 Magpie 的会话现在显示花费，不再是「未定价」。** Magpie 交过来的模型不带价格，每次请求都按 0 美元记。现在按型号家族从模型目录取价，`company/gpt-6-astra` 这类网关前缀会先去掉。路由组名和目录里没有的型号照旧不定价。价格在请求当时记下，已有的会话不会回头重算。
+- **没有会话的项目，展开时不再比收起高出 4–5px。**
+
+</details>
+
 ## [0.9.37](https://github.com/wJiaaa/Plume/releases/tag/v0.9.37) - 2026-10-16
 
 <!-- plume:notes en -->
