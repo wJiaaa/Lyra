@@ -373,7 +373,8 @@ export interface PlumeApi {
 		 * `initial.spawnedFrom`: the suggestion card it was started from (`SessionMeta.spawnedFrom`).
 		 * `initial.title`: its name in the list, instead of one cut from the first message.
 		 */
-		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; planMode?: boolean; worktree?: boolean; spawnedFrom?: SpawnedFrom; title?: string }): Promise<SessionSnapshot>;
+		/** `project` is the project it is started in (`SessionMeta.project`); absent files it by its folder. */
+		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; planMode?: boolean; worktree?: boolean; spawnedFrom?: SpawnedFrom; title?: string; project?: string }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
 		open(sessionId: string): Promise<SessionSnapshot | null>;
 		/**
@@ -412,7 +413,7 @@ export interface PlumeApi {
 		 * 答复分得比 `boolean` 细，因为三种失败要对用户说三句不同的话：`running` 是「先让它停下来」，
 		 * `gone` 是「这条对话已经不在了」，`failed` 带着原话（多半是磁盘那边的原因）。
 		 */
-		move(sessionId: string, cwd: string, projectName: string): Promise<
+		move(sessionId: string, cwd: string, projectName: string, project?: string): Promise<
 			| { ok: true; meta: SessionMeta }
 			| { ok: false; reason: "running" | "gone" | "failed"; message?: string }
 		>;

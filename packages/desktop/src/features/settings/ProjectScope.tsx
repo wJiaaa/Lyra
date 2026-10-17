@@ -1,6 +1,7 @@
 import type { ProjectEntry } from "@plume/core";
 import { Check, ChevronDown, Folder, Monitor } from "../../ui/icons/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { folderChoiceName, onePerFolder } from "../../lib/project-identity.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 
 /**
@@ -18,15 +19,17 @@ export function ProjectScope({
 	projects: readonly ProjectEntry[];
 	onChange: (path: string | null) => void;
 }) {
-	const { t } = useI18n();
+	const { t, resolvedLocale } = useI18n();
 	const menu = usePopover();
+	// What these pages edit is the folder's: two projects on one folder are one choice, named for both.
+	const nameOf = (project: ProjectEntry | null) => (project ? folderChoiceName(projects, project.path, resolvedLocale) : t("common.user"));
 	const iconOf = (project: ProjectEntry | null) =>
 		project ? <Folder size={14} strokeWidth={1.8} className="shrink-0" /> : <Monitor size={14} strokeWidth={1.8} className="shrink-0" />;
 	const option = (project: ProjectEntry | null) => {
 		const chosen = (project?.path ?? null) === (value?.path ?? null);
 		return (
 			<MenuItem
-				key={project?.path ?? ""}
+				key={project?.id ?? ""}
 				selected={chosen}
 				icon={iconOf(project)}
 				trailing={chosen ? <Check size={13} strokeWidth={2.2} className="shrink-0 text-ink" /> : undefined}
@@ -35,7 +38,7 @@ export function ProjectScope({
 					menu.close();
 				}}
 			>
-				{project?.name ?? t("common.user")}
+				{nameOf(project)}
 			</MenuItem>
 		);
 	};
@@ -51,7 +54,7 @@ export function ProjectScope({
 				className="flex h-[34px] max-w-[180px] shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-label text-ink ring-1 ring-inset ring-line transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover aria-expanded:bg-card-hover"
 			>
 				{iconOf(value)}
-				<span className="min-w-0 truncate">{value?.name ?? t("common.user")}</span>
+				<span className="min-w-0 truncate">{nameOf(value)}</span>
 				<ChevronDown
 					size={13}
 					strokeWidth={1.9}
@@ -67,7 +70,7 @@ export function ProjectScope({
 							<>
 								<MenuSeparator />
 								<MenuLabel>{t("common.workspace")}</MenuLabel>
-								{projects.map(option)}
+								{onePerFolder(projects).map(option)}
 							</>
 						)}
 					</MenuBody>

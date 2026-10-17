@@ -12,8 +12,16 @@ export interface SessionMeta {
 	id: string;
 	title: string;
 	cwd: string;
+	/** Which folder: a hash of `cwd`. Session logs and project memory are filed by it. */
 	projectId: string;
 	projectName: string;
+	/**
+	 * Which project it was started in — `ProjectEntry.id`, not a folder.
+	 *
+	 * One folder can be in several projects, so the folder cannot say. Absent on a conversation started
+	 * outside any project, which belongs to none — nothing is inferred from its folder.
+	 */
+	project?: string;
 	createdAt: number;
 	updatedAt: number;
 	modelId: string;
@@ -179,13 +187,14 @@ export type SessionRecord =
 	 */
 	| { seq: number; ts: number; type: "archive"; archived: boolean }
 	/**
-	 * Filed under another project: `cwd`, `projectId` and `projectName` change together.
+	 * Filed under another project: `cwd`, `projectId` and `projectName` change together, and `project`
+	 * with them — absent means the conversation no longer names one.
 	 *
 	 * Its own record rather than a `meta` write for the same reason as `archive`: re-filing a
 	 * conversation is not activity, and `updatedAt` must not jump — otherwise a session untouched for
 	 * half a year leaps to the top of the list because someone tidied it.
 	 */
-	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string }
+	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string; project?: string }
 	/**
 	 * Tool results compaction rewrote and sent in that form: `at` is the original's position in the
 	 * transcript, `message` what was sent.

@@ -42,6 +42,8 @@ import type { ResourceRouter } from "../resources/router.ts";
 export interface TurnConfigDeps {
 	sessionId: string;
 	cwd: string;
+	/** The project the session was started in; see `SessionMeta.project`. */
+	project?: string;
 	provider: ProviderConfig;
 	model: ModelConfig;
 	settings: Settings;
@@ -126,6 +128,7 @@ export function buildTurnConfig(
 			{
 				sessionId: deps.sessionId,
 				cwd: deps.cwd,
+				project: deps.project,
 				settings: deps.settings,
 				getSettings: deps.getSettings,
 				tools: deps.tools.filter((tool) => !tool.sessionOnly),
@@ -210,6 +213,7 @@ export function buildTurnConfig(
 				...inheritedToolEnv({
 					settings: deps.settings,
 					cwd: deps.cwd,
+					project: deps.project,
 					sessionId: deps.sessionId,
 					allowedPaths: deps.allowedPaths,
 					transcript: deps.transcript,

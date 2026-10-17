@@ -125,9 +125,9 @@ export function setReportBack(sessionId: string, on: boolean): Promise<boolean> 
 /** 和 `peerTools` 一样每个会话共用一份：工具本身不带状态，是谁调的看 `ctx.sessionId`。 */
 const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
 
-export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
+export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt, project?: string): Promise<SessionSnapshot> {
 	// 「不在项目中工作」 arrives as the shared `general`; each conversation runs in a directory of its own.
-	const saved = await createStoredSession(deps.store(), deps.settings(), await ownWorkspace(cwd), modelId, initialPrompt(initial));
+	const saved = await createStoredSession(deps.store(), deps.settings(), await ownWorkspace(cwd), modelId, initialPrompt(initial), project);
 	stageSession(saved);
 	if (initial) submitted.add(saved.meta.id);
 	return saved;
@@ -226,7 +226,7 @@ export function openSideSession(parentId: string, sideId: string): Promise<Sessi
 			if (!parent || parent.parentId || deleting.has(parentId)) throw new Error(nativeText("sessions.sideParentGone"));
 			const settings = deps.settings();
 			// 模型留空就是跟着父会话；设置里给了侧边聊天默认模型才用它。见 `AgentSession.modelIdInEffect`。
-			const meta = await deps.store().create(sessions.get(parentId)?.cwd ?? parent.cwd, settings.sideChatModelId || "", "", { parentId, sideId });
+			const meta = await deps.store().create(sessions.get(parentId)?.cwd ?? parent.cwd, settings.sideChatModelId || "", "", { parentId, sideId, project: parent.project });
 			// 建的过程中父会话被点名删了：删除时它还不在，没被一起带走，这里补上，不留一个挂在空处的会话。
 			if (deleting.has(parentId) || !(await deps.store().get(parentId))) {
 				await deps.store().deleteMany([meta.id]);
@@ -304,7 +304,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	reportsBack.observe(sessionId, event);
 }
 
-export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {
+export async function getOrCreateSession(cwd: string, _modelId: string, project?: string): Promise<AgentSession> {
 	// A project-less conversation runs in a directory under the app's home, and that directory can
 	// be gone — swept by a version of this app that used to, or removed by hand. Put it back before
 	// a session is built around a working directory that is not there.
@@ -337,9 +337,12 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		suggestNextPrompt: true,
 	});
 	await session.initialize();
-	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`).
-	if (worktreeResult.worktreeCreated && worktreeResult.branch) {
-		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch, ...(worktreeResult.base ? { base: worktreeResult.base } : {}) } } });
+	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`, `SessionMeta.project`).
+	const worktree = worktreeResult.worktreeCreated && worktreeResult.branch
+		? { worktree: { project: cwd, branch: worktreeResult.branch, ...(worktreeResult.base ? { base: worktreeResult.base } : {}) } }
+		: {};
+	if (project || "worktree" in worktree) {
+		await session.log.append({ type: "meta", meta: { ...session.meta, ...worktree, ...(project ? { project } : {}) } });
 	}
 	sessions.set(session.meta.id, session);
 	ready.add(session.meta.id);

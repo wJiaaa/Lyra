@@ -120,7 +120,7 @@ export class SessionStore implements SessionStorage {
 		return row ? (JSON.parse(row.meta) as SessionMeta) : null;
 	}
 
-	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking" | "parentId" | "sideId"> = {}): Promise<SessionMeta> {
+	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking" | "parentId" | "sideId" | "project"> = {}): Promise<SessionMeta> {
 		// One reading of the clock for the whole creation, so `createdAt`, `updatedAt` and the first record agree.
 		const now = Date.now();
 		const meta: SessionMeta = {
@@ -134,6 +134,7 @@ export class SessionStore implements SessionStorage {
 			modelId,
 			...(options.thinking ? { thinking: options.thinking } : {}),
 			...(options.parentId ? { parentId: options.parentId, sideId: options.sideId } : {}),
+			...(options.project ? { project: options.project } : {}),
 			messageCount: 0,
 			usage: emptyUsage(),
 			turns: 0,
@@ -386,12 +387,12 @@ export class SessionStore implements SessionStorage {
 	 * Already there is not nothing: a renamed project keeps its directory and changes its name, and
 	 * that still has to be written. Only when neither changed is there nothing to record.
 	 */
-	async move(sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
+	async move(sessionId: string, cwd: string, projectName: string, project?: string): Promise<SessionMeta | null> {
 		const base = this.metaOf(sessionId);
 		if (!base) return null;
 		const projectId = projectIdFor(cwd);
-		if (projectId === base.projectId && base.cwd === cwd && base.projectName === projectName) return base;
-		return this.write(sessionId, { type: "move", cwd, projectId, projectName }, false);
+		if (projectId === base.projectId && base.cwd === cwd && base.projectName === projectName && base.project === project) return base;
+		return this.write(sessionId, { type: "move", cwd, projectId, projectName, ...(project ? { project } : {}) }, false);
 	}
 
 	async delete(sessionId: string): Promise<void> {

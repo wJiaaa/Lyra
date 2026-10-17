@@ -35,9 +35,14 @@ function mainWorktree(cwd: string): Promise<string | null> {
 	return pending;
 }
 
-export async function sessionRoots(cwd: string, projects: readonly Pick<ProjectEntry, "path" | "folders">[] | undefined): Promise<string[]> {
+export async function sessionRoots(
+	cwd: string,
+	projects: readonly Pick<ProjectEntry, "id" | "path" | "folders">[] | undefined,
+	/** 会话记下的项目（`SessionMeta.project`）。没记的不在任何项目里，只有自己的 cwd。 */
+	project?: string,
+): Promise<string[]> {
 	const main = await mainWorktree(cwd);
-	const roots = [cwd, ...projectRootsFor(projects, cwd), ...(main ? [main, ...projectRootsFor(projects, main)] : [])];
+	const roots = [cwd, ...projectRootsFor(projects, cwd, project), ...(main ? [main, ...projectRootsFor(projects, main, project)] : [])];
 	return Array.from(new Set(roots.map(pathKey)));
 }
 

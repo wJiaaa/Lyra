@@ -219,3 +219,15 @@ test("建会话时给了标题就用它：白名单收字符串、压空白、�
 		assert.equal(untitled.meta.titleSetByUser, undefined, "a conversation nobody named is still named after its first message");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("a conversation started in a project records which one", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-project-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", { content: [{ type: "text", text: "hi" }] }, "proj-b");
+		assert.equal(saved.meta.project, "proj-b");
+		assert.equal((await store.load(saved.meta.id))?.meta.project, "proj-b");
+		const unnamed = await createStoredSession(store, DEFAULT_SETTINGS, root, "", { content: [{ type: "text", text: "hi" }] });
+		assert.equal(unnamed.meta.project, undefined);
+	} finally { await rm(root, { recursive: true, force: true }); }
+});

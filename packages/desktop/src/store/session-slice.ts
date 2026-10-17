@@ -19,6 +19,8 @@ import { flushCoalesced } from "./coalesce.ts";
 import { readSelectedSession, restoreLiveState } from "./session-read.ts";
 import { isProjectLess } from "../lib/project-scope.ts";
 import { projectWorkspace, sessionWorkspace } from "./session-workspace.ts";
+import { sessionProject } from "../lib/project-identity.ts";
+import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -410,11 +412,28 @@ export function sessionSlice(set: Set, get: Get) {
      * chose. And clicking down one project's own list asks about the same path every time, which
      * can only ever replace the record with an identical copy.
      */
+    /*
+     * Named for the conversation's project, not its folder.
+     *
+     * Two projects can share a folder, so the same path is not the same project: clicking from one
+     * of them into the other's conversation still has to move the header — and the project a new
+     * conversation from here is started in.
+     */
+    const project = projectLess ? undefined : sessionProject(get().settings?.projects ?? [], meta);
+    const asProject = <W extends WorkspaceInfo>(workspace: W) => (project ? { ...workspace, name: project.name, projectId: project.id } : workspace);
     if (!projectLess && get().workspace?.path !== meta.cwd) {
       void sessionWorkspace(meta).then((workspace) => {
         // Null stays null: `?? get().workspace` would put back the project that was open before.
-        if (workspace && get().activeSessionId === meta.id) set({ workspace });
+        if (workspace && get().activeSessionId === meta.id) set({ workspace: asProject(workspace) });
       });
+    } else {
+      const workspace = get().workspace;
+      if (workspace && project && (workspace.projectId !== project.id || workspace.name !== project.name)) set({ workspace: asProject(workspace) });
+      // Into a conversation in no project, on the folder a project had open: the folder alone, or the next one started here is filed under that project.
+      if (workspace?.projectId && !project) {
+        const { projectId: _, ...folder } = workspace;
+        set({ workspace: { ...folder, name: meta.projectName } });
+      }
     }
 
     /*

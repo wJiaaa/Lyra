@@ -8,18 +8,21 @@
  */
 
 import type { SessionMeta } from "@plume/core";
-import { claimedFolders } from "@plume/core/project-folders";
+import { sessionProject } from "./project-identity.ts";
 import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
 import { isDescendantPath } from "./paths.ts";
-import { sessionHome } from "./session-home.ts";
 
 export interface Group {
+	/** The project's id. Fold state, drag, manual order and the menu key on this; two projects can share `path`. */
+	id: string;
+	/** The folder a new conversation from this row opens in. */
 	path: string;
 	name: string;
 	sessions: SessionMeta[];
 }
 
 export interface ProjectRef {
+	id: string;
 	path: string;
 	name: string;
 	lastOpenedAt: number;
@@ -30,7 +33,7 @@ export interface ProjectRef {
 export interface Grouped {
 	/** Pinned individual sessions (shown at the top of the sidebar under 置顶). Only sessions pin; projects do not. */
 	pinnedSessions: SessionMeta[];
-	/** Every project, in configured order, unknown ones last. */
+	/** The registered projects, in configured order. */
 	projects: Group[];
 	/**
 	 * Conversations that belong to no project, flat and newest first.
@@ -96,44 +99,27 @@ export function groupSessions(
 		}
 	}
 
-	const byPath = new Map<string, Group>();
-	/*
-	 * Where an extra source folder files its conversations.
-	 *
-	 * A project may be several folders, and a chat started in the second one is a chat in that
-	 * project — it should not open a row of its own beside the project it is part of. Only the
-	 * folders themselves are redirected, not what is under them: a conversation in `api/src` keeps
-	 * building its own group exactly as one in `app/src` always has. Widening that is a separate
-	 * decision about every project in the list, not something adding a folder should smuggle in.
-	 */
-	const owner = new Map<string, string>();
-	for (const project of projects) {
-		byPath.set(project.path, { path: project.path, name: project.name, sessions: [] });
-		// A folder that is another project's own stays with that project; see `claimedFolders`.
-		for (const folder of claimedFolders(project, projects)) if (folder !== project.path) owner.set(folder, project.path);
-	}
-
+	const byId = new Map<string, Group>();
+	for (const project of projects) byId.set(project.id, { id: project.id, path: project.path, name: project.name, sessions: [] });
 	const loose: SessionMeta[] = [];
 	for (const session of unpinnedSessions) {
-		if (isScratch(session.cwd, scratchRoots)) {
-			loose.push(session);
-			continue;
-		}
-		const where = sessionHome(session);
-		const home = owner.get(where) ?? where;
-		let group = byPath.get(home);
-		if (!group) {
-			group = { path: home, name: session.projectName, sessions: [] };
-			byPath.set(home, group);
-		}
-		group.sessions.push(session);
+		/*
+		 * The project it records, while that exists; otherwise none.
+		 *
+		 * Not the folder's. Conversations from a folder no project listed used to build a project row
+		 * of their own, named after the folder — so opening a folder made a "project", which is the
+		 * thing that should only ever be made on purpose. A scratch conversation records none either.
+		 */
+		const group = isScratch(session.cwd, scratchRoots) ? undefined : byId.get(sessionProject(projects, session)?.id ?? "");
+		if (group) group.sessions.push(session);
+		else loose.push(session);
 	}
-	for (const group of byPath.values()) {
-		group.sessions = orderedSessions(group.sessions, sortKey, sessionOrder?.[group.path]);
+	for (const group of byId.values()) {
+		group.sessions = orderedSessions(group.sessions, sortKey, sessionOrder?.[group.id]);
 	}
 
-	const order = new Map(projects.map((p, i) => [p.path, i]));
-	const all = [...byPath.values()]
+	const order = new Map(projects.map((p, i) => [p.id, i]));
+	const all = [...byId.values()]
 		.filter((group) => {
 			if (group.sessions.length > 0) return true;
 			/*
@@ -146,10 +132,10 @@ export function groupSessions(
 			 * 另一种是「一条会话都没有过」，多半是刚建好的项目，由 `showUnused` 决定。搜索时不占行：
 			 * 它没有会话可以匹配，列出来只是一排和搜索词无关的空项目。
 			 */
-			if (emptied.has(group.path)) return !hideEmptied;
+			if (emptied.has(group.id)) return !hideEmptied;
 			return showUnused && !needle;
 		})
-		.sort((a, b) => (order.get(a.path) ?? 999) - (order.get(b.path) ?? 999));
+		.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 
 	return {
 		pinnedSessions: pinnedSessions.sort((a, b) => b.updatedAt - a.updatedAt),
@@ -208,16 +194,16 @@ export function withSpawned(list: SessionMeta[], spawned: Record<string, Session
 }
 
 /**
- * Projects whose conversations are all in the archive.
+ * Projects whose conversations are all in the archive, by id.
  *
  * Takes both halves because the question — "did this project have conversations before they were
  * archived?" — cannot be answered from either alone: `listable` is what the list shows and
  * `archived` is what it does not.
  */
 export function emptiedProjects(listable: SessionMeta[], archived: SessionMeta[]): Set<string> {
-	const live = new Set(listable.map(sessionHome));
+	const live = new Set(listable.map((session) => session.project));
 	const out = new Set<string>();
-	for (const session of archived) if (!live.has(sessionHome(session))) out.add(sessionHome(session));
+	for (const session of archived) if (session.project && !live.has(session.project)) out.add(session.project);
 	return out;
 }
 

@@ -214,6 +214,8 @@ export interface ScheduledTask {
 	name: string;
 	/** Workspace the task runs in. */
 	cwd: string;
+	/** The project (`ProjectEntry.id`) its runs are filed under; absent for a task set up outside one. */
+	project?: string;
 	prompt: string;
 	schedule: { kind: "interval"; minutes: number } | { kind: "daily"; time: string };
 	enabled: boolean;

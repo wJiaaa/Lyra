@@ -88,7 +88,7 @@ export async function describeContext(session: SessionFacts, resolved: NonNullab
 	} else {
 		const capabilities = promptCapabilities({ settings: session.settings, tools: session.tools });
 		prompt = await loadPromptContext({
-			cwd: session.cwd, settings: session.settings, ...capabilities,
+			cwd: session.cwd, settings: session.settings, project: session.meta.project, ...capabilities,
 			skills: session.skills, agents: session.agents, resources: session.resources,
 			modelName: resolved.model.name,
 			scratchDir: session.scratchDir(), recordInjection: false,

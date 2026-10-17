@@ -20,6 +20,7 @@ import { useApp } from "../../store/index.ts";
 import { MenuBody, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useScheduledNotices } from "../scheduled/index.ts";
+import { projectLabel } from "../../lib/project-identity.ts";
 
 type Attention = Extract<SessionActivity, "waiting" | "failed" | "done">;
 const ORDER: Attention[] = ["waiting", "failed", "done"];
@@ -35,12 +36,13 @@ export function useNotices(): Notices {
 	const activity = useApp((s) => s.activity);
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const sessions = useApp((s) => s.sessions);
+	const projects = useApp((s) => s.settings?.projects);
 	const scheduledFailures = useScheduledNotices((s) => s.unseen.length);
 	const listed = Object.entries(activity)
 		.filter((entry): entry is [string, Attention] => entry[0] !== activeSessionId && ORDER.includes(entry[1] as Attention))
 		.map(([id, state]) => {
 			const meta = sessions.find((session) => session.id === id);
-			return { id, state, title: sessionTitle(meta?.title), project: meta?.projectName ?? "", updatedAt: meta?.updatedAt ?? 0 };
+			return { id, state, title: sessionTitle(meta?.title), project: meta ? projectLabel(projects ?? [], meta) : "", updatedAt: meta?.updatedAt ?? 0 };
 		})
 		.sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.updatedAt - a.updatedAt);
 	const top = listed[0]?.state ?? (scheduledFailures > 0 ? "failed" : null);

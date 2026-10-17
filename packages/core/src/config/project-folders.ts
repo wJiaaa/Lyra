@@ -2,10 +2,10 @@
  * Reading `ProjectEntry.folders`, and nothing else.
  *
  * Its own file, and deliberately free of every runtime import — not even `node:path`. Both the
- * renderer and the runtime have to agree on what a project's folders are: the sidebar decides which
- * project a conversation belongs to, the read boundary decides which paths need asking about, and
- * those two disagreeing is a project whose second folder shows its chats but still prompts on every
- * file. A shared answer requires a module a browser can import, which rules out `settings.ts`.
+ * renderer and the runtime have to agree on what a project's folders are: the file tree lists them,
+ * the read boundary decides which paths need asking about, and those two disagreeing is a project
+ * whose second folder is listed but still prompts on every file. A shared answer requires a module
+ * a browser can import, which rules out `settings.ts`.
  *
  * Exported through `@plume/core/project-folders`; see the `exports` map in `package.json`.
  */
@@ -30,18 +30,4 @@ export interface ProjectLike {
 export function projectFolders(entry: ProjectLike): string[] {
 	const rest = (entry.folders ?? []).filter((folder) => folder && folder !== entry.path);
 	return [entry.path, ...new Set(rest)];
-}
-
-/**
- * The folders whose conversations belong to this project: its own, minus any that is another
- * project's main folder.
- *
- * Adding an existing project as an extra folder means "let me read across into it", not "absorb it".
- * Treating every folder as owned filed the other project's chats under this one, left its own row
- * empty, and archived them along with this project. Reading still covers every folder — this only
- * answers "whose is it", which is `projectFolders` for the read boundary and the file tree.
- */
-export function claimedFolders(entry: ProjectLike, projects: readonly ProjectLike[]): string[] {
-	const mains = new Set(projects.map((project) => project.path));
-	return projectFolders(entry).filter((folder) => folder === entry.path || !mains.has(folder));
 }

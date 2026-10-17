@@ -12,7 +12,7 @@ import { useSidebarReorder } from "../../src/features/sidebar/useSidebarReorder.
 import { fire, mount, press } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
-const session = (id: string, updatedAt: number, createdAt = updatedAt): SessionMeta => ({ id, title: id, cwd: "/a", projectId: "a", projectName: "A", createdAt, updatedAt, modelId: "", messageCount: 1, seq: 2, usage });
+const session = (id: string, updatedAt: number, createdAt = updatedAt): SessionMeta => ({ id, title: id, cwd: "/a", projectId: "a", projectName: "A", project: "a", createdAt, updatedAt, modelId: "", messageCount: 1, seq: 2, usage });
 const sessions = [session("a", 30, 10), session("b", 20, 30), session("c", 10, 20)];
 const projects = ["a", "b"].map((id) => ({ id, path: `/${id}`, name: id.toUpperCase(), lastOpenedAt: 0 }));
 let saves: Settings[];
@@ -47,29 +47,30 @@ async function drag(source: Element, target: Element) {
 }
 
 test("first drag preserves the visible order of every unaffected session", async () => {
-	await useApp.getState().reorderProjectSessions("/a", "a", "b", "after", "updatedAt");
-	assert.deepEqual(saves[0].sessionOrder?.["/a"], ["b", "a", "c"]);
+	await useApp.getState().reorderProjectSessions("a", "a", "b", "after", "updatedAt");
+	assert.deepEqual(saves[0].sessionOrder?.a, ["b", "a", "c"]);
 	assert.deepEqual(groupSessions(sessions, projects, "", [], [], saves[0].sessionOrder, "manual").projects[0].sessions.map((item) => item.id), ["b", "a", "c"]);
 });
 
 test("dragging from creation order ignores a dormant manual order", async () => {
-	useApp.setState({ settings: { ...DEFAULT_SETTINGS, projects, sessionOrder: { "/a": ["a", "b", "c"] } } });
-	await useApp.getState().reorderProjectSessions("/a", "b", "c", "after", "createdAt");
-	assert.deepEqual(saves[0].sessionOrder?.["/a"], ["c", "b", "a"]);
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS, projects, sessionOrder: { a: ["a", "b", "c"] } } });
+	await useApp.getState().reorderProjectSessions("a", "b", "c", "after", "createdAt");
+	assert.deepEqual(saves[0].sessionOrder?.a, ["c", "b", "a"]);
 });
 
 test("store refuses cross-project, pinned, archived and missing drop targets", async () => {
-	useApp.setState({ sessions: [sessions[0], { ...sessions[1], archived: true }, { ...sessions[2], cwd: "/b" }] });
-	for (const target of ["b", "c", "missing"]) await useApp.getState().reorderProjectSessions("/a", "a", target, "after", "updatedAt");
+	useApp.setState({ sessions: [sessions[0], { ...sessions[1], archived: true }, { ...sessions[2], cwd: "/b", project: "b" }] });
+	for (const target of ["b", "c", "missing"]) await useApp.getState().reorderProjectSessions("a", "a", target, "after", "updatedAt");
 	useApp.setState({ sessions, settings: { ...DEFAULT_SETTINGS, projects, pinnedSessionIds: ["b"] } });
-	await useApp.getState().reorderProjectSessions("/a", "a", "b", "after", "updatedAt");
-	await useApp.getState().reorderProjects("/a", "/missing", "after");
+	await useApp.getState().reorderProjectSessions("a", "a", "b", "after", "updatedAt");
+	await useApp.getState().reorderProjects("a", "missing", "after");
 	assert.equal(saves.length, 0);
 });
 
 test("opening a reordered project preserves its saved position", async () => {
-	await useApp.getState().reorderProjects("/a", "/b", "after");
-	await useApp.getState().openWorkspace("/a");
+	await useApp.getState().reorderProjects("a", "b", "after");
+	await useApp.getState().openWorkspace("/a", "a");
+	assert.equal(saves.length, 2, "opening it as the project writes its recency");
 	assert.deepEqual(useApp.getState().settings?.projects.map((project) => project.path), ["/b", "/a"]);
 });
 
@@ -101,7 +102,7 @@ test("a completed drag saves once and suppresses its synthetic row click only", 
 		await fire(source, new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
 		assert.equal(opened, 0);
 		assert.equal(reordered, 1);
-		assert.deepEqual(saves[0].sessionOrder?.["/a"], ["b", "a", "c"]);
+		assert.deepEqual(saves[0].sessionOrder?.a, ["b", "a", "c"]);
 		await fire(source, pointer("pointerdown", 0));
 		await fire(source, pointer("pointerup", 0));
 		await fire(source, new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));

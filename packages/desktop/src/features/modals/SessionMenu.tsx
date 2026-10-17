@@ -28,7 +28,7 @@ import { bridge } from "../../services/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
-import { sessionHome } from "../../lib/session-home.ts";
+import { pathHints, sessionProject } from "../../lib/project-identity.ts";
 import { prefetchDeleteQuestion } from "./delete-session.tsx";
 
 export function SessionMenu({
@@ -95,6 +95,9 @@ export function SessionMenu({
 	const isPinned = settings?.pinnedSessionIds?.includes(session.id) ?? false;
 	const isUnread = settings?.unreadSessionIds?.includes(session.id) ?? false;
 	const projects = settings?.projects ?? [];
+	// The project it is filed under — by id, since another project may share its folder.
+	const current = sessionProject(projects, session);
+	const hints = pathHints(projects);
 	const copy = async (text: string | Promise<string>, done: string) => {
 		onClose();
 		await navigator.clipboard.writeText(await text);
@@ -156,15 +159,16 @@ export function SessionMenu({
 					</MenuItem>
 					<MenuSeparator />
 					{projects.map((p) => {
-						const isCurrent = sessionHome(session) === p.path;
+						const isCurrent = current?.id === p.id;
 						return (
 							<MenuItem
-								key={p.path}
+								key={p.id}
 								icon={<Folder size={13} strokeWidth={1.8} />}
+								detail={hints.get(p.id)}
 								hint={isCurrent ? t("sessionMenu.currentProject") : undefined}
 								disabled={isCurrent}
 								onClick={() => {
-									void moveSessionProject(session, p.path);
+									void moveSessionProject(session, p.id);
 									onClose();
 								}}
 							>
@@ -182,7 +186,7 @@ export function SessionMenu({
 									onClose();
 								}}
 							>
-								{t("sessionMenu.removeFrom", { name: session.projectName || t("sessionMenu.project") })}
+								{t("sessionMenu.removeFrom", { name: current?.name || session.projectName || t("sessionMenu.project") })}
 							</MenuItem>
 						</>
 					)}

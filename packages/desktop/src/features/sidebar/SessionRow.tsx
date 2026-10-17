@@ -33,7 +33,6 @@ import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
-import { sessionHome } from "../../lib/session-home.ts";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -210,11 +209,11 @@ export const SessionRow = memo(function SessionRow({
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
-					reorder.registerTarget("session", session.id, rect, event.clientY, sessionHome(session));
+					reorder.registerTarget("session", session.id, rect, event.clientY, session.project);
 				}
 			}}
 			onPointerUp={(event) => {
-				reorder?.registerTarget("session", session.id, event.currentTarget.getBoundingClientRect(), event.clientY, sessionHome(session));
+				reorder?.registerTarget("session", session.id, event.currentTarget.getBoundingClientRect(), event.clientY, session.project);
 			}}
 			onPointerLeave={() => {
 				if (reorder) {
@@ -254,7 +253,7 @@ export const SessionRow = memo(function SessionRow({
 					 */
 					offerSessionDrag({ id: session.id, title: sessionTitle(session.title) }, event);
 					reorder?.startDrag(
-						{ kind: "session", id: session.id, title: sessionTitle(session.title), projectPath: sessionHome(session) },
+						{ kind: "session", id: session.id, title: sessionTitle(session.title), ...(session.project ? { project: session.project } : {}) },
 						event,
 					);
 				}}

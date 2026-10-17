@@ -8,7 +8,8 @@ import { useApp } from "../../src/store/index.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
-const session = (id: string, cwd: string, createdAt: number): SessionMeta => ({ id, title: id, cwd, projectId: cwd, projectName: cwd, createdAt, updatedAt: createdAt, modelId: "", messageCount: 1, seq: 2, usage });
+// A conversation records its project; one in a scratch folder records none.
+const session = (id: string, cwd: string, createdAt: number, project?: string): SessionMeta => ({ id, title: id, cwd, projectId: cwd, projectName: cwd, ...(project ? { project } : {}), createdAt, updatedAt: createdAt, modelId: "", messageCount: 1, seq: 2, usage });
 const projects = ["a", "b"].map((id) => ({ id, path: `/${id}`, name: id, lastOpenedAt: 0 }));
 let previous: ReturnType<typeof useApp.getState>;
 let view: Mounted | undefined;
@@ -22,7 +23,7 @@ beforeEach(() => {
 	});
 	useApp.setState({
 		settings: { ...DEFAULT_SETTINGS, projects, pinnedSessionIds: ["pinned"] },
-		sessions: [session("a1", "/a", 10), session("b1", "/b", 30), session("loose", "/scratch/general", 20), session("pinned", "/a", 40)],
+		sessions: [session("a1", "/a", 10, "a"), session("b1", "/b", 30, "b"), session("loose", "/scratch/general", 20), session("pinned", "/a", 40, "a")],
 		activeSessionId: null, activity: {}, turns: {}, notices: [], scratchRoots: ["/scratch"],
 	});
 });

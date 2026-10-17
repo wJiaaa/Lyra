@@ -126,3 +126,29 @@ test("工作树会话移去别的项目：worktree 字段跟着清掉，重开�
 		assert.equal(reopened?.worktree, undefined);
 	});
 });
+
+/*
+ * 会话记下自己属于哪个项目（`project`），因为一个文件夹可以在好几个项目里。
+ *
+ * 同一个文件夹下的两个项目之间挪会话，`cwd` 不变，只换 `project`——这也得算一次移动、写进磁盘；
+ * 挪到「不在项目中」就把它清掉，而不是留着一个指向原项目的名字。
+ */
+test("记下的项目跟着建、跟着搬，重启之后还在", async () => {
+	await withStore(async (store, root) => {
+		const meta = await store.create("/tmp/shared", "fake/model", "共用文件夹", { project: "proj-a" });
+		assert.equal(meta.project, "proj-a");
+
+		const moved = await store.move(meta.id, "/tmp/shared", "B", "proj-b");
+		assert.equal(moved?.project, "proj-b", "同一个文件夹下换项目也是一次移动");
+		assert.equal(moved?.cwd, "/tmp/shared");
+
+		const loose = await store.move(meta.id, "/tmp/general", "聊天");
+		assert.equal(loose?.project, undefined, "挪出项目就不再记着原来那个");
+
+		const restarted = new SessionStore(root);
+		assert.equal((await restarted.listSessions()).find((s) => s.id === meta.id)?.project, undefined);
+		await store.move(meta.id, "/tmp/shared", "B", "proj-b");
+		const again = new SessionStore(root);
+		assert.equal((await again.listSessions()).find((s) => s.id === meta.id)?.project, "proj-b");
+	});
+});

@@ -10,9 +10,9 @@
  * its own screen's (`useScopedWorkspace`). Read from the live slot here, every screen's tree and `@`
  * menu listed the focused conversation's project.
  *
- * Falls back to the working directory for a project that is not on the list at all (a scratch
- * workspace, a directory opened before it was ever saved), which is exactly what those panes
- * showed before this existed.
+ * Falls back to the working directory for a workspace in no project (a scratch workspace, a folder
+ * opened on its own), which is exactly what those panes showed before this existed. By the project's
+ * id, not its path: two projects on one folder list different extra folders.
  */
 
 import { useMemo } from "react";
@@ -21,14 +21,18 @@ import { projectFolders } from "@plume/core/project-folders";
 import { useApp } from "./index.ts";
 
 /** `scoped` is a screen's own project (see `useScopedWorkspace`); without it, the live slot's. */
-export function useProjectFolders(scoped?: { path: string } | null): string[] {
+export function useProjectFolders(scoped?: { path: string; projectId?: string } | null): string[] {
 	const live = useApp((s) => s.workspace);
-	const path = (scoped === undefined ? live : scoped)?.path ?? null;
+	const workspace = scoped === undefined ? live : scoped;
+	const path = workspace?.path ?? null;
+	const id = workspace?.projectId;
 	const projects = useApp((s) => s.settings?.projects);
-	// Keyed on the path: a screen away from the live slot rebuilds its project object on every render.
+	// Keyed on the path and id: a screen away from the live slot rebuilds its project object on every render.
 	return useMemo(() => {
 		if (!path) return [];
-		const entry = projects?.find((project) => project.path === path);
-		return entry ? projectFolders(entry) : [path];
-	}, [path, projects]);
+		const entry = id ? projects?.find((project) => project.id === id) : undefined;
+		const folders = entry ? projectFolders(entry) : [];
+		// A worktree's conversation names its project but runs outside it; its tree is the worktree, as before.
+		return folders.includes(path) ? folders : [path];
+	}, [path, id, projects]);
 }

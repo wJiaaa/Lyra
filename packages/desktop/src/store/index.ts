@@ -205,7 +205,13 @@ export interface AppState extends QueueSlice {
 
   settings: Settings | null;
   sessions: SessionMeta[];
-  workspace: WorkspaceInfo | null;
+  /**
+   * The folder this window works in, and — when it was opened as a project — which project.
+   *
+   * `projectId` because one folder can be in several projects: the folder alone cannot say whose
+   * name the header shows. Absent when the workspace came from somewhere that only knows the folder.
+   */
+  workspace: (WorkspaceInfo & { projectId?: string }) | null;
   /**
    * Projects already described this run, by path.
    *
@@ -222,7 +228,7 @@ export interface AppState extends QueueSlice {
    * slot, so its screen keeps naming — and its first message keeps going to — the project it was
    * opened in; put back by `stageDraft`, dropped by `newSession`.
    */
-  parkedDraft: { workspace: WorkspaceInfo | null; scratchCwd: string | null } | null;
+  parkedDraft: { workspace: AppState["workspace"]; scratchCwd: string | null } | null;
   /**
    * 空白对话拨开的计划模式。还没有会话可写，先记在这里，第一句话建会话时随 `sessions:create` 写进
    * 初始 meta——第一轮按它装工具表，建完再补就晚了一轮。只有一个空白对话，所以一个布尔就够。
@@ -431,7 +437,8 @@ export interface AppState extends QueueSlice {
   saveSettings(settings: Settings): Promise<void>;
 
   pickWorkspace(): Promise<void>;
-  openWorkspace(path: string): Promise<void>;
+  /** Open a folder; with `projectId`, as that project rather than whichever one the folder answers to. */
+  openWorkspace(path: string, projectId?: string): Promise<void>;
   /**
    * Re-read git state for a project, after a branch switch or an external change.
    *
@@ -461,8 +468,7 @@ export interface AppState extends QueueSlice {
   /**
    * Add a project from a name and one or more source folders; the first is where sessions run.
    *
-   * Pointed at a folder that is already a project, it edits that one rather than making a second
-   * row for the same directory.
+   * Always a new project with an id of its own, even on a folder another project already has.
    */
   createProject(name: string, folders: string[]): Promise<void>;
   /**
@@ -471,16 +477,17 @@ export interface AppState extends QueueSlice {
    * The main folder is not among them: it is the working directory every session under this
    * project records, and moving it is `moveSessionProject`'s business.
    */
-  updateProject(path: string, patch: { name?: string; folders?: string[] }): Promise<void>;
+  updateProject(id: string, patch: { name?: string; folders?: string[] }): Promise<void>;
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>;
   setSessionUnread(sessionId: string, unread: boolean): Promise<void>;
-  reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after"): Promise<boolean>;
-  reorderProjectSessions(projectPath: string, sourceId: string, targetId: string, placement: "before" | "after", sort: "updatedAt" | "createdAt" | "manual"): Promise<boolean>;
+  reorderProjects(sourceId: string, targetId: string, placement: "before" | "after"): Promise<boolean>;
+  reorderProjectSessions(projectId: string, sourceId: string, targetId: string, placement: "before" | "after", sort: "updatedAt" | "createdAt" | "manual"): Promise<boolean>;
   renameSession(session: SessionMeta, title: string): Promise<void>;
-  moveSessionProject(session: SessionMeta, targetPath: string): Promise<void>;
-  removeProject(path: string): Promise<void>;
-  /** Archive every session belonging to one project. */
-  archiveProjectSessions(path: string): Promise<void>;
+  /** File a conversation under project `target` (an id), or under none with `""`. */
+  moveSessionProject(session: SessionMeta, target: string): Promise<void>;
+  removeProject(id: string): Promise<void>;
+  /** Archive every session filed under one project (`projectSessions`). */
+  archiveProjectSessions(id: string): Promise<void>;
   /**
    * 开一个空对话。
    *
@@ -733,9 +740,9 @@ export const useApp = create<AppState>((set, get) => ({
     const lastProject = settings.projects
       .slice()
       .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)[0];
-    const workspace = lastProject
-      ? await bridge.workspace.info(lastProject.path)
-      : null;
+    const info = lastProject ? await bridge.workspace.info(lastProject.path) : null;
+    // Which project, not only which folder: another project may share it. The folder only knows its basename.
+    const workspace = info && lastProject ? { ...info, name: lastProject.name, projectId: lastProject.id } : null;
     // Where pull request conversations live, so the sidebar can leave them out. One call, at
     // boot: it is derived from the app's home and cannot change while running.
     // Where project-less conversations live, so the sidebar can leave them out. One call, at

@@ -8,7 +8,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ProjectDialog } from "./ProjectDialog.tsx";
 import { bridge } from "../../services/index.ts";
-import { sessionHome } from "../../lib/session-home.ts";
+import { projectSessions } from "../../lib/project-identity.ts";
 
 /**
  * Per-project actions, hung off the row they act on.
@@ -27,11 +27,14 @@ import { sessionHome } from "../../lib/session-home.ts";
  */
 export function ProjectMenu({
 	anchor,
+	id,
 	path,
 	name,
 	onClose,
 }: {
 	anchor: Anchor;
+	/** The row's id — see `Group.id`. Every action here is about the project, not its folder. */
+	id: string;
 	path: string;
 	name: string;
 	onClose: () => void;
@@ -45,8 +48,8 @@ export function ProjectMenu({
 
 	const [mode, setMode] = useState<"menu" | "edit" | "remove">("menu");
 
-	const entry = settings?.projects.find((project) => project.path === path);
-	const liveSessions = sessions.filter((s) => sessionHome(s) === path && !s.archived).length;
+	const entry = settings?.projects.find((project) => project.id === id);
+	const liveSessions = projectSessions(sessions, id).filter((s) => !s.archived).length;
 
 	/*
 	 * The question is the app's modal, not a second panel hung off this menu.
@@ -67,7 +70,7 @@ export function ProjectMenu({
 				confirmLabel={t("common.remove")}
 				onCancel={onClose}
 				onConfirm={() => {
-					void removeProject(path);
+					void removeProject(id);
 					onClose();
 				}}
 			/>
@@ -77,7 +80,7 @@ export function ProjectMenu({
 	// Centred, like every other dialog — a form with two controls and a destructive action in it is
 	// not something to hang off the corner of a row.
 	if (mode === "edit") {
-		return <ProjectDialog project={{ path, name, folders: entry?.folders }} onClose={onClose} />;
+		return <ProjectDialog project={{ id, path, name, folders: entry?.folders }} onClose={onClose} />;
 	}
 
 	return (
@@ -93,7 +96,7 @@ export function ProjectMenu({
 				<MenuItem
 					icon={<SquarePen size={13} strokeWidth={1.8} />}
 					onClick={() => {
-						void startProjectSession(path);
+						void startProjectSession(path, undefined, id);
 						onClose();
 					}}
 				>
@@ -122,7 +125,7 @@ export function ProjectMenu({
 					hint={liveSessions > 0 ? String(liveSessions) : undefined}
 					disabled={liveSessions === 0}
 					onClick={() => {
-						void archiveProjectSessions(path);
+						void archiveProjectSessions(id);
 						onClose();
 					}}
 				>

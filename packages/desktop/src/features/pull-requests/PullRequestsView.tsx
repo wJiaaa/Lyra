@@ -115,7 +115,8 @@ export function PullRequestsView() {
 		const draftText = draftFor(detail, intent, local);
 
 		if (local) {
-			await openWorkspace(local);
+			// The checkout was found among the projects' folders: open it as that project, the most recent one first.
+			await openWorkspace(local, projects.find((p) => p.path === local)?.id);
 			const state = useApp.getState();
 			const key = state.activeSessionId
 				? state.activeSessionId

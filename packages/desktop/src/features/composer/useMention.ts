@@ -41,6 +41,7 @@ export function useMention(
 	const folderKey = folders.join("\0");
 
 	const nonce = useApp((state) => state.extensionsNonce);
+	const projects = useApp((state) => state.settings?.projects);
 
 	// Detect @ completion trigger
 	const completion = parseMentionTrigger(
@@ -114,10 +115,11 @@ export function useMention(
 			files: workspaceFiles,
 			agents,
 			sessions,
+			projects,
 			skills,
 			allowAction: true,
 		});
-	}, [term, dismissed, focused, workspaceFiles, sessions, skills, agents]);
+	}, [term, dismissed, focused, workspaceFiles, sessions, projects, skills, agents]);
 
 	useEffect(() => {
 		setActive(0);

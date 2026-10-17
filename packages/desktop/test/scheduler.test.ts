@@ -152,3 +152,22 @@ test("晚到的失败不覆盖之后那一次运行", async () => {
 	await (scheduler as unknown as { recordFailure(t: string, s: string, r: string): Promise<void> }).recordFailure("t1", "s1", "旧的失败");
 	assert.equal(settings.scheduledTasks[0].lastError, undefined);
 });
+
+// Its runs are filed under the task's project. Nothing reads one off the folder any more, so a run started without it fell out of its project.
+test("a task's run starts in the task's project", async () => {
+	const asked: unknown[][] = [];
+	let settings = { scheduledTasks: [{ ...task, project: "proj-b" }], defaultModelId: "model" } as unknown as Settings;
+	const scheduler = new Scheduler({
+		getSettings: () => settings,
+		saveSettings: async (next) => {
+			settings = next;
+		},
+		createSession: async (...args) => {
+			asked.push(args);
+			return { meta: { id: "session" }, prompt: async () => {} } as unknown as AgentSession;
+		},
+		notify: () => {},
+	});
+	await scheduler.tick(Date.now());
+	assert.deepEqual(asked, [["/work/app", "model", "proj-b"]]);
+});

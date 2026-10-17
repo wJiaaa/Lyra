@@ -17,15 +17,17 @@ import type { RowActions } from "./SessionRow.tsx";
 import { SessionRows } from "./SessionRows.tsx";
 import { useSidebarReorder } from "./useSidebarReorder.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
+import { pathHints } from "../../lib/project-identity.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { CarriedPill } from "./DropIndicator.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
- * Fold keys for the two sections, which are not projects and have no path.
+ * Fold keys for the two sections, which are not projects and have no id.
  *
- * `§` because every project key is an absolute path and none of them can start with one, so the
- * two kinds share a store without a chance of collision.
+ * `§` because every project key is an id — a UUID, or for older projects and unlisted folders an
+ * absolute path — and none of them can start with one, so the two kinds share a store without a
+ * chance of collision.
  */
 const PINNED = "§pinned";
 const PROJECTS = "§projects";
@@ -47,7 +49,7 @@ export function ProjectList({
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
-	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "spawned">;
+	groupProps: (key: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "spawned" | "pathHint">;
 	actions: RowActions;
 	onReordered?: () => void;
 	sort: SortKey;
@@ -65,6 +67,8 @@ export function ProjectList({
 	const reorder = useSidebarReorder(groups, sort, onReordered);
 	const [creating, setCreating] = useState(false);
 	const pinnedShut = collapsed.includes(PINNED);
+	// Names are labels, not keys: two projects called `app` each say which folder they are.
+	const hints = pathHints(groups.projects);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
 	if (!hasPinned && groups.projects.length === 0 && groups.loose.length === 0) {
@@ -128,7 +132,7 @@ export function ProjectList({
 					</SectionLabel>
 					<Collapsible open={!collapsed.includes(PROJECTS)}>
 						{groups.projects.map((group) => (
-							<ProjectGroup key={group.path} group={group} spawned={groups.spawned} {...groupProps(group.path)} />
+							<ProjectGroup key={group.id} group={group} spawned={groups.spawned} pathHint={hints.get(group.id)} {...groupProps(group.id)} />
 						))}
 					</Collapsible>
 				</>

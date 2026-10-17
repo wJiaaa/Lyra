@@ -25,6 +25,8 @@ type InheritedToolEnv = Pick<ToolEnvironment, "cwd" | keyof ToolPolicy | "allowe
 export function inheritedToolEnv(input: {
 	settings: Settings;
 	cwd: string;
+	/** 会话所属的项目（`SessionMeta.project`），读取范围按它取；见 `projectRootsFor`。 */
+	project?: string;
 	/** 预览记在哪个会话名下。子代理给的是派它的那个会话，理由见 `sub-agent-config.ts`。 */
 	sessionId: string;
 	allowedPaths: ReadonlySet<string> | undefined;
@@ -33,7 +35,7 @@ export function inheritedToolEnv(input: {
 	return {
 		cwd: input.cwd,
 		// Decided once per run, the same way for every kind of run; see `tool-policy.ts`.
-		...toolPolicy(input.settings, input.cwd),
+		...toolPolicy(input.settings, input.cwd, input.project),
 		allowedPaths: input.allowedPaths,
 		/*
 		 * Previews are written under the app's directory, keyed by the session.

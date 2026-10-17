@@ -107,6 +107,7 @@ export async function subAgentRunConfig(options: SubAgentOptions, dispatched: Di
 				...inheritedToolEnv({
 					settings: options.settings,
 					cwd: options.cwd,
+					project: options.project,
 					/*
 					 * Previews go under the parent's session, not this run's own id.
 					 *

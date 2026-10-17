@@ -97,7 +97,8 @@ export function registerSessionsIpc({
 	 */
 	const ensureSession = ensureLiveSession;
 
-	ipcMain.handle("sessions:create", async (_event, cwd: string, modelId: string, initial?: Parameters<PlumeApi["sessions"]["create"]>[2]) => createSession(cwd, modelId, initial));
+	ipcMain.handle("sessions:create", async (_event, cwd: string, modelId: string, initial?: Parameters<PlumeApi["sessions"]["create"]>[2]) =>
+		createSession(cwd, modelId, initial, typeof initial?.project === "string" && initial.project ? initial.project : undefined));
 
 	/**
 	 * Read a transcript without starting anything.
@@ -205,16 +206,16 @@ export function registerSessionsIpc({
 	 */
 	ipcMain.handle(
 		"sessions:move",
-		async (_event, sessionId: string, cwd: string, projectName: string) => {
+		async (_event, sessionId: string, cwd: string, projectName: string, project?: string) => {
 			// 旁边的侧边聊天也在那个目录里动手，同样要停着才能搬。
 			const sides = await sideSessionsOf([sessionId]);
 			if ([sessionId, ...sides.map((side) => side.id)].some((id) => sessions.get(id)?.running)) return { ok: false as const, reason: "running" as const };
 			await disposeSession(sessionId, "moved");
 			try {
 				// 「从项目中移除」 lands in a directory of its own, the same as a new chat — see `ownWorkspace`.
-				const meta = await store.move(sessionId, await ownWorkspace(cwd), projectName);
+				const meta = await store.move(sessionId, await ownWorkspace(cwd), projectName, typeof project === "string" && project ? project : undefined);
 				if (!meta) return { ok: false as const, reason: "gone" as const };
-				for (const side of sides) await store.move(side.id, meta.cwd, meta.projectName);
+				for (const side of sides) await store.move(side.id, meta.cwd, meta.projectName, meta.project);
 				return { ok: true as const, meta };
 			} catch (cause) {
 				return { ok: false as const, reason: "failed" as const, message: cause instanceof Error ? cause.message : String(cause) };

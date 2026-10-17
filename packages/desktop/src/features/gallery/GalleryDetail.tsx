@@ -16,6 +16,7 @@ import { sessionMediaUrl } from "../../../shared/session-image.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { aspectOf } from "../../lib/gallery-layout.ts";
+import { projectLabel } from "../../lib/project-identity.ts";
 import { CopyMark } from "../../ui/layout/CopyMark.tsx";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION, EASING } from "../../ui/motion/tokens.ts";
@@ -99,6 +100,11 @@ export function GalleryDetail({
 	}, []);
 	const family = useFamily(entry.media, index);
 	const session = index.sessions.get(entry.sessionId);
+	// The project as it is called now; the gallery only kept the folder's name from when the session began.
+	const project = useApp((state) => {
+		const meta = state.sessions.find((one) => one.id === entry.sessionId);
+		return meta ? projectLabel(state.settings?.projects ?? [], meta) : session?.projectName;
+	});
 	// The way the composer tells: the conversation on screen by its own flag, any other by the sidebar's.
 	const running = useApp((state) => (state.activeSessionId === entry.sessionId ? state.running : state.activity[entry.sessionId] === "running"));
 	const drawing = drawingFor(entry, index);
@@ -300,7 +306,7 @@ export function GalleryDetail({
 						</button>
 						<p className="mt-1 truncate text-caption text-ink-faint">
 							{formatDate(entry.at, { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-							{session?.projectName ? ` · ${session.projectName}` : ""}
+							{project ? ` · ${project}` : ""}
 						</p>
 						<div className="mt-3 flex items-center gap-1.5">
 							<Button size="sm" data-ly-gallery-locate="" icon={<ArrowUpRight size={14} />} disabled={!drawing} onClick={() => drawing && showInConversation(drawing.sessionId, drawing.toolCallId)}>

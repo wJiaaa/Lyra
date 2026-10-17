@@ -663,7 +663,7 @@ function bindScreenshotShortcut(): void {
 	scheduler = new Scheduler({
 		getSettings: () => settings,
 		saveSettings: async (next) => void (await applySettings(next)),
-		createSession: (cwd, modelId) => getOrCreateSession(cwd, modelId),
+		createSession: (cwd, modelId, project) => getOrCreateSession(cwd, modelId, project),
 		notify: (message, level, about) => {
 			const win = getWindow();
 			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {

@@ -37,7 +37,7 @@ export async function forkSession(
 	if (!source) return null;
 
 	const { messages, boundary, dividers } = await historyUpTo(store, sessionId, seq);
-	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking });
+	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking, ...(source.project ? { project: source.project } : {}) });
 	meta = (await store.append(meta, { type: "meta", meta: { ...meta, forkedFrom: { sessionId } } })) ?? meta;
 	/*
 	 * Where the model changed, carried over — or the fork replays one provider's opaque handles to

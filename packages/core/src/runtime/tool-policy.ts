@@ -13,7 +13,7 @@ import { sandboxModeFor } from "../sandbox/mode-for.ts";
 
 export type ToolPolicy = Pick<ToolEnvironment, "sandboxMode" | "searchProviderId" | "imageModels" | "projectRoots">;
 
-export function toolPolicy(settings: Settings, cwd: string): ToolPolicy {
+export function toolPolicy(settings: Settings, cwd: string, project?: string): ToolPolicy {
 	return {
 		/*
 		 * Derived per run rather than read from settings by each tool: the mode cannot change halfway
@@ -22,6 +22,6 @@ export function toolPolicy(settings: Settings, cwd: string): ToolPolicy {
 		sandboxMode: sandboxModeFor(settings.permissionMode),
 		searchProviderId: settings.searchProvider ?? null,
 		imageModels: { providers: settings.providers, preferred: settings.imageModelId ?? null },
-		projectRoots: projectRootsFor(settings.projects, cwd),
+		projectRoots: projectRootsFor(settings.projects, cwd, project),
 	};
 }

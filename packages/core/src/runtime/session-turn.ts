@@ -324,6 +324,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		dispatchLimits,
 		profile: input.profile,
 		planMode,
+		project: log.meta.project,
 	}));
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,
@@ -349,6 +350,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		{
 			sessionId: log.meta.id,
 			cwd,
+			project: log.meta.project,
 			provider: input.provider,
 			model: input.model,
 			settings,

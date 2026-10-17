@@ -15,6 +15,7 @@
  * project made the page depend on which conversation was clicked last, with nothing on it saying so.
  */
 
+import { folderChoiceName, onePerFolder } from "../../lib/project-identity.ts";
 import { useI18n } from "../../i18n/index.ts";
 import type { ProjectLayerView } from "../../../electron/ipc-types.ts";
 import { TriangleAlert } from "../../ui/icons/index.ts";
@@ -106,8 +107,9 @@ export function OverrideNotice({ view, keys }: { view: ProjectLayerView; keys: s
 
 /** Everything each project file changes, for the general page — every project that has one. */
 export function ProjectLayerCards() {
+	const { resolvedLocale } = useI18n();
 	const projects = useApp((s) => s.settings?.projects) ?? [];
-	return projects.map((project) => <ProjectLayerCard key={project.path} path={project.path} name={project.name} />);
+	return onePerFolder(projects).map((project) => <ProjectLayerCard key={project.path} path={project.path} name={folderChoiceName(projects, project.path, resolvedLocale)} />);
 }
 
 function ProjectLayerCard({ path, name }: { path: string; name: string }) {

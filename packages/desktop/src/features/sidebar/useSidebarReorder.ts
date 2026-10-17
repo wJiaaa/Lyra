@@ -37,10 +37,10 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 	const sorting = useRef(sort);
 	sorting.current = sort;
 
-	const eligible = useCallback((kind: "project" | "session", id: string, projectPath?: string) => {
+	const eligible = useCallback((kind: "project" | "session", id: string, project?: string) => {
 		if (!onReordered) return false;
-		if (kind === "session") return groups.projects.some((group) => group.path === projectPath && group.sessions.some((session) => session.id === id));
-		return groups.projects.some((group) => group.path === id) && Boolean(useApp.getState().settings?.projects.some((project) => project.path === id));
+		if (kind === "session") return groups.projects.some((group) => group.id === project && group.sessions.some((session) => session.id === id));
+		return groups.projects.some((group) => group.id === id) && Boolean(useApp.getState().settings?.projects.some((project) => project.id === id));
 	}, [groups, onReordered]);
 
 	const reset = useCallback(() => {
@@ -53,15 +53,15 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 
 	const startDrag = useCallback((item: DraggingItem, event: React.PointerEvent) => {
 		// Touch keeps native scrolling; only a row's primary button starts a mouse drag.
-		if (event.button !== 0 || event.pointerType !== "mouse" || saving.current || !eligible(item.kind, item.id, item.projectPath)) return;
+		if (event.button !== 0 || event.pointerType !== "mouse" || saving.current || !eligible(item.kind, item.id, item.project)) return;
 		candidateRef.current = { item, originX: event.clientX, originY: event.clientY, pointerId: event.pointerId };
 		setPointer({ x: event.clientX, y: event.clientY });
 	}, [eligible]);
 
-	const registerTarget = useCallback((kind: "project" | "session", id: string, rect: DOMRect, clientY: number, projectPath?: string) => {
+	const registerTarget = useCallback((kind: "project" | "session", id: string, rect: DOMRect, clientY: number, project?: string) => {
 		const active = draggingRef.current;
-		if (!active || active.kind !== kind || active.id === id || !eligible(kind, id, projectPath)) return;
-		if (kind === "session" && active.projectPath !== projectPath) return;
+		if (!active || active.kind !== kind || active.id === id || !eligible(kind, id, project)) return;
+		if (kind === "session" && active.project !== project) return;
 		const placement = clientY < rect.top + rect.height / 2 ? "before" : "after";
 		const current = dropTargetRef.current;
 		if (!current || current.id !== id || current.placement !== placement) {
@@ -100,7 +100,7 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 				const store = useApp.getState();
 				const changed = active.kind === "project"
 					? await store.reorderProjects(active.id, target.id, target.placement)
-					: active.projectPath && await store.reorderProjectSessions(active.projectPath, active.id, target.id, target.placement, sorting.current);
+					: active.project && await store.reorderProjectSessions(active.project, active.id, target.id, target.placement, sorting.current);
 				if (changed && active.kind === "session") reordered.current?.();
 			} catch (cause) {
 				useApp.getState().notify(translate("reorder.saveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");

@@ -29,13 +29,15 @@ export async function createStoredSession(
 	cwd: string,
 	modelId: string,
 	initial?: InitialPrompt,
+	/** The project it is started in; see `SessionMeta.project`. */
+	project?: string,
 ): Promise<SessionSnapshot> {
 	const text = initial?.displayText ?? initial?.content.find((block) => block.type === "text")?.text ?? "";
 	const referenceTitle = initial?.skillRef?.name ?? initial?.sessionRefs?.[0]?.title;
 	const title = (initial?.title || text || referenceTitle || "").replace(/\s+/g, " ").trim().slice(0, 60) || (initial ? "图片消息" : "New session");
 	// The level a new chat was given before its first message lives on the app default until now;
 	// written here, so the next new chat moving the default does not move this one. See `SessionMeta.thinking`.
-	let meta = await store.create(cwd, modelId || settings.defaultModelId || "", title, { thinking: settings.thinking });
+	let meta = await store.create(cwd, modelId || settings.defaultModelId || "", title, { thinking: settings.thinking, project });
 	const messages: Message[] = initial
 		? [
 				{

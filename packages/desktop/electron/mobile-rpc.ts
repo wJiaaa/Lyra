@@ -44,7 +44,7 @@ export async function mobileRpc(deps: MobileRpcDeps, method: MobileMethod, args:
 		if (!project && id !== "scratch") throw new Error("Project no longer exists");
 		const modelId = text(args[1]);
 		if (!models.some((model) => model.id === modelId)) throw new Error("Model no longer exists");
-		return createSession(project?.path ?? await generalScratchDir(), modelId);
+		return createSession(project?.path ?? await generalScratchDir(), modelId, undefined, project?.id);
 	}
 	const meta = await store.get(id);
 	if (!meta) throw new Error("Session no longer exists");

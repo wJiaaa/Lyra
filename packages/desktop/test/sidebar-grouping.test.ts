@@ -13,8 +13,12 @@ import { emptiedProjects, groupSessions, isScratch, listableSessions, nestSpawne
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
+/**
+ * The projects here are named for their folders (`id` is the path), and a conversation records the
+ * one it runs in unless a test says otherwise — `project: undefined` for one that records none.
+ */
 function session(over: Partial<Session>): Session {
-	return {
+	const made = {
 		id: "s1",
 		title: "会话",
 		cwd: "/a",
@@ -24,12 +28,13 @@ function session(over: Partial<Session>): Session {
 		updatedAt: 0,
 		createdAt: 0,
 		...over,
-	} as Session;
+	};
+	return ("project" in over ? made : { ...made, project: made.cwd }) as Session;
 }
 
 const projects = [
-	{ path: "/c", name: "c", lastOpenedAt: 2 },
-	{ path: "/a", name: "a", lastOpenedAt: 1 },
+	{ id: "/c", path: "/c", name: "c", lastOpenedAt: 2 },
+	{ id: "/a", path: "/a", name: "a", lastOpenedAt: 1 },
 ];
 
 test("archived sessions are not listed; they live in settings", () => {
@@ -126,32 +131,39 @@ test("a project still holding one live session is never folded away", () => {
 test("searching filters sessions without dissolving their projects", () => {
 	const sessions = [
 		session({ id: "1", title: "改一下登录", cwd: "/a" }),
-		session({ id: "2", title: "登录页样式", cwd: "/b", projectName: "b" }),
+		session({ id: "2", title: "登录页样式", cwd: "/c" }),
 		session({ id: "3", title: "无关的事", cwd: "/a" }),
 	];
 	const { projects: rest } = groupSessions(sessions, projects, "登录");
 	assert.deepEqual(
 		rest.map((g) => [g.path, g.sessions.map((s) => s.id)]),
 		[
+			["/c", ["2"]],
 			["/a", ["1"]],
-			["/b", ["2"]],
 		],
 	);
 });
 
-test("projects keep their configured order; unknown ones go last", () => {
-	const sessions = [session({ id: "1", cwd: "/z", projectName: "z" }), session({ id: "2", cwd: "/a" })];
-	const { projects: rest } = groupSessions(sessions, projects, "");
+/*
+ * 只有登记过的项目占行，顺序照登记的来。
+ *
+ * 会话记着一个不在列表里的项目（被移除了），或者什么也没记，都进「最近」——以前会照着它的文件夹
+ * 现造一个「项目」排在最后，于是打开过的文件夹都成了项目。
+ */
+test("only registered projects take rows, in their order; a conversation in none is loose", () => {
+	const sessions = [session({ id: "1", cwd: "/z", projectName: "z" }), session({ id: "2", cwd: "/a" }), session({ id: "3", cwd: "/c", project: undefined })];
+	const { projects: rest, loose } = groupSessions(sessions, projects, "");
 	assert.deepEqual(
 		rest.map((g) => g.path),
-		["/a", "/z"],
+		["/a"],
 	);
+	assert.deepEqual(loose.map((s) => s.id).sort(), ["1", "3"]);
 });
 test("project sessions follow custom sessionOrder only in manual sort mode", () => {
-	const s1 = session({ id: "s1", cwd: "/a", updatedAt: 100, createdAt: 300 });
-	const s2 = session({ id: "s2", cwd: "/a", updatedAt: 200, createdAt: 100 });
-	const s3 = session({ id: "s3", cwd: "/a", updatedAt: 300, createdAt: 200 });
-	const sNew = session({ id: "sNew", cwd: "/a", updatedAt: 400, createdAt: 400 });
+	const s1 = session({ id: "s1", cwd: "/a", project: "p1", updatedAt: 100, createdAt: 300 });
+	const s2 = session({ id: "s2", cwd: "/a", project: "p1", updatedAt: 200, createdAt: 100 });
+	const s3 = session({ id: "s3", cwd: "/a", project: "p1", updatedAt: 300, createdAt: 200 });
+	const sNew = session({ id: "sNew", cwd: "/a", project: "p1", updatedAt: 400, createdAt: 400 });
 
 	// In manual sort mode
 	const { projects: manualRes } = groupSessions(
@@ -160,7 +172,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 		"",
 		[],
 		[],
-		{ "/a": ["s3", "s1", "s2"] },
+		{ p1: ["s3", "s1", "s2"] },
 		"manual",
 	);
 	assert.deepEqual(
@@ -175,7 +187,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 		"",
 		[],
 		[],
-		{ "/a": ["s3", "s1", "s2"] },
+		{ p1: ["s3", "s1", "s2"] },
 		"updatedAt",
 	);
 	assert.deepEqual(
@@ -190,7 +202,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 		"",
 		[],
 		[],
-		{ "/a": ["s3", "s1", "s2"] },
+		{ p1: ["s3", "s1", "s2"] },
 		"createdAt",
 	);
 	assert.deepEqual(
@@ -244,9 +256,10 @@ test("loose rows are newest first, whatever order they arrived in", () => {
 test("a project whose path merely starts the same is still its own project", () => {
 	// The root arrives without a trailing slash; a plain `startsWith` would swallow
 	// `/home/.plume/prototypes` into the loose rows.
+	const prototypes = [{ id: "/home/.plume/prototypes", path: "/home/.plume/prototypes", name: "prototypes", lastOpenedAt: 0 }];
 	const sessions = [session({ id: "prototypes", cwd: "/home/.plume/prototypes" })];
 
-	const { projects: rest, loose } = groupSessions(sessions, [], "", ["/home/.plume/pr"]);
+	const { projects: rest, loose } = groupSessions(sessions, prototypes, "", ["/home/.plume/pr"]);
 	assert.deepEqual(loose, []);
 	assert.equal(rest[0].path, "/home/.plume/prototypes");
 });
@@ -255,13 +268,14 @@ test("on Windows the roots are backslashed, and sessions under them are still pr
 	// The roots come from the main process's `path.join`. Matching them with `root + "/"` never
 	// succeeded there, so every PR review and every project-less chat became a project of its own.
 	const root = "C:\\Users\\me\\.plume";
+	const registered = [{ id: `${root}\\prototypes`, path: `${root}\\prototypes`, name: "prototypes", lastOpenedAt: 0 }];
 	const sessions = [
 		session({ id: "review", cwd: `${root}\\pr\\owner-repo-1` }),
 		session({ id: "chat", cwd: `${root}\\workspaces\\general` }),
 		session({ id: "project", cwd: `${root}\\prototypes` }),
 	];
 
-	const { projects: rest, loose } = groupSessions(sessions, [], "", [`${root}\\workspaces`, `${root}\\pr`]);
+	const { projects: rest, loose } = groupSessions(sessions, registered, "", [`${root}\\workspaces`, `${root}\\pr`]);
 	assert.deepEqual(loose.map((s) => s.id).sort(), ["chat", "review"]);
 	// The separator still counts: `…\prototypes` is not inside `…\pr`.
 	assert.deepEqual(rest.map((group) => group.path), [`${root}\\prototypes`]);
@@ -271,74 +285,60 @@ test("on Windows the roots are backslashed, and sessions under them are still pr
 });
 
 test("with no roots known yet, nothing is treated as project-less", () => {
-	const sessions = [session({ id: "review", cwd: "/home/.plume/workspaces/owner-repo-1" })];
-	const { projects: rest, loose } = groupSessions(sessions, [], "", []);
+	const there = "/home/.plume/workspaces/owner-repo-1";
+	const sessions = [session({ id: "review", cwd: there })];
+	const { projects: rest, loose } = groupSessions(sessions, [{ id: there, path: there, name: "review", lastOpenedAt: 0 }], "", []);
 	assert.deepEqual(loose, []);
-	assert.equal(rest[0].path, "/home/.plume/workspaces/owner-repo-1");
+	assert.equal(rest[0].path, there);
 });
 
 /*
- * 一个项目可以由好几个文件夹组成，在第二个文件夹里开的会话不该另起一行。
+ * 会话归哪个项目，只看它记下的那个，不看它在哪个文件夹里跑。
  *
- * 这是「加了第二个源文件夹」在侧边栏上唯一看得见的地方：那个文件夹之前很可能自己是个项目，
- * 或者是一堆没归属的会话——合进来之后它们要跟着走，否则列表上会同时出现「这个项目」和
- * 「这个项目的一半」。
+ * 一个文件夹可以在好几个项目里，所以「哪个项目列着这个文件夹」从来只是猜。在附加文件夹里开的会话
+ * 记着项目，照样归它；在某个项目的文件夹或子目录里、却什么也没记的会话，是单独打开文件夹时开的，
+ * 不属于任何项目。
  */
-const multi = [{ path: "/app", name: "app", lastOpenedAt: 1, folders: ["/app", "/api"] }];
+const multi = [{ id: "/app", path: "/app", name: "app", lastOpenedAt: 1, folders: ["/app", "/api"] }];
 
-test("一个会话开在附加源文件夹里，归到这个项目下", () => {
-	const sessions = [session({ id: "in-app", cwd: "/app" }), session({ id: "in-api", cwd: "/api" })];
-	const { projects: rest } = groupSessions(sessions, multi, "");
+test("a conversation is filed by the project it records, not by the folder it runs in", () => {
+	const sessions = [
+		session({ id: "in-app", cwd: "/app" }),
+		session({ id: "in-api", cwd: "/api", project: "/app" }),
+		session({ id: "deep", cwd: "/app/packages", project: undefined }),
+		session({ id: "bare", cwd: "/app", project: undefined }),
+	];
+	const { projects: rest, loose } = groupSessions(sessions, multi, "");
 	assert.deepEqual(
-		rest.map((g) => g.path),
-		["/app"],
+		rest.map((g) => [g.path, g.sessions.map((s) => s.id).sort()]),
+		[["/app", ["in-api", "in-app"]]],
 	);
-	assert.deepEqual(
-		rest[0].sessions.map((s) => s.id).sort(),
-		["in-api", "in-app"],
-	);
+	assert.deepEqual(loose.map((s) => s.id).sort(), ["bare", "deep"]);
 });
 
 /*
- * 只认文件夹本身，不认它下面的子目录。
- *
- * `/app/packages/core` 里开的会话一直是自成一组的（见 `grouping.ts` 里 `owner` 那段注释），
- * 加一个源文件夹不该顺手改掉这条，那是对列表上每一个项目的改动。
+ * 项目按 id 认：两个项目的主文件夹相同，侧栏上就是两行，各放记着自己的会话。
  */
-test("附加文件夹的子目录还是自成一组，跟主文件夹的子目录一个待遇", () => {
-	const sessions = [session({ id: "deep-api", cwd: "/api/src" }), session({ id: "deep-app", cwd: "/app/packages" })];
-	const { projects: rest } = groupSessions(sessions, multi, "");
-	// `/app` itself is absent because it has no sessions of its own — the
-	// existing rule, unchanged. The point here is that neither subdirectory was folded into it.
+test("two projects on one folder take a row each, and each holds what records it", () => {
+	const projects = [
+		{ id: "new-uuid", path: "/app", name: "新项目", lastOpenedAt: 2 },
+		{ id: "/app", path: "/app", name: "app", lastOpenedAt: 1 },
+	];
+	const sessions = [
+		session({ id: "old", cwd: "/app" }),
+		session({ id: "mine", cwd: "/app", project: "new-uuid" }),
+		session({ id: "orphan", cwd: "/app", project: "removed" }),
+		session({ id: "bare", cwd: "/app", project: undefined }),
+	];
+	const { projects: rest, loose } = groupSessions(sessions, projects, "", [], [], undefined, "updatedAt", new Set(), false, true);
 	assert.deepEqual(
-		rest.map((g) => g.path).sort(),
-		["/api/src", "/app/packages"],
-	);
-});
-
-test("名字只是前缀相同的邻居没被吃进来", () => {
-	const sessions = [session({ id: "neighbour", cwd: "/api-old" })];
-	const { projects: rest } = groupSessions(sessions, multi, "");
-	assert.ok(rest.some((g) => g.path === "/api-old"));
-});
-
-/*
- * 把一个已有项目加成附加文件夹，是「顺带读它」，不是「把它吞掉」。
- *
- * 之前 `owner` 不问这个文件夹是不是别人的主文件夹，于是 `/api` 项目原来的会话全被划到 `/app`
- * 名下，`/api` 那一行空了。
- */
-test("附加文件夹本身是另一个项目时，它的会话留在它自己那一行", () => {
-	const projects = [...multi, { path: "/api", name: "api", lastOpenedAt: 0 }];
-	const sessions = [session({ id: "in-app", cwd: "/app" }), session({ id: "in-api", cwd: "/api" })];
-	const { projects: rest } = groupSessions(sessions, projects, "");
-	assert.deepEqual(
-		rest.map((g) => [g.path, g.sessions.map((s) => s.id)]),
+		rest.map((g) => [g.id, g.name, g.sessions.map((s) => s.id)]),
 		[
-			["/app", ["in-app"]],
-			["/api", ["in-api"]],
+			["new-uuid", "新项目", ["mine"]],
+			["/app", "app", ["old"]],
 		],
 	);
+	assert.deepEqual(loose.map((s) => s.id).sort(), ["bare", "orphan"], "a removed project or none: loose, not a row made from the folder");
 });
 
 /*
@@ -367,26 +367,22 @@ test("移除项目之后，它不会因为还有会话就被重新造回来", ()
 	);
 });
 
-test("只移除条目、会话还留在列表里，那一组就会自己长回来", () => {
+test("只移除条目、会话还留在列表里，它们进「最近」，那一组也不会长回来", () => {
 	const gone = "/removed";
-	// 这是修复前的样子，也是这条修复要防的：条目没了，会话还在，分组照旧。
 	const sessions = [session({ id: "orphan", cwd: gone, projectName: "removed" })];
-	const { projects: rest } = groupSessions(listableSessions(sessions, null), projects, "");
-	assert.equal(
-		rest.some((group) => group.path === gone),
-		true,
-		"这不是要保留的行为，是在说明为什么移除必须连会话一起处理",
-	);
+	const { projects: rest, loose } = groupSessions(listableSessions(sessions, null), projects, "");
+	assert.equal(rest.some((group) => group.path === gone), false);
+	assert.deepEqual(loose.map((s) => s.id), ["orphan"]);
 });
 
 /*
  * 跑在自己工作树里的会话，归它出来的那个项目。
  *
- * 侧栏按 `cwd` 分组，而工作树的路径不属于任何登记过的项目——于是每开一个这样的会话就多一个同名
- * 的项目文件夹，会话还会在建好工作树的那一刻从原项目下跳过去。
+ * 工作树的路径不属于任何登记过的项目，会话记下的项目才是它的归属——按 `cwd` 分组的时候，每开一个
+ * 这样的会话就多一个同名的项目文件夹，会话还会在建好工作树的那一刻从原项目下跳过去。
  */
 test("a conversation in a worktree of its own is filed under the project it was made from", () => {
-	const inWorktree = session({ id: "wt", cwd: "/home/.plume/worktrees/a-1234abcd", projectName: "a", worktree: { project: "/a", branch: "plume/session-1234abcd" } });
+	const inWorktree = session({ id: "wt", cwd: "/home/.plume/worktrees/a-1234abcd", projectName: "a", project: "/a", worktree: { project: "/a", branch: "plume/session-1234abcd" } });
 	const plain = session({ id: "plain", cwd: "/a" });
 	const { projects: groups } = groupSessions([inWorktree, plain], projects, "");
 	assert.deepEqual(
@@ -396,8 +392,8 @@ test("a conversation in a worktree of its own is filed under the project it was 
 	);
 });
 
-test("archiving a project's worktree conversations empties that project, not a folder named after the worktree", () => {
-	const archived = [session({ id: "wt", archived: true, cwd: "/home/.plume/worktrees/a-1234abcd", worktree: { project: "/a", branch: "plume/session-1234abcd" } })];
+test("archiving a project's worktree conversations empties that project, by its id", () => {
+	const archived = [session({ id: "wt", archived: true, cwd: "/home/.plume/worktrees/a-1234abcd", project: "/a", worktree: { project: "/a", branch: "plume/session-1234abcd" } })];
 	assert.deepEqual([...emptiedProjects([], archived)], ["/a"]);
 	assert.deepEqual([...emptiedProjects([session({ id: "live", cwd: "/a" })], archived)], [], "a live conversation still in the project keeps it");
 });

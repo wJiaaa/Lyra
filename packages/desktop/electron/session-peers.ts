@@ -86,7 +86,7 @@ export function createPeerRouter(host: PeerHost) {
 
 	async function reachable(from: AgentSession, to: AgentSession): Promise<boolean> {
 		const projects = host.settings().projects;
-		const [mine, theirs] = await Promise.all([sessionRoots(from.cwd, projects), sessionRoots(to.cwd, projects)]);
+		const [mine, theirs] = await Promise.all([sessionRoots(from.cwd, projects, from.meta.project), sessionRoots(to.cwd, projects, to.meta.project)]);
 		return rootsOverlap(mine, theirs);
 	}
 

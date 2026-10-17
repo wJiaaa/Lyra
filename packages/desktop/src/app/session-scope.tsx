@@ -16,8 +16,8 @@
 
 import { createContext, useContext, useEffect, useMemo } from "react";
 import type { Message, SessionMeta, SubAgentSummary } from "@plume/core";
-import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { isProjectLess } from "../lib/project-scope.ts";
+import { sessionProject } from "../lib/project-identity.ts";
 import { useApp, type AppState } from "../store/index.ts";
 import { useSubAgents } from "../store/subAgents.ts";
 import { worktreeWorkspace } from "../store/session-workspace.ts";
@@ -286,7 +286,7 @@ export function useScopedProjectPath(): string | null {
 	});
 }
 
-const NO_WORKSPACE: { workspace: WorkspaceInfo | null; scratchCwd: string | null } = { workspace: null, scratchCwd: null };
+const NO_WORKSPACE: { workspace: AppState["workspace"]; scratchCwd: string | null } = { workspace: null, scratchCwd: null };
 
 /**
  * Where this screen's conversation runs: its own project, not the one that has focus.
@@ -296,7 +296,7 @@ const NO_WORKSPACE: { workspace: WorkspaceInfo | null; scratchCwd: string | null
  * `openSession` splits it, and named from what the project was when it last held the live slot — or
  * read once, for one that never did. A blank screen away from the live slot runs where it was parked.
  */
-export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratchCwd: string | null } {
+export function useScopedWorkspace(): { workspace: AppState["workspace"]; scratchCwd: string | null } {
 	const id = useScopedSessionId();
 	const live = useApp((s) => id === s.activeSessionId);
 	const workspace = useApp((s) => s.workspace);
@@ -306,11 +306,19 @@ export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratch
 	const cwd = meta?.cwd ?? null;
 	const projectLess = useApp((s) => cwd !== null && isProjectLess(cwd, s.scratchRoots));
 	const known = useApp((s) => (cwd === null ? undefined : s.workspaceByPath[cwd]));
-	const named = useApp((s) => (cwd === null ? undefined : s.settings?.projects.find((project) => project.path === cwd)?.name));
+	// The conversation's project, not its folder's: two projects can share one. An entry of the list, so a stable reference.
+	const project = useApp((s) => (meta === null ? undefined : sessionProject(s.settings?.projects ?? [], meta)));
 	const describe = useApp((s) => s.describeWorkspace);
 	// A conversation's own worktree is named for its project here too, as in the live slot (`sessionWorkspace`).
 	const worktreeOf = meta?.worktree?.project;
 	const asWorktree = useMemo(() => (known && worktreeOf ? worktreeWorkspace(known, worktreeOf) : known), [known, worktreeOf]);
+	const projectName = meta?.projectName;
+	const scoped = useMemo(() => {
+		if (cwd === null) return null;
+		// Named at once from the conversation; the branch arrives with the read.
+		const base = asWorktree ?? { path: cwd, name: projectName ?? cwd, isGitRepo: false, branch: null, ...(worktreeOf ? { worktreeOf } : {}) };
+		return project ? { ...base, name: project.name, projectId: project.id } : base;
+	}, [asWorktree, cwd, projectName, worktreeOf, project]);
 	const unread = !live && cwd !== null && !projectLess && !known;
 	useEffect(() => {
 		if (unread && cwd) void describe(cwd);
@@ -319,6 +327,5 @@ export function useScopedWorkspace(): { workspace: WorkspaceInfo | null; scratch
 	if (id === null) return draft ?? NO_WORKSPACE;
 	if (cwd === null) return NO_WORKSPACE;
 	if (projectLess) return { workspace: null, scratchCwd: cwd };
-	// Named at once from the conversation; the branch arrives with the read.
-	return { workspace: asWorktree ?? { path: cwd, name: named ?? meta?.projectName ?? cwd, isGitRepo: false, branch: null, ...(worktreeOf ? { worktreeOf } : {}) }, scratchCwd: null };
+	return { workspace: scoped, scratchCwd: null };
 }

@@ -2,9 +2,9 @@
  * A project may be several folders, and everything downstream has to agree on which ones.
  *
  * The rules worth stating: an entry written before the field existed still means its one folder;
- * the innermost project wins when two of them nest; and a folder that merely shares a name prefix
- * with a project folder is not inside it — the same `p-old` ⊄ `p` trap the sidebar's grouping and
- * the read boundary both have to avoid, tested here because this is where the answer is decided.
+ * only the project a session records answers, never the folder it runs in; and a folder that merely
+ * shares a name prefix with a project folder is not inside it — the `p-old` ⊄ `p` trap the read
+ * boundary has to avoid, tested here because this is where the answer is decided.
  */
 
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
-import { claimedFolders, projectFolders } from "../src/config/project-folders.ts";
+import { projectFolders } from "../src/config/project-folders.ts";
 import { projectRootsFor } from "../src/config/project-roots.ts";
 import { buildSystemPrompt } from "../src/prompt/system.ts";
 import { buildTurnConfig } from "../src/runtime/turn-config.ts";
@@ -25,7 +25,7 @@ const API = join(HOME, ".plume-test-api");
 const ELSEWHERE = join(HOME, ".plume-test-elsewhere");
 
 function entry(path: string, folders?: string[]) {
-	return { path, folders };
+	return { id: path, path, folders };
 }
 
 // ---------------------------------------------------------------- reading the entry
@@ -60,66 +60,60 @@ test("the main folder is included even if the list forgot it", () => {
 
 test("a session in a project gets that project's folders", () => {
 	const projects = [entry(APP, [APP, API])];
-	assert.deepEqual(projectRootsFor(projects, APP), [APP, API]);
-	assert.deepEqual(projectRootsFor(projects, join(APP, "packages/core")), [APP, API]);
+	assert.deepEqual(projectRootsFor(projects, APP, APP), [APP, API]);
+	assert.deepEqual(projectRootsFor(projects, join(APP, "packages/core"), APP), [APP, API]);
 });
 
 test("a session inside an extra folder gets the same set", () => {
 	const projects = [entry(APP, [APP, API])];
-	assert.deepEqual(projectRootsFor(projects, join(API, "src")), [APP, API]);
+	assert.deepEqual(projectRootsFor(projects, join(API, "src"), APP), [APP, API]);
 });
 
 test("a session in no project gets nothing", () => {
-	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], ELSEWHERE), []);
-	assert.deepEqual(projectRootsFor([], APP), []);
-	assert.deepEqual(projectRootsFor(undefined, APP), []);
+	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], ELSEWHERE, undefined), []);
+	assert.deepEqual(projectRootsFor([], APP, APP), []);
+	assert.deepEqual(projectRootsFor(undefined, APP, APP), []);
 });
 
 /*
- * Nesting is a statement, not an accident.
+ * The folder is not asked.
  *
- * Someone with `~/work` on the list and `~/work/api` on it as well has said those are two pieces
- * of work. A session in `api` that inherited `~/work`'s folders would read across everything the
- * outer project reaches — the opposite of what listing the inner one separately asked for.
+ * One folder can be in several projects, so "which project lists the folder this runs in" is a
+ * guess. A session that names no project — started on a folder opened on its own — reads its
+ * own cwd and nothing more, even when that folder is some project's.
  */
-test("the innermost project wins when projects nest", () => {
-	const outer = entry(APP, [APP, ELSEWHERE]);
-	const inner = entry(join(APP, "api"), [join(APP, "api"), API]);
-	assert.deepEqual(projectRootsFor([outer, inner], join(APP, "api", "src")), [join(APP, "api"), API]);
-	assert.deepEqual(projectRootsFor([inner, outer], join(APP, "api", "src")), [join(APP, "api"), API]);
-	// And a path in the outer project that is not in the inner one still gets the outer one.
-	assert.deepEqual(projectRootsFor([outer, inner], join(APP, "web")), [APP, ELSEWHERE]);
+test("a session that names no project gets nothing, even in a project's folder", () => {
+	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], APP, undefined), []);
+	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], APP, "gone"), [], "a project removed since takes its folders with it");
+});
+
+/*
+ * Two projects on one checkout list different extra folders; only the session knows which it is in.
+ * A session whose `cwd` is outside the named project — a worktree — does not reach back into it.
+ */
+test("a session gets the folders of the project it names, not of another on the same folder", () => {
+	const one = { id: "one", path: APP, folders: [APP, API] };
+	const two = { id: "two", path: APP };
+	assert.deepEqual(projectRootsFor([one, two], APP, "one"), [APP, API]);
+	assert.deepEqual(projectRootsFor([one, two], APP, "two"), [APP]);
+	assert.deepEqual(projectRootsFor([one, two], ELSEWHERE, "one"), [], "outside its folders");
 });
 
 test("a shared name prefix is not containment", () => {
-	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${APP}-old`), []);
-	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${API}-old`), []);
-});
-
-/*
- * An existing project added as an extra folder is read across into, not taken over.
- *
- * Its chats stay filed under it (the sidebar and archiving ask `claimedFolders`), and a session
- * running there gets its own project's set — not whichever entry listing it as an extra came first.
- */
-test("a folder that is another project's main one is not claimed by the project listing it", () => {
-	const projects = [entry(APP, [APP, API]), entry(API)];
-	assert.deepEqual(claimedFolders(projects[0], projects), [APP]);
-	assert.deepEqual(claimedFolders(projects[1], projects), [API]);
-	assert.deepEqual(projectRootsFor(projects, API), [API]);
-	assert.deepEqual(projectRootsFor(projects, APP), [APP, API]);
+	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${APP}-old`, APP), []);
+	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${API}-old`, APP), []);
 });
 
 // ---------------------------------------------------------------- what it changes
 
 test("the project's other folders are readable without asking", () => {
-	const roots = projectRootsFor([entry(APP, [APP, API])], APP);
+	const roots = projectRootsFor([entry(APP, [APP, API])], APP, APP);
 	assert.equal(assessRead(join(API, "src/server.ts"), APP, { projectRoots: roots }).decision, "allow");
 	assert.equal(assessRead(API, APP, { projectRoots: roots }).decision, "allow");
 });
 
 test("a one-folder project changes nothing about what is asked", () => {
-	const roots = projectRootsFor([entry(APP)], APP);
+	const roots = projectRootsFor([entry(APP)], APP, APP);
 	assert.equal(assessRead(join(API, "src/server.ts"), APP, { projectRoots: roots }).decision, "ask");
 	assert.equal(assessRead(join(API, "src/server.ts"), APP).decision, "ask");
 });
@@ -131,7 +125,7 @@ test("a one-folder project changes nothing about what is asked", () => {
  * asserting that the new root was added to the right side of that line.
  */
 test("a credential inside a project folder is still a question", () => {
-	const roots = projectRootsFor([entry(APP, [APP, join(HOME, ".ssh")])], APP);
+	const roots = projectRootsFor([entry(APP, [APP, join(HOME, ".ssh")])], APP, APP);
 	const verdict = assessRead(join(HOME, ".ssh", "id_ed25519"), APP, { projectRoots: roots });
 	assert.equal(verdict.decision, "ask");
 	assert.equal(verdict.decision === "ask" && verdict.scope, "file");
@@ -154,6 +148,7 @@ test("a turn built from settings carries the project's folders to its tools", ()
 		{
 			sessionId: "seam",
 			cwd: APP,
+			project: "app",
 			provider: { id: "p", name: "p", baseUrl: "", api: "openai", apiKey: "", enabled: true, models: [] },
 			model: { id: "m", name: "m", modelId: "m", providerId: "p" },
 			settings,
@@ -179,6 +174,7 @@ test("a turn in a one-folder project carries nothing extra", () => {
 		{
 			sessionId: "seam",
 			cwd: APP,
+			project: "app",
 			provider: { id: "p", name: "p", baseUrl: "", api: "openai", apiKey: "", enabled: true, models: [] },
 			model: { id: "m", name: "m", modelId: "m", providerId: "p" },
 			settings,

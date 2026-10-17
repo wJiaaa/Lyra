@@ -24,7 +24,7 @@ import { mount } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
 const session = (id: string): SessionMeta => ({ id, title: id, cwd: "/work/bid", projectId: "bid", projectName: "P", createdAt: 1, updatedAt: 1, modelId: "", messageCount: 1, seq: 2, usage });
-const group = (name: string): Group => ({ path: "/work/bid", name, sessions: ["a", "b", "c", "d"].map(session) });
+const group = (name: string): Group => ({ id: "/work/bid", path: "/work/bid", name, sessions: ["a", "b", "c", "d"].map(session) });
 
 /** 标题盒的左右缘、按钮条的左右缘。每条测试自己摆，也可以中途改（收起时标题变窄）。 */
 const geometry = { titleLeft: 43, titleRight: 254, stripLeft: 206, stripRight: 262 };

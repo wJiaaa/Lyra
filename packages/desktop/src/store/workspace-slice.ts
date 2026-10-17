@@ -12,11 +12,9 @@ import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
-import { sessionUnderProject } from "../lib/project-scope.ts";
 import { baseName } from "../lib/paths.ts";
-import { claimedFolders } from "@plume/core/project-folders";
+import { projectSessions } from "../lib/project-identity.ts";
 import { sessionWorkspace } from "./session-workspace.ts";
-import { sessionHome } from "../lib/session-home.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -32,7 +30,7 @@ export function workspaceSlice(set: Set, get: Get) {
     await get().openWorkspace(workspace.path);
   },
 
-  async openWorkspace(path: string) {
+  async openWorkspace(path: string, projectId?: string) {
     const epoch = get().selectionEpoch + 1;
     set({ selectionEpoch: epoch });
     const workspace = await bridge.workspace.info(path);
@@ -71,34 +69,33 @@ export function workspaceSlice(set: Set, get: Get) {
      * read `workspace`, so a rename that only reached settings showed up in the sidebar and nowhere
      * else — see `renameProject`, which has been patching this one case up by hand.
      */
-    const named = get().settings?.projects.find((project) => project.path === path)?.name;
-    set({ scratchCwd: null, workspace: named ? { ...workspace, name: named } : workspace });
+    /*
+     * Which project, not only which folder: one folder can be in several projects, and the one
+     * picked is the one whose name the header shows and whose 「最近打开」 moves. Without an id — a
+     * folder opened rather than a project chosen — it is no project, even when some project lists
+     * that folder: conversations started here belong to none and sit in 「最近」.
+     */
+    const project = projectId ? get().settings?.projects.find((entry) => entry.id === projectId) : undefined;
+    set({ scratchCwd: null, workspace: project ? { ...workspace, name: project.name, projectId: project.id } : workspace });
     // Park the previous session and finish resetting before the new draft can accept a send.
     await get().newSession();
     // Workspace pickers also serve settings and PR views; selecting a folder does not leave them.
     set({ view });
 
-    const settings = get().settings;
-    if (!settings) return;
-    const previous = settings.projects.find((project) => project.path === path);
     /*
-     * Opening a project updates when it was opened. It does not re-describe it.
+     * Opening a project updates when it was opened. Opening a folder writes nothing.
      *
-     * This used to rebuild the entry from `workspace.name`, which is the directory's `basename` —
-     * so everything the user had said about the project was thrown away the next time they opened
-     * it. A renamed project silently reverted to its folder name on the next switch away and back,
-     * and the extra source folders would have gone the same way, which would have made configuring
-     * them pointless. Spreading `previous` keeps whatever is on the entry, named or not.
+     * Every folder opened used to be registered as a project, named after itself — so a project was
+     * whatever directory had been visited, not something anyone made. 「新建项目」 is the one way in.
+     * Spreading the entry keeps whatever is on it; rebuilding it from `workspace.name` (the folder's
+     * basename) once reverted every renamed project on the next switch.
      */
-    const entry = {
-      ...previous,
-      id: previous?.id ?? path, name: previous?.name ?? workspace.name, path,
-      lastOpenedAt: Date.now(),
-    };
+    const settings = get().settings;
+    if (!settings || !project) return;
     await get().saveSettings({
       ...settings,
       // Opening a project updates its recency without undoing an explicit list order.
-      projects: previous ? settings.projects.map((project) => project.path === path ? entry : project) : [entry, ...settings.projects],
+      projects: settings.projects.map((entry) => (entry.id === project.id ? { ...entry, lastOpenedAt: Date.now() } : entry)),
     });
   },
 
@@ -113,7 +110,9 @@ export function workspaceSlice(set: Set, get: Get) {
     const meta = get().meta;
     const workspace = meta?.worktree && meta.cwd === target ? await sessionWorkspace(meta) : await bridge.workspace.info(target);
     if (!workspace) return;
-    if (get().workspace?.path === target) set({ workspace });
+    // A refresh is git's news, not a change of project: the folder only knows its basename, and two projects can share it.
+    const current = get().workspace;
+    if (current?.path === target) set({ workspace: { ...workspace, name: current.name, ...(current.projectId ? { projectId: current.projectId } : {}) } });
     /*
      * And the copy the other screens read, when a screen named the project.
      *
@@ -121,10 +120,7 @@ export function workspaceSlice(set: Set, get: Get) {
      * live slot left a switch made under that screen unsaid there — its chip kept the branch git had
      * already left — and, with both screens on one repository, left the two chips disagreeing.
      */
-    if (path !== undefined) {
-      const named = get().settings?.projects.find((project) => project.path === target)?.name;
-      set({ workspaceByPath: { ...get().workspaceByPath, [target]: named ? { ...workspace, name: named } : workspace } });
-    }
+    if (path !== undefined) set({ workspaceByPath: { ...get().workspaceByPath, [target]: workspace } });
   },
 
   async describeWorkspace(path: string) {
@@ -133,9 +129,8 @@ export function workspaceSlice(set: Set, get: Get) {
     try {
       const workspace = await bridge.workspace.info(path);
       if (!workspace) return;
-      // The name the project was given, as `openWorkspace` shows it; the directory only knows its own.
-      const named = get().settings?.projects.find((project) => project.path === path)?.name;
-      set({ workspaceByPath: { ...get().workspaceByPath, [path]: named ? { ...workspace, name: named } : workspace } });
+      // The folder's own name: a screen naming a conversation's project takes it from the conversation (`useScopedWorkspace`).
+      set({ workspaceByPath: { ...get().workspaceByPath, [path]: workspace } });
     } catch {
       // A screen without its branch still names its project from the conversation; nothing to report.
     } finally {
@@ -182,23 +177,23 @@ export function workspaceSlice(set: Set, get: Get) {
     const settings = get().settings;
     const [main, ...rest] = folders.map((folder) => folder.trim()).filter(Boolean);
     if (!settings || !main) return;
-    const trimmed = name.trim();
-    const existing = settings.projects.find((project) => project.path === main);
+    /*
+     * Always a new project, with an id of its own.
+     *
+     * This used to look the main folder up and, finding it, edit that entry — so 「新建项目」 on a
+     * folder already in a project renamed the old project and replaced its folders, and the old
+     * one was gone. A project is a piece of work; the same checkout can be in two of them.
+     */
     const entry = {
-      id: existing?.id ?? main,
-      name: trimmed || existing?.name || baseName(main),
+      id: crypto.randomUUID(),
+      name: name.trim() || baseName(main),
       path: main,
       lastOpenedAt: Date.now(),
       folders: rest.length > 0 ? [main, ...rest] : undefined,
     };
-    await get().saveSettings({
-      ...settings,
-      projects: existing
-        ? settings.projects.map((project) => (project.path === main ? entry : project))
-        : [entry, ...settings.projects],
-    });
+    await get().saveSettings({ ...settings, projects: [entry, ...settings.projects] });
     // Saved first, then opened: `openWorkspace` reads the entry back for the name and the folders.
-    await get().openWorkspace(main);
+    await get().openWorkspace(main, entry.id);
   },
 
   /**
@@ -209,15 +204,16 @@ export function workspaceSlice(set: Set, get: Get) {
    * them is `sessions:move`'s problem rather than a text field's. Extra folders can come and go
    * freely because nothing is anchored to them.
    */
-  async updateProject(path: string, patch: { name?: string; folders?: string[] }) {
+  async updateProject(id: string, patch: { name?: string; folders?: string[] }) {
     const settings = get().settings;
-    if (!settings) return;
+    const path = settings?.projects.find((project) => project.id === id)?.path;
+    if (!settings || path === undefined) return;
     const trimmed = patch.name?.trim();
     const rest = (patch.folders ?? []).map((folder) => folder.trim()).filter((folder) => folder && folder !== path);
     await get().saveSettings({
       ...settings,
       projects: settings.projects.map((project) =>
-        project.path === path
+        project.id === id
           ? {
               ...project,
               name: trimmed || project.name,
@@ -230,7 +226,7 @@ export function workspaceSlice(set: Set, get: Get) {
     });
     // The header reads the workspace, not the project list, so it needs telling separately.
     const workspace = get().workspace;
-    if (trimmed && workspace?.path === path) set({ workspace: { ...workspace, name: trimmed } });
+    if (trimmed && workspace?.projectId === id) set({ workspace: { ...workspace, name: trimmed } });
   },
 
   async setSessionPinned(sessionId: string, pinned: boolean) {
@@ -258,11 +254,11 @@ export function workspaceSlice(set: Set, get: Get) {
     else current.delete(sessionId);
     await get().saveSettings({ ...settings, unreadSessionIds: Array.from(current) });
   },
-	async reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after") {
+	async reorderProjects(sourceId: string, targetId: string, placement: "before" | "after") {
 		const settings = get().settings;
 		if (!settings) return false;
-		const source = settings.projects.find((project) => project.path === sourcePath);
-		const target = settings.projects.find((project) => project.path === targetPath);
+		const source = settings.projects.find((project) => project.id === sourceId);
+		const target = settings.projects.find((project) => project.id === targetId);
 		if (!source || !target) return false;
 		const projects = moveBeforeOrAfter(settings.projects, source, target, placement);
 		if (!projects) return false;
@@ -270,15 +266,15 @@ export function workspaceSlice(set: Set, get: Get) {
 		return true;
 	},
 
-	async reorderProjectSessions(projectPath: string, sourceId: string, targetId: string, placement: "before" | "after", sort: SessionSortKey) {
+	async reorderProjectSessions(projectId: string, sourceId: string, targetId: string, placement: "before" | "after", sort: SessionSortKey) {
 		const settings = get().settings;
 		if (!settings) return false;
 		const pinned = new Set(settings.pinnedSessionIds ?? []);
-		const sessions = get().sessions.filter((session) => sessionHome(session) === projectPath && !session.archived && !pinned.has(session.id));
-		const ordered = orderedSessions(sessions, sort, settings.sessionOrder?.[projectPath]).map((session) => session.id);
+		const sessions = projectSessions(get().sessions, projectId).filter((session) => !session.archived && !pinned.has(session.id));
+		const ordered = orderedSessions(sessions, sort, settings.sessionOrder?.[projectId]).map((session) => session.id);
 		const next = moveBeforeOrAfter(ordered, sourceId, targetId, placement);
 		if (!next) return false;
-		await get().saveSettings({ ...settings, sessionOrder: { ...settings.sessionOrder, [projectPath]: next } });
+		await get().saveSettings({ ...settings, sessionOrder: { ...settings.sessionOrder, [projectId]: next } });
 		return true;
 	},
 
@@ -332,46 +328,38 @@ export function workspaceSlice(set: Set, get: Get) {
    * 换项目就是换目录，得挪文件。乐观更新仍然留着——点完就该看见它到了新位置——但现在它只是一
    * 张等着兑现的票：兑不了就连同一句说明一起退回去，和 `renameSession` 一个路子。
    */
-  async moveSessionProject(session: SessionMeta, targetPath: string) {
-    const targetProject = get().settings?.projects.find((p) => p.path === targetPath);
-    const segments = targetPath.split(/[/\\]/);
-    const lastSegment = segments.length > 0 ? segments[segments.length - 1] : "";
-    const projectName = targetProject?.name ?? (lastSegment || translate("common.project"));
+  async moveSessionProject(session: SessionMeta, target: string) {
+    /*
+     * By project id, not folder: two projects can share one, and moving between them changes only
+     * which project the conversation names — `cwd` stays, nothing on disk moves.
+     */
+    const targetProject = get().settings?.projects.find((p) => p.id === target);
+    /*
+     * 「从项目中移除」只是不再属于哪个项目，对话还在它原来的文件夹里跑。
+     *
+     * 从前要挪进「不在项目中工作」的共享目录：那时侧边栏按 cwd 分组，留在原地就会照着文件夹再长出
+     * 一个项目来。现在只认对话记下的项目，原地不动就已经是无项目对话，挪走反倒让它离开了自己的仓库。
+     */
+    const nextCwd = targetProject?.path ?? session.cwd;
+    const nextProjectName = targetProject?.name ?? session.projectName;
 
     /*
-     * 「从项目中移除」= 挪进那个「不在项目中工作」的共享目录。
+     * 乐观的这一下只动 cwd、projectName 和 project，不动 projectId。
      *
-     * 从前这里取 `scratchRoots[0]`，那是这些目录的**根**；而 `isScratch` 认的是根底下的东西
-     * （前缀比到 `/`），根自己不算。所以就算当时那次移动落了盘，侧边栏也不会把它收进「聊天」，
-     * 而是照着它的 cwd 新开一个分组——等于从一个项目挪进了另一个假项目。`generalScratch()` 给
-     * 的才是那个目录本身，也正是「不在项目中工作」新建对话时用的那一个。
+     * 侧边栏分组看的是 project，所以这就够它当场换组；而 projectId 是文件在磁盘上的住址，此刻还没
+     * 搬完，渲染层也算不出新值（那是 cwd 的 sha256，在 core 里）。猜一个填进去，万一用户正好在这几
+     * 毫秒里点开这条对话，就会拿着一个查无此人的地址去读日志。
      */
-    const isLoose = !targetPath;
-    const scratchCwd = isLoose ? await bridge.git.generalScratch().catch(() => null) : null;
-    if (isLoose && !scratchCwd) {
-      get().notify(translate("workspace.moveFailed", { reason: translate("workspace.noScratchDir") }), "error");
-      return;
-    }
-    const nextCwd = isLoose ? scratchCwd! : targetPath;
-    const nextProjectName = isLoose ? translate("workspace.looseChats") : projectName;
-
-    /*
-     * 乐观的这一下只动 cwd 和 projectName，不动 projectId。
-     *
-     * 侧边栏分组看的是 cwd（见 `grouping.ts`），所以这两样就够它当场换组；而 projectId 是文件在
-     * 磁盘上的住址，此刻还没搬完，渲染层也算不出新值（那是 cwd 的 sha256，在 core 里）。猜一个
-     * 填进去，万一用户正好在这几毫秒里点开这条对话，就会拿着一个查无此人的地址去读日志。
-     */
-    const previous = { cwd: session.cwd, projectName: session.projectName };
+    const previous = { cwd: session.cwd, projectName: session.projectName, project: session.project };
     const patch = (fields: Partial<SessionMeta>) =>
       set({
         sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, ...fields } : s)),
         ...(get().activeSessionId === session.id && get().meta ? { meta: { ...get().meta!, ...fields } } : {}),
       });
 
-    patch({ cwd: nextCwd, projectName: nextProjectName });
+    patch({ cwd: nextCwd, projectName: nextProjectName, project: targetProject?.id });
     try {
-      const result = await bridge.sessions.move(session.id, nextCwd, nextProjectName);
+      const result = await bridge.sessions.move(session.id, nextCwd, nextProjectName, targetProject?.id);
       if (!result.ok) {
         patch(previous);
         get().notify(
@@ -386,14 +374,14 @@ export function workspaceSlice(set: Set, get: Get) {
       }
       // 主进程说了算的那一份，含着新的 projectId。广播多半已经先到了，这一下是补齐。
       patch(result.meta);
-      get().notify(translate("workspace.movedTo", { name: nextProjectName }));
+      get().notify(targetProject ? translate("workspace.movedTo", { name: targetProject.name }) : translate("workspace.removedFromProject"));
     } catch (cause) {
       patch(previous);
       get().notify(translate("workspace.moveFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
     }
   },
 
-  async removeProject(path: string) {
+  async removeProject(id: string) {
     const settings = get().settings;
     if (!settings) return;
     /*
@@ -422,35 +410,26 @@ export function workspaceSlice(set: Set, get: Get) {
      * recoverable, and visible.
      */
     try {
-      await get().archiveProjectSessions(path);
+      await get().archiveProjectSessions(id);
     } catch (error) {
       get().notify(translate("workspace.archiveFailed", { reason: String(error) }), "error");
     }
     const latest = get().settings ?? settings;
     await get().saveSettings({
       ...latest,
-      projects: latest.projects.filter((p) => p.path !== path),
+      projects: latest.projects.filter((p) => p.id !== id),
     });
-    if (get().workspace?.path === path) void get().clearWorkspace();
+    if (get().workspace?.projectId === id) void get().clearWorkspace();
   },
 
-  async archiveProjectSessions(path: string) {
-    /*
-     * Every folder the project is made of, not only the one it is keyed on.
-     *
-     * Archiving a project is "put this piece of work away", and the conversations in its second
-     * source folder are part of that work — the sidebar already files them under this row. Leaving
-     * them behind would archive the project and leave its chats sitting in 「最近」, which is the
-     * shape of 「删不掉」 all over again. A folder that is another project's own is not part of this
-     * work, though — its chats are filed under that project and go when it does; see `claimedFolders`.
-     */
-    const projects = get().settings?.projects ?? [];
-    const folders = claimedFolders(projects.find((p) => p.path === path) ?? { path }, projects);
-    const targets = get().sessions.filter((s) => sessionUnderProject(folders, sessionHome(s)) && !s.archived);
+  async archiveProjectSessions(id: string) {
+    // The conversations that record this project, wherever they run; another project on the same folder keeps its own.
+    const filed = new Set(projectSessions(get().sessions, id).map((s) => s.id));
+    const targets = get().sessions.filter((s) => filed.has(s.id) && !s.archived);
     if (targets.length === 0) return;
     set({
       sessions: get().sessions.map((s) =>
-        sessionUnderProject(folders, sessionHome(s)) && !s.archived ? { ...s, archived: true } : s,
+        filed.has(s.id) && !s.archived ? { ...s, archived: true } : s,
       ),
     });
     if (targets.some((s) => s.id === get().activeSessionId)) {

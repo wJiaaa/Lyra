@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -66,7 +66,7 @@ test("目录重叠：同目录、包含、p-old 不在 p 里、软链、worktree
 		run(repo, "worktree", "add", "-q", "-b", "feature", tree);
 		await symlink(repo, join(root, "link"));
 
-		const roots = (cwd: string, projects?: Settings["projects"]) => sessionRoots(cwd, projects);
+		const roots = (cwd: string, projects?: Settings["projects"], project?: string) => sessionRoots(cwd, projects, project);
 		assert.ok(rootsOverlap(await roots(repo), await roots(join(repo, "packages", "a"))), "一个在另一个里面");
 		assert.ok(!rootsOverlap(await roots(repo), await roots(join(root, "p-old"))), "p-old 不在 p 里");
 		assert.ok(rootsOverlap(await roots(repo), await roots(join(root, "link"))), "软链指过去的是同一个目录");
@@ -74,7 +74,11 @@ test("目录重叠：同目录、包含、p-old 不在 p 里、软链、worktree
 		assert.ok(!rootsOverlap(await roots(tree), await roots(join(root, "elsewhere"))));
 		assert.ok(!rootsOverlap(await roots(join(repo, "packages", "a")), await roots(join(root, "elsewhere"))));
 		const projects = [{ id: "p", name: "p", path: repo, folders: [repo, join(root, "elsewhere")] }] as unknown as Settings["projects"];
-		assert.ok(rootsOverlap(await roots(repo, projects), await roots(join(root, "elsewhere"))), "同一个项目的另一个源目录");
+		assert.ok(rootsOverlap(await roots(repo, projects, "p"), await roots(join(root, "elsewhere"))), "同一个项目的另一个源目录");
+		// git 报的主工作树是解析过软链的路径（macOS 临时目录在 /private/var 下），项目也得这么写才包含得住。
+		const real = [{ id: "p", name: "p", path: await realpath(repo), folders: [await realpath(repo), join(root, "elsewhere")] }] as unknown as Settings["projects"];
+		assert.ok(rootsOverlap(await roots(tree, real, "p"), await roots(join(root, "elsewhere"))), "worktree 也算它项目的源目录");
+		assert.ok(!rootsOverlap(await roots(repo, projects), await roots(join(root, "elsewhere"))), "没记项目的会话不从文件夹推算项目");
 		assert.ok((await roots(join(root, "p-old"))).every((one) => one === pathKey(one)), "都是比较用的写法");
 	} finally {
 		await rm(root, { recursive: true, force: true });

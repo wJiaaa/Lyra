@@ -1,3 +1,4 @@
+import { folderChoiceName, onePerFolder } from "../../lib/project-identity.ts";
 import { Database, RefreshCw } from "../../ui/icons/index.ts";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
@@ -22,7 +23,9 @@ export function IndexSettings() {
 	// The page picks its own project, independent of the open conversation: following the global
 	// workspace meant the only way to look at another project's index was to go and open one of
 	// its conversations.
-	const projects = useListedProjects();
+	// The index is the folder's, so a folder in two projects is one choice; see `onePerFolder`.
+	const listed = useListedProjects();
+	const projects = onePerFolder(listed);
 	const [picked, setPicked] = useState<string | null>(null);
 	const path = projects.find((p) => p.path === picked)?.path ?? projects[0]?.path ?? null;
 	const pathRef = useRef(path);
@@ -84,7 +87,7 @@ export function IndexSettings() {
 									<InlineSelect
 										value={path}
 										onChange={setPicked}
-										options={projects.map((p) => ({ value: p.path, label: p.name, detail: p.path }))}
+										options={projects.map((p) => ({ value: p.path, label: folderChoiceName(listed, p.path, resolvedLocale), detail: p.path }))}
 										ariaLabel={t("common.project")}
 									/>
 									<DialogAction

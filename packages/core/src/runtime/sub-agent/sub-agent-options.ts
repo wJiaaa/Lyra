@@ -41,6 +41,8 @@ export interface SubAgentAnswer {
 export interface SubAgentOptions {
 	sessionId: string;
 	cwd: string;
+	/** The dispatching session's project, so a delegated run reads what its parent reads. */
+	project?: string;
 	settings: Settings;
 	/** Resolve preferences at dispatch time without altering an already running model request. */
 	getSettings?: () => Settings;

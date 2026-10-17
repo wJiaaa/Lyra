@@ -101,13 +101,13 @@ export function Sidebar() {
 	 * see — so the menu asks the question the list is already answering rather than listing both
 	 * directions and making you work out which one applies.
 	 */
-	const foldable = groups.projects.map((group) => group.path);
-	const allFolded = foldable.length > 0 && foldable.every((path) => collapsed.includes(path));
+	const foldable = groups.projects.map((group) => group.id);
+	const allFolded = foldable.length > 0 && foldable.every((key) => collapsed.includes(key));
 	const foldAll = (folded: boolean) =>
 		setCollapsed((current) =>
 			folded
 				? [...new Set([...current, ...foldable])]
-				: current.filter((path) => !foldable.includes(path)),
+				: current.filter((key) => !foldable.includes(key)),
 		);
 
 	const pad = compact ? "px-3" : "px-2.5";
@@ -173,13 +173,13 @@ export function Sidebar() {
 							groups={groups}
 							collapsed={collapsed}
 							onToggleCollapsed={toggleCollapsed}
-							groupProps={(path) => ({
-								collapsed: collapsed.includes(path),
-								onToggleCollapsed: () => toggleCollapsed(path),
-								shown: shown[path] ?? SESSION_PAGE,
+							groupProps={(key) => ({
+								collapsed: collapsed.includes(key),
+								onToggleCollapsed: () => toggleCollapsed(key),
+								shown: shown[key] ?? SESSION_PAGE,
 								onShowMore: () =>
-									setShown((prev) => ({ ...prev, [path]: (prev[path] ?? SESSION_PAGE) + SESSION_PAGE })),
-								onCollapse: () => setShown((prev) => ({ ...prev, [path]: SESSION_PAGE })),
+									setShown((prev) => ({ ...prev, [key]: (prev[key] ?? SESSION_PAGE) + SESSION_PAGE })),
+								onCollapse: () => setShown((prev) => ({ ...prev, [key]: SESSION_PAGE })),
 								actions,
 							})}
 							actions={actions}

@@ -1,5 +1,6 @@
 import { activeLocale, translate } from "../../i18n/translate.ts";
-import type { SessionMeta } from "@plume/core";
+import type { ProjectEntry, SessionMeta } from "@plume/core";
+import { projectLabel } from "../../lib/project-identity.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
 export type MentionKind = "action" | "file" | "subagent" | "plugin" | "session";
@@ -98,6 +99,8 @@ export function rankMentions(
 		files?: Array<string | MentionFile>;
 		agents?: Array<{ id: string; name: string; description: string; avatar?: string }>;
 		sessions?: SessionMeta[];
+		/** To name a session's project as it is called now, not as its folder was when it began. */
+		projects?: readonly ProjectEntry[];
 		skills?: SkillEntry[];
 		allowAction?: boolean;
 	},
@@ -173,7 +176,7 @@ export function rankMentions(
 				items.push({
 					id: `session:${s.id}`,
 					title,
-					description: [s.projectName, s.updatedAt ? new Date(s.updatedAt).toLocaleDateString(activeLocale()) : ""].filter(Boolean).join(" · "),
+					description: [projectLabel(options.projects ?? [], s), s.updatedAt ? new Date(s.updatedAt).toLocaleDateString(activeLocale()) : ""].filter(Boolean).join(" · "),
 					kind: "session",
 					data: { sessionId: s.id },
 					origin: translate("mention.pastSessions"),

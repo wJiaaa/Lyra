@@ -18,12 +18,13 @@ import { useApp } from "./index.ts";
  * that write could discard a session submitted in the meantime. Unfold the group so its next
  * session is visible.
  */
-export async function startProjectSession(path: string, expand?: () => void): Promise<void> {
+export async function startProjectSession(path: string, expand?: () => void, id?: string): Promise<void> {
 	const { workspace, openWorkspace, newSession, setView } = useApp.getState();
 	expand?.();
-	if (workspace?.path !== path) {
+	// By project: two projects on one folder are still a switch between them, and so is the folder on its own.
+	if (workspace?.path !== path || workspace.projectId !== id) {
 		setView("chat");
-		await openWorkspace(path);
+		await openWorkspace(path, id);
 	}
 	else await newSession();
 }

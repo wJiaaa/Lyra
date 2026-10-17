@@ -177,3 +177,16 @@ test("a fork keeps where the model changed, so one provider's handles are not re
 		await c.cleanup();
 	}
 });
+
+// A conversation belongs to the project it records, and nothing infers one from the folder: a fork that dropped it fell out of its project.
+test("a fork stays in the project the conversation was in", async () => {
+	const c = await conversation();
+	try {
+		await c.say(user("q1", 10), reply("a1", 11));
+		await c.store.move(c.meta.id, c.meta.cwd, "B", "proj-b");
+		const fork = await forkSession(c.store, c.meta.id, (await c.store.get(c.meta.id))!.seq);
+		assert.equal((await c.load(fork!.meta))!.meta.project, "proj-b");
+	} finally {
+		await c.cleanup();
+	}
+});

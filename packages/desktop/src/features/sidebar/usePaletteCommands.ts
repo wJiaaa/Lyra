@@ -12,6 +12,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import type { PaletteEntry } from "../../lib/palette.ts";
 import { isScratch, listableSessions } from "../../lib/sidebar-grouping.ts";
+import { pathHints, projectLabel } from "../../lib/project-identity.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useListedProjects } from "../../store/listed-projects.ts";
@@ -90,7 +91,7 @@ export function usePaletteCommands({
 			listableSessions(sessions, activeSessionId)
 				.sort((a, b) => b.updatedAt - a.updatedAt)
 				.map((session): PaletteCommand => {
-					const project = isScratch(session.cwd, scratchRoots) ? undefined : session.projectName;
+					const project = isScratch(session.cwd, scratchRoots) ? undefined : projectLabel(settings?.projects ?? [], session);
 					return {
 						id: `session:${session.id}`,
 						label: session.title,
@@ -99,10 +100,12 @@ export function usePaletteCommands({
 						run: () => onOpenSession(session),
 					};
 				}),
-		[sessions, activeSessionId, scratchRoots, onOpenSession],
+		[sessions, activeSessionId, scratchRoots, onOpenSession, settings?.projects],
 	);
 
 	const groups = useMemo((): PaletteGroup[] => {
+		// Names are labels, not keys: two projects called `app` say which folder they are.
+		const hints = pathHints(projects);
 		const go = (view: Parameters<typeof setView>[0]) => () => {
 			setView(view);
 			dismissNav();
@@ -189,12 +192,12 @@ export function usePaletteCommands({
 				onQuery: true,
 				commands: [
 					...projects.map((project) => ({
-						id: `project:${project.path}`,
-						label: project.name,
+						id: `project:${project.id}`,
+						label: hints.has(project.id) ? `${project.name} · ${hints.get(project.id)}` : project.name,
 						meta: t("projectHead.newSession"),
 						icon: icon(FolderOpen),
 						run: () => {
-							void startProjectSession(project.path);
+							void startProjectSession(project.path, undefined, project.id);
 							dismissNav();
 						},
 					})),

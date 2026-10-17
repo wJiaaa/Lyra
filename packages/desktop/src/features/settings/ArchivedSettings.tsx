@@ -15,6 +15,7 @@ import { sessionTitle } from "../../lib/session-title.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 import { sessionHome } from "../../lib/session-home.ts";
+import { sessionProject } from "../../lib/project-identity.ts";
 import { deleteSessionQuestion } from "../modals/index.ts";
 
 /**
@@ -40,33 +41,46 @@ export function ArchivedSettings() {
 
 	const archived = useMemo(() => sessions.filter((s) => s.archived), [sessions]);
 
+	/*
+	 * Grouped by the project each one is filed under, as the sidebar does: two projects can share a
+	 * folder. A legacy project's id is its path, so the groups opened before keep their keys.
+	 */
+	const listed = useApp((s) => s.settings?.projects);
+	const filedUnder = useMemo(() => {
+		const all = listed ?? [];
+		return (session: SessionMeta) => {
+			const project = sessionProject(all, session);
+			return { key: project?.id ?? sessionHome(session), name: project?.name ?? session.projectName };
+		};
+	}, [listed]);
+
 	const projects = useMemo(() => {
-		const byPath = new Map<string, { path: string; name: string; count: number }>();
+		const byKey = new Map<string, { key: string; name: string; count: number }>();
 		for (const session of archived) {
-			const home = sessionHome(session);
-			const entry = byPath.get(home) ?? { path: home, name: session.projectName, count: 0 };
+			const where = filedUnder(session);
+			const entry = byKey.get(where.key) ?? { ...where, count: 0 };
 			entry.count += 1;
-			byPath.set(home, entry);
+			byKey.set(where.key, entry);
 		}
-		return [...byPath.values()].sort((a, b) => b.count - a.count);
-	}, [archived]);
+		return [...byKey.values()].sort((a, b) => b.count - a.count);
+	}, [archived, filedUnder]);
 
 	const groups = useMemo(() => {
 		const needle = query.trim().toLowerCase();
 		const filtered = archived.filter(
-			(s) => (project === "all" || sessionHome(s) === project) && (!needle || s.title.toLowerCase().includes(needle)),
+			(s) => (project === "all" || filedUnder(s).key === project) && (!needle || s.title.toLowerCase().includes(needle)),
 		);
-		const byPath = new Map<string, { path: string; name: string; sessions: SessionMeta[] }>();
+		const byKey = new Map<string, { key: string; name: string; sessions: SessionMeta[] }>();
 		for (const session of filtered) {
-			const home = sessionHome(session);
-			const entry = byPath.get(home) ?? { path: home, name: session.projectName, sessions: [] };
+			const where = filedUnder(session);
+			const entry = byKey.get(where.key) ?? { ...where, sessions: [] };
 			entry.sessions.push(session);
-			byPath.set(home, entry);
+			byKey.set(where.key, entry);
 		}
-		return [...byPath.values()]
+		return [...byKey.values()]
 			.map((g) => ({ ...g, sessions: g.sessions.sort((a, b) => b.updatedAt - a.updatedAt) }))
 			.sort((a, b) => b.sessions.length - a.sessions.length);
-	}, [archived, query, project]);
+	}, [archived, query, project, filedUnder]);
 
 	return (
 		<div className="pt-2">
@@ -119,7 +133,7 @@ export function ArchivedSettings() {
 							onChange={setProject}
 							options={[
 								{ value: "all", label: t("common.allProjects") },
-								...projects.map((p) => ({ value: p.path, label: t("archived.projectCount", { name: p.name, count: p.count }) })),
+								...projects.map((p) => ({ value: p.key, label: t("archived.projectCount", { name: p.name, count: p.count }) })),
 							]}
 						/>
 					</div>
@@ -129,12 +143,12 @@ export function ArchivedSettings() {
 					)}
 
 					{groups.map((group) => {
-						const open = groupIsOpen(group.path, opened, searching);
+						const open = groupIsOpen(group.key, opened, searching);
 						return (
 							<section
-								key={group.path}
+								key={group.key}
 								className="mb-6"
-								data-ly-archive-group={group.path}
+								data-ly-archive-group={group.key}
 								data-open={open ? "true" : "false"}
 							>
 								<button
@@ -142,7 +156,7 @@ export function ArchivedSettings() {
 									aria-expanded={open}
 									aria-label={t("archived.toggleGroup", { name: group.name, n: group.sessions.length })}
 									disabled={searching}
-									onClick={() => setOpened((current) => toggleOpened(current, group.path))}
+									onClick={() => setOpened((current) => toggleOpened(current, group.key))}
 									className="flex w-full items-center gap-2 pb-2 text-left disabled:cursor-default"
 									data-ly-archive-toggle=""
 								>

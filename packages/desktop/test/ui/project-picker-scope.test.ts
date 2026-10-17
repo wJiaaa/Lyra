@@ -29,7 +29,8 @@ const ALPHA: WorkspaceInfo = { path: "/work/alpha", name: "alpha-app", isGitRepo
 const BETA: WorkspaceInfo = { path: "/work/beta", name: "beta-lib", isGitRepo: true, branch: "beta-work" };
 
 function meta(id: string, cwd: string, name: string): SessionMeta {
-	return { id, title: id, cwd, projectId: cwd, projectName: name, createdAt: 1, updatedAt: 2, modelId: "", messageCount: 2, seq: 3, usage };
+	// Each records the project it was started in, whose id here is its folder.
+	return { id, title: id, cwd, projectId: cwd, projectName: name, project: cwd, createdAt: 1, updatedAt: 2, modelId: "", messageCount: 2, seq: 3, usage };
 }
 const said = (id: string): Message[] => [
 	{ role: "user", content: [{ type: "text", text: `${id} 的问题` }], timestamp: 1 },

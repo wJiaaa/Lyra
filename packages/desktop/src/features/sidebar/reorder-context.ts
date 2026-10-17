@@ -8,9 +8,9 @@ type DragKind = "project" | "session";
 
 export interface DraggingItem {
 	kind: DragKind;
-	id: string; // project path or session id
+	id: string; // project id or session id
 	title: string;
-	projectPath?: string; // only for session
+	project?: string; // only for session: the project id it is filed under
 }
 
 export interface DropTarget {
@@ -23,7 +23,7 @@ export interface SidebarReorderContextValue {
 	dragging: DraggingItem | null;
 	dropTarget: DropTarget | null;
 	startDrag: (item: DraggingItem, event: React.PointerEvent) => void;
-	registerTarget: (kind: DragKind, id: string, rect: DOMRect, clientY: number, projectPath?: string) => void;
+	registerTarget: (kind: DragKind, id: string, rect: DOMRect, clientY: number, project?: string) => void;
 	clearTarget: (id: string) => void;
 }
 

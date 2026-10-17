@@ -77,7 +77,8 @@ server。问一次、批准后记住整个项目，边界才是真的（人在�
 稿），这是用户在「创建项目 / 编辑项目」里明说的。
 
 这条边界跟着改了一处，只有一处：**`assessRead` 多认一组根**（`ReadAccessOptions.projectRoots`，
-由 `config/project-roots.ts` 从 `settings.projects` 按 cwd 算出来，每轮读一次）。判定的其余部分
+由 `config/project-roots.ts` 从 `settings.projects` 取会话记下的那个项目（`SessionMeta.project`）
+的文件夹，每轮读一次；没记项目的会话没有这组根，不再按 cwd 去猜它属于哪个项目）。判定的其余部分
 一个字没动——密钥仍然无论在哪都问，而且排在这组根**前面**：把一个文件夹加进项目说的是
 「这是我要做的活」，不是「我放在里面的钥匙你随便读」。
 

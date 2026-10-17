@@ -33,7 +33,7 @@ export async function subAgentPrompt(options: SubAgentOptions, dispatched: Dispa
 	const { definition, allowed, resources, scratch } = dispatched;
 	return buildPromptContext({
 		cwd: options.cwd,
-		projectRoots: projectRootsFor(options.settings.projects, options.cwd),
+		projectRoots: projectRootsFor(options.settings.projects, options.cwd, options.project),
 		tools: allowed,
 		skills: options.skills,
 		agents: options.agents,

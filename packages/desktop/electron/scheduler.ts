@@ -36,7 +36,8 @@ type NoticeSubject = Pick<SchedulerNotice, "taskId" | "kind" | "sessionId">;
 export interface SchedulerDeps {
 	getSettings(): Settings;
 	saveSettings(settings: Settings): Promise<void>;
-	createSession(cwd: string, modelId: string): Promise<AgentSession>;
+	/** `project` is the task's (`ScheduledTask.project`): its runs are filed there, not under whatever lists the folder. */
+	createSession(cwd: string, modelId: string, project?: string): Promise<AgentSession>;
 	/** A notice for the window, already in the interface language, and the task it is about. */
 	notify(message: string, level: SchedulerNotice["level"], about: NoticeSubject): void;
 }
@@ -81,7 +82,7 @@ export class Scheduler {
 
 		try {
 			const settings = this.deps.getSettings();
-			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "");
+			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "", task.project);
 			sessionId = session.meta.id;
 			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info", { taskId: task.id, kind: "started", sessionId });
 			// Not awaited: the turn can run for minutes and must not block the tick.

@@ -8,6 +8,10 @@
 import { Fragment } from "react";
 import type { SessionMeta } from "@plume/core";
 import { SessionRow, type RowActions } from "./SessionRow.tsx";
+import { useApp } from "../../store/index.ts";
+import { projectLabel } from "../../lib/project-identity.ts";
+
+const NO_PROJECTS: never[] = [];
 
 export function SessionRows({ sessions, spawned, actions, project }: {
 	sessions: SessionMeta[];
@@ -16,11 +20,12 @@ export function SessionRows({ sessions, spawned, actions, project }: {
 	/** Name each top-level row's project on hover — 「置顶」, where no folder row says it. */
 	project?: boolean;
 }) {
+	const projects = useApp((s) => s.settings?.projects ?? NO_PROJECTS);
 	return (
 		<>
 			{sessions.map((session) => (
 				<Fragment key={session.id}>
-					<SessionRow session={session} project={project ? session.projectName : undefined} actions={actions} />
+					<SessionRow session={session} project={project ? projectLabel(projects, session) : undefined} actions={actions} />
 					<Spawned parentId={session.id} spawned={spawned} actions={actions} />
 				</Fragment>
 			))}

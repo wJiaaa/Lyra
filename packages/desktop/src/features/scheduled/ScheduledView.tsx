@@ -67,6 +67,7 @@ export function ScheduledView() {
 					id,
 					name: t("scheduled.newTask"),
 					cwd: workspace?.path ?? "",
+					...(workspace?.projectId ? { project: workspace.projectId } : {}),
 					prompt: t("scheduled.samplePrompt"),
 					schedule: { kind: "daily", time: "09:00" },
 					enabled: false,

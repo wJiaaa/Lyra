@@ -56,7 +56,7 @@ test("saving project recency cannot clear a session submitted in the visible new
 	const saveStarted = deferred<void>();
 	const saved = deferred<Settings>();
 	saveSettings = settings => { saveStarted.resolve(); return saved.promise.then(() => settings); };
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	await saveStarted.promise;
 	assert.equal(useApp.getState().workspace?.path, "/root");
 	assert.equal(useApp.getState().activeSessionId, null);
@@ -77,7 +77,7 @@ test("opening a workspace parks the old session and clears turn state before sav
 	saveSettings = settings => { saveStarted.resolve(); return saved.promise.then(() => settings); };
 	const todos = [{ content: "Old task", status: "in_progress" } satisfies NonNullable<ReturnType<typeof useApp.getState>["todos"]>[number]];
 	useApp.setState({ view: "settings", running: true, todos, stopped: "interrupt", turnStartedAt: 1, turnTokens: 25 });
-	const opening = useApp.getState().openWorkspace("/root");
+	const opening = useApp.getState().openWorkspace("/root", "/root");
 	await saveStarted.promise;
 	const current = useApp.getState();
 	assert.equal(current.view, "settings");
@@ -113,7 +113,7 @@ test("starting in another project opens chat immediately without stealing a late
 	readWorkspace = () => pending.promise;
 	saveSettings = settings => { saveStarted.resolve(); return saved.promise.then(() => settings); };
 	useApp.setState({ view: "settings" });
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	assert.equal(useApp.getState().view, "chat");
 	useApp.getState().setView("settings");
 	pending.resolve(workspace("/root"));
@@ -128,8 +128,8 @@ test("starting in another project opens chat immediately without stealing a late
 for (const missing of [true, false]) {
 	test(`a ${missing ? "missing" : "failed"} workspace lookup keeps the selected conversation`, async () => {
 		readWorkspace = async () => { if (missing) return null; throw new Error("workspace unavailable"); };
-		if (missing) await startProjectSession("/root");
-		else await assert.rejects(startProjectSession("/root"), /workspace unavailable/);
+		if (missing) await startProjectSession("/root", undefined, "/root");
+		else await assert.rejects(startProjectSession("/root", undefined, "/root"), /workspace unavailable/);
 		assert.equal(useApp.getState().workspace?.path, "/worktree");
 		assert.equal(useApp.getState().activeSessionId, "old");
 		assert.equal(useApp.getState().messages, previous.messages);
@@ -140,8 +140,10 @@ for (const missing of [true, false]) {
 test("a slower earlier workspace lookup cannot clear a conversation started in the later project", async () => {
 	const first = deferred<WorkspaceInfo>();
 	readWorkspace = path => path === "/root" ? first.promise : Promise.resolve(workspace(path));
-	const earlier = startProjectSession("/root");
-	await startProjectSession("/later");
+	const settings = useApp.getState().settings!;
+	useApp.setState({ settings: { ...settings, projects: [...settings.projects, { id: "/later", path: "/later", name: "Later", lastOpenedAt: 0 }] } });
+	const earlier = startProjectSession("/root", undefined, "/root");
+	await startProjectSession("/later", undefined, "/later");
 	assert.equal(await useApp.getState().send(content), true);
 	first.resolve(workspace("/root"));
 	await earlier;
@@ -154,7 +156,7 @@ test("a slower earlier workspace lookup cannot clear a conversation started in t
 test("a newer blank-session selection cancels a pending workspace lookup", async () => {
 	const pending = deferred<WorkspaceInfo>();
 	readWorkspace = () => pending.promise;
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	await useApp.getState().newSession();
 	pending.resolve(workspace("/root"));
 	await opening;
@@ -166,7 +168,7 @@ test("a newer blank-session selection cancels a pending workspace lookup", async
 test("starting again in the current project cancels a pending different-project lookup", async () => {
 	const pending = deferred<WorkspaceInfo>();
 	readWorkspace = () => pending.promise;
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	await startProjectSession("/worktree");
 	pending.resolve(workspace("/root"));
 	await opening;
@@ -179,7 +181,7 @@ test("starting again in the current project cancels a pending different-project 
 test("opening another conversation cancels a pending workspace lookup", async () => {
 	const pending = deferred<WorkspaceInfo>();
 	readWorkspace = () => pending.promise;
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	const selected = snapshot("selected", "/worktree");
 	await useApp.getState().openSession(selected.meta);
 	assert.equal(useApp.getState().activeSessionId, "selected");
@@ -195,7 +197,7 @@ test("opening another conversation cancels a pending workspace lookup", async ()
 test("choosing a projectless chat cancels an older project lookup", async () => {
 	const pending = deferred<WorkspaceInfo>();
 	readWorkspace = () => pending.promise;
-	const opening = startProjectSession("/root");
+	const opening = startProjectSession("/root", undefined, "/root");
 	await useApp.getState().clearWorkspace();
 	assert.equal(useApp.getState().workspace, null);
 	assert.equal(useApp.getState().scratchCwd, "/scratch");
@@ -218,4 +220,27 @@ test("a late scratch lookup cannot clear a session started in a later project", 
 	assert.equal(useApp.getState().activeSessionId, "new");
 	assert.equal(useApp.getState().meta?.cwd, "/later");
 	assert.equal(useApp.getState().scratchCwd, null);
+});
+
+/*
+ * 新会话建在哪个项目里，不能靠文件夹猜：两个项目共用 `/root` 时，从 B 那一行开的会话要记着 B。
+ */
+test("a conversation started from a project records that project, even on a folder another project shares", async () => {
+	const created: Array<string | undefined> = [];
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS, projects: [
+		{ id: "uuid-b", path: "/root", name: "B", lastOpenedAt: 2 },
+		{ id: "/root", path: "/root", name: "Root", lastOpenedAt: 1 },
+	] } });
+	const plume = (window as unknown as { plume: { sessions: { create: (cwd: string, model: string, initial?: { project?: string }) => Promise<unknown> } } }).plume;
+	plume.sessions.create = async (cwd, _model, initial) => { created.push(initial?.project); return snapshot("new", cwd); };
+
+	await startProjectSession("/root", undefined, "uuid-b");
+	assert.equal(useApp.getState().workspace?.name, "B");
+	assert.equal(await useApp.getState().send(content), true);
+
+	await startProjectSession("/root", undefined, "/root");
+	assert.equal(useApp.getState().workspace?.name, "Root", "the same folder as another project is still a switch");
+	assert.equal(await useApp.getState().send(content), true);
+
+	assert.deepEqual(created, ["uuid-b", "/root"]);
 });

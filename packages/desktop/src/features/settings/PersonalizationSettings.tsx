@@ -2,6 +2,7 @@
  * Personalization settings: custom global instructions, local persistent memory management, and tone.
  */
 
+import { folderChoiceName, onePerFolder } from "../../lib/project-identity.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useCallback, useEffect, useState } from "react";
@@ -16,7 +17,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PersonalizationSettings() {
-	const { t } = useI18n();
+	const { t, resolvedLocale } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 
@@ -40,7 +41,9 @@ export function PersonalizationSettings() {
 	 * following the session meant the only way to see another project's memory was to open one of
 	 * its conversations first.
 	 */
-	const projects = useListedProjects();
+	// What is set here is the folder's, so a folder in two projects is one choice; see `onePerFolder`.
+	const listed = useListedProjects();
+	const projects = onePerFolder(listed);
 	const [picked, setPicked] = useState<string | null>(null);
 	const project = projects.find((p) => p.path === picked) ?? projects[0] ?? null;
 	const projectPath = project?.path;
@@ -337,7 +340,7 @@ export function PersonalizationSettings() {
 								<InlineSelect
 									value={project.path}
 									onChange={setPicked}
-									options={projects.map((p) => ({ value: p.path, label: p.name, detail: p.path }))}
+									options={projects.map((p) => ({ value: p.path, label: folderChoiceName(listed, p.path, resolvedLocale), detail: p.path }))}
 									ariaLabel={t("common.project")}
 								/>
 							</div>

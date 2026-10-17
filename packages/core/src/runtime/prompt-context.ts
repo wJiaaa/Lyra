@@ -39,8 +39,10 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 	settings: Settings;
 	recordInjection?: boolean;
 	profile?: PromptProfile;
+	/** The session's project (`SessionMeta.project`); which folders the prompt names follows it. */
+	project?: string;
 }) {
-	const { cwd, settings, profile, ...rest } = input;
+	const { cwd, settings, profile, project, ...rest } = input;
 	const [memory, projectInstructions, identityOverride, guidelinesOverride, isolatedWorktree, isGitRepo, sharedInstructions] = await Promise.all([
 		/*
 		 * 按会话冻结记忆（见 `memory-inject.ts`）。暂存目录的最后一段就是会话 id（`scratchDir`），
@@ -58,7 +60,7 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 		...rest,
 		cwd,
 		...(profile ? { skills: [], identity: profile.identity, guidelines: profile.guidelines, interfaceBlocks: profile.interfaceBlocks } : {}),
-		projectRoots: projectRootsFor(settings.projects, cwd),
+		projectRoots: projectRootsFor(settings.projects, cwd, project),
 		projectInstructions,
 		identityOverride,
 		guidelinesOverride,

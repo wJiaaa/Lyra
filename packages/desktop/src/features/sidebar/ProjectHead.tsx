@@ -30,10 +30,12 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ProjectHead({
 	group,
+	pathHint,
 	collapsed,
 	onToggleCollapsed,
 }: {
 	group: Group;
+	pathHint?: string;
 	collapsed: boolean;
 	onToggleCollapsed: () => void;
 }) {
@@ -51,15 +53,15 @@ export function ProjectHead({
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
-					reorder.registerTarget("project", group.path, rect, event.clientY);
+					reorder.registerTarget("project", group.id, rect, event.clientY);
 				}
 			}}
 			onPointerUp={(event) => {
-				reorder?.registerTarget("project", group.path, event.currentTarget.getBoundingClientRect(), event.clientY);
+				reorder?.registerTarget("project", group.id, event.currentTarget.getBoundingClientRect(), event.clientY);
 			}}
 			onPointerLeave={() => {
 				if (reorder) {
-					reorder.clearTarget(group.path);
+					reorder.clearTarget(group.id);
 				}
 			}}
 			onContextMenu={(event) => {
@@ -80,7 +82,7 @@ export function ProjectHead({
 			 */}
 			<button
 				onPointerDown={(event) => {
-					reorder?.startDrag({ kind: "project", id: group.path, title: group.name }, event);
+					reorder?.startDrag({ kind: "project", id: group.id, title: group.name }, event);
 				}}
 				type="button"
 				aria-expanded={!collapsed}
@@ -91,7 +93,11 @@ export function ProjectHead({
 			>
 				{/* 只用文件夹本身表示开合，不在悬停时换成箭头。 */}
 				<span className="shrink-0">{collapsed ? <Folder size={16} /> : <FolderOpen size={16} />}</span>
-				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
+				{/* The path rides in the same line so it fades and scrolls with the name rather than taking a slot of its own. */}
+				<ScrollText
+					text={pathHint ? <>{group.name}<span className="ml-1.5 text-ink-faint">{pathHint}</span></> : group.name}
+					className="ly-fade-tail min-w-0 flex-1"
+				/>
 				{/*
 				 * How many are folded away, so a shut project is not indistinguishable from an
 				 * empty one. Only while shut: open, the rows themselves are the count.
@@ -129,7 +135,7 @@ export function ProjectHead({
 					size="sm"
 					label={translate("projectHead.newSession")}
 					ariaLabel={translate("projectHead.newSessionIn", { name: group.name })}
-					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined)}
+					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined, group.id)}
 					className="pointer-events-auto"
 					icon={<SquarePen size={13} strokeWidth={1.8} />}
 				/>
@@ -144,7 +150,7 @@ export function ProjectHead({
 				/>
 			</HoverRowReveal>
 
-			{menu.open && <ProjectMenu anchor={menu.anchor} path={group.path} name={group.name} onClose={menu.close} />}
+			{menu.open && <ProjectMenu anchor={menu.anchor} id={group.id} path={group.path} name={group.name} onClose={menu.close} />}
 		</HoverRow>
 	);
 }

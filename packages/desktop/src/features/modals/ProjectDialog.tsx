@@ -28,6 +28,7 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 const PROJECT_DIALOG_WIDTH = 520;
 
 export interface ProjectDraft {
+	id: string;
 	path: string;
 	name: string;
 	folders?: string[];
@@ -138,7 +139,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 	function submit(dismiss: Dismiss) {
 		if (folders.length === 0) return;
 		dismiss(() => {
-			if (editing) void updateProject(project.path, { name, folders });
+			if (editing) void updateProject(project.id, { name, folders });
 			else void createProject(name, folders);
 			onClose();
 		});
@@ -168,7 +169,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectDraft; on
 							tone="danger"
 							onClick={() =>
 								dismiss(() => {
-									void removeProject(project.path);
+									void removeProject(project.id);
 									onClose();
 								})
 							}

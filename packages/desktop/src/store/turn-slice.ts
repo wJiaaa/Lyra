@@ -136,6 +136,8 @@ export function turnSlice(set: Set, get: Get) {
 		const draft = options.sessionId === null && get().activeSessionId !== null ? get().parkedDraft : null;
 		// A new conversation from inside a worktree starts in its project, never in another copy of the copy.
 		const cwd = draft ? (draft.workspace?.worktreeOf ?? draft.workspace?.path ?? draft.scratchCwd) : (workspace?.worktreeOf ?? workspace?.path ?? scratchCwd);
+		// And in which project: the folder alone cannot say, since two projects can share it.
+		const project = (draft ? draft.workspace : workspace)?.projectId;
 		if (!sessionId && !cwd) { await get().pickWorkspace(); return false; }
 		// A second submission in the same draft shares its identity, never its title as a key.
 		const inFlight = !sessionId ? creating.get(epoch) : undefined;
@@ -230,6 +232,7 @@ export function turnSlice(set: Set, get: Get) {
 				attachments: options.attachments,
 				...(get().draftPlanMode ? { planMode: true } : {}),
 				...(options.worktree === undefined ? {} : { worktree: options.worktree }),
+				...(project ? { project } : {}),
 			});
 			creating.set(epoch, creation);
 			try {
@@ -307,7 +310,8 @@ export function turnSlice(set: Set, get: Get) {
 		const content: UserContent[] = [{ type: "text", text: prompt }];
 		let snapshot: SessionSnapshot;
 		try {
-			snapshot = await bridge.sessions.create(cwd, get().settings?.defaultModelId ?? "", { ...options, content, spawnedFrom: from });
+			// And in its project, which its folder alone cannot name.
+			snapshot = await bridge.sessions.create(cwd, get().settings?.defaultModelId ?? "", { ...options, content, spawnedFrom: from, ...(source?.project ? { project: source.project } : {}) });
 		} catch (cause) {
 			get().notify(translate("sessionOps.startFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 			return null;
