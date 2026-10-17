@@ -122,7 +122,7 @@ export const MessageRow = memo(function MessageRow({
      */
     // 后台子智能体的结果送回来了：一行说明，不是人说的话。见 `DeliveryRow`。
     // 另一个会话发来的消息：一行，不是人说的话。见 `PeerLetterRow`。和送达合在一条里时两样都画。
-    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} />}</>;
+    if (message.peer || message.delivery) return <>{message.peer && <PeerLetterRow letters={message.peer} renderText={(text) => <Markdown text={text} className="text-label text-ink-muted" />} />}{message.delivery && <DeliveryRow delivery={message.delivery} steered={message.steered} />}</>;
     if (message.synthetic || isNudge(message)) return null;
     return <>{showTime && <ConversationTime timestamp={message.timestamp} />}<UserMessage message={message} index={index} /></>;
   }

@@ -40,13 +40,13 @@ function outcome(report: DeliveredReport): string {
 	return translate("subAgentReturn.done");
 }
 
-export function DeliveryRow({ delivery }: { delivery: DeliveredReport[] }) {
+export function DeliveryRow({ delivery, steered }: { delivery: DeliveredReport[]; steered?: boolean }) {
 	const jobs = delivery.filter((report) => report.kind === "job");
 	const sessions = delivery.filter((report) => report.kind === "session");
 	const agents = delivery.filter((report) => report.kind === undefined);
 	return (
 		<>
-			{agents.length > 0 && <AgentDelivery delivery={agents} />}
+			{agents.length > 0 && <AgentDelivery delivery={agents} steered={steered} />}
 			{jobs.length > 0 && <JobDelivery jobs={jobs} />}
 			{sessions.map((report) => (
 				<SessionDelivery key={report.id} report={report} />
@@ -126,7 +126,7 @@ function JobDelivery({ jobs }: { jobs: DeliveredReport[] }) {
  * 一段。这一行说的是「下面这段话是因为谁回来了」，所以和来信、后台命令同一个骨架，不是一颗按钮：
  * 从前它是一颗带底色的胶囊，一轮里回来三个就是三颗，比主智能体自己的话还显眼。
  */
-function AgentDelivery({ delivery }: { delivery: DeliveredReport[] }) {
+function AgentDelivery({ delivery, steered }: { delivery: DeliveredReport[]; steered?: boolean }) {
 	const { t } = useI18n();
 	const avatarOf = useAgentAvatars();
 	const sessionId = useScopedSessionId();
@@ -137,9 +137,14 @@ function AgentDelivery({ delivery }: { delivery: DeliveredReport[] }) {
 	return (
 		/*
 		 * 题注贴着它引出的那段话：转录里行与行之间是 10px（`data-ly-transcript-rows` 的 `gap-2.5`），
-		 * 往下收 6px，字到字剩 4px。上面不加：上一段回复底下那排操作（悬停才显示）已经隔开了。
+		 * 往下收 6px，字到字剩 4px。
+		 *
+		 * 上面那段空白要自己出，除非前面是上一轮的结尾。叫醒会话的送达开新一轮，上一轮收尾那句话底下
+		 * 有一排悬停才显示的操作（24px，`-mt-1.5`），看不见但占着位置，字到题注 38px；再加就叠成两段空。
+		 * 一轮中间到达的（`steered`）收在过程里，上面是工具行、没有那排操作，只剩 10px，和工具行挤成
+		 * 一串——这里补 28px 凑齐同一个 38px。
 		 */
-		<div className="-mb-1.5" data-delivery-row="" data-delivery-kind="agent" data-ly-avatar-host="">
+		<div className={steered ? "mt-7 -mb-1.5" : "-mb-1.5"} data-delivery-row="" data-delivery-kind="agent" data-ly-avatar-host="">
 			<FlowRow
 				icon={one ? (
 					<AgentAvatar avatar={avatarOf(one.agent)} size={14} mood={moodOf(one)} seed={one.agent} host="[data-ly-avatar-host]" />
