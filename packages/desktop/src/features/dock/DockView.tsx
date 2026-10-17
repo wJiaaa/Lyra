@@ -338,16 +338,22 @@ export function DockView({
 		if (!folded && dock.maximized[scope]) dock.restore(scope);
 		dock.setTabsCollapsed(!folded);
 	};
-	const foldButton = canFold && tab && !folded ? (
+	// 收着时也挂着：面板照展开时的样子滑出去，少了它旁边两颗会先原地往右跳一格。收着的面板 `[inert]`，点不到。
+	const foldButton = canFold && tab ? (
 		<ToolbarButton label={translate("pane.hideColumn")} onClick={toggleColumn} active>
 			<Columns2 size={15} strokeWidth={1.8} />
 		</ToolbarButton>
 	) : undefined;
 	// 正被关掉的那一下不给：滑完右栏就没了，这颗开关只会闪一下。
+	// 外层那一格的宽度由 `column-slide.ts` 跟着右栏补间；贴右对齐，长出来时按钮像是从右栏边上露出来。
 	const unfoldButton = folded && !closing ? (
-		<ToolbarButton label={translate("pane.showColumn")} onClick={toggleColumn}>
-			<Columns2 size={15} strokeWidth={1.8} />
-		</ToolbarButton>
+		<span data-dock-unfold className="flex shrink-0 justify-end">
+			<span className="flex shrink-0">
+				<ToolbarButton label={translate("pane.showColumn")} onClick={toggleColumn}>
+					<Columns2 size={15} strokeWidth={1.8} />
+				</ToolbarButton>
+			</span>
+		</span>
 	) : undefined;
 
 	return (

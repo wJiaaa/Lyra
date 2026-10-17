@@ -38,6 +38,24 @@ import type { PaneKind } from "./tree.ts";
 /** `NavPane` 的 Tailwind `ease-out`：两边同一条曲线。 */
 const EASE_OUT = "cubic-bezier(0, 0, 0.2, 1)";
 
+/** 会话标题栏末尾那颗「展开右栏」按钮（`DockView` 的 `data-dock-unfold`）占的地方。 */
+interface Tail {
+	holder: HTMLElement;
+	/** 装它的那一排按钮。按钮卸掉了这一排还在，展开时在它右边垫出同样宽的空。 */
+	row: HTMLElement;
+	/** 按钮本身和它前面的间距。量里面那层：外面那层正被补间时宽度不作数。 */
+	width: number;
+	gap: number;
+}
+
+function tailIn(area: HTMLElement | null): Tail | null {
+	const holder = area?.querySelector<HTMLElement>("[data-dock-unfold]");
+	const row = holder?.parentElement;
+	if (!holder || !row) return null;
+	const width = (holder.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0;
+	return { holder, row, width, gap: Number.parseFloat(getComputedStyle(row).columnGap) || 0 };
+}
+
 export function useColumnSlide(
 	dock: RefObject<HTMLElement | null>,
 	scope: string,
@@ -49,7 +67,14 @@ export function useColumnSlide(
 	leaving: PaneKind | null,
 ): void {
 	const collapsed = usePaneDock((s) => s.tabsCollapsed);
-	const last = useRef({ scope, tab, folded, collapsed, leaving });
+	const last = useRef<{ scope: string; tab: PaneKind | null; folded: boolean; collapsed: boolean; leaving: PaneKind | null; tail: Tail | null }>({
+		scope,
+		tab,
+		folded,
+		collapsed,
+		leaving,
+		tail: null,
+	});
 	const motions = useRef<Animation[]>([]);
 	/** 上一段滑的是哪一格。接着画时只有同一格才从它眼下的位置接，换了一格的从起点来。 */
 	const slid = useRef<HTMLElement | null>(null);
@@ -64,7 +89,9 @@ export function useColumnSlide(
 	useLayoutEffect(() => () => settle.current(), []);
 	useLayoutEffect(() => {
 		const previous = last.current;
-		last.current = { scope, tab, folded, collapsed, leaving };
+		// 每一下都量：展开那一下按钮已经卸了，只能用收着时量到的。
+		const tail = tailIn(dock.current);
+		last.current = { scope, tab, folded, collapsed, leaving, tail };
 		const leaves = leaving !== null && leaving !== previous.leaving;
 		if (leaves) {
 			settle.current();
@@ -112,6 +139,20 @@ export function useColumnSlide(
 			options,
 		);
 		motions.current = [widen, slide];
+		/*
+		 * 「展开右栏」那颗按钮收起时一下就挂上了，对话那一格却还窄着，旁边几颗被挤得先往左跳一截，再随
+		 * 这一格往右走；展开时它一下就没了，那几颗先往右跳。让它占的那一段（按钮加前面的间距）跟着同一段
+		 * 进度长出来、缩回去，那几颗就一路贴着走。进度按对话的宽度折算，来回连点时也从眼下接着走。
+		 */
+		const progress = (from.width - narrow) / (room.width - narrow || 1);
+		if (folded && tail) {
+			// 比间距还窄的那一段，用负的左边距把间距也吃掉。
+			const taking = (space: number) => ({ width: `${Math.max(0, space - tail.gap)}px`, marginLeft: `${Math.min(0, space - tail.gap)}px`, overflow: "hidden" });
+			motions.current.push(tail.holder.animate([taking(progress * (tail.width + tail.gap)), taking(tail.width + tail.gap)], options));
+		} else if (!folded && previous.tail) {
+			const kept = progress * (previous.tail.width + previous.tail.gap);
+			motions.current.push(previous.tail.row.animate([{ marginRight: `${kept}px` }, { marginRight: "0px" }], options));
+		}
 		const inset = (share: number, sign: number) => `calc(${pct(share)} ${sign > 0 ? "+" : "-"} ${PANE_INSET * Math.abs(sign)}px)`;
 		area.style.setProperty("--ly-slide-left", inset(open.panel.left, 1));
 		area.style.setProperty("--ly-slide-top", inset(open.panel.top, 1));
