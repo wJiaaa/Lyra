@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SessionMeta } from "@plume/client-runtime";
-import { ago, bucketOf, groupSessions, visibleSessions } from "../src/sessions.ts";
+import { ago, bucketOf, groupSessions, projectLabel, visibleSessions } from "../src/sessions.ts";
 import { translate } from "../src/i18n.ts";
 
 test("会话筛选保持项目搜索、运行状态和归档隔离", () => {
@@ -33,4 +33,16 @@ test("相对时间：一小时内按分钟，今天按小时，更早给日期",
 	assert.deepEqual(ago(now - 5 * 60_000, now), { key: "minutesAgo", n: 5 });
 	assert.deepEqual(ago(now - 3 * 3_600_000, now), { key: "hoursAgo", n: 3 });
 	assert.equal(ago(new Date(2026, 9, 7, 15).getTime(), now).key, "date");
+});
+
+test("a session is called by its project's name now, and found by it", () => {
+	const projects = [{ id: "p-web", name: "前端" }];
+	const inProject = { id: "a", title: "改登录页", project: "p-web", projectName: "app" } as SessionMeta;
+	const onFolder = { id: "b", title: "看看日志", projectName: "app" } as SessionMeta;
+	const gone = { id: "c", title: "旧的", project: "p-removed", projectName: "app" } as SessionMeta;
+	assert.equal(projectLabel(projects, inProject), "前端");
+	assert.equal(projectLabel(projects, onFolder), "app", "no project: its folder");
+	assert.equal(projectLabel(projects, gone), "app", "a removed project: its folder");
+	const sessions = [inProject, onFolder].map((session) => ({ ...session, updatedAt: 1 }) as SessionMeta);
+	assert.deepEqual(visibleSessions(sessions, "前端", "all", [], projects).map((item) => item.id), ["a"]);
 });

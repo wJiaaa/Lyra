@@ -85,3 +85,28 @@ test("在工作树会话里点新对话：回到原项目，分支重新读，�
 	assert.equal(workspace?.branch, "main", "the project's own branch, read again");
 	assert.deepEqual(asked, ["/code/repo"]);
 });
+
+test("在项目里的工作树会话点新对话：新对话还在那个项目里，名字是项目现在的名字", async () => {
+	previous = useApp.getState();
+	info({ "/code/repo": "main" });
+	useApp.setState({
+		activeSessionId: "in-worktree",
+		meta: null,
+		loadingSession: true,
+		// Two projects can share /code/repo; only the id says this one is 前端.
+		workspace: { path: WORKTREE, name: "前端", projectId: "p-web", isGitRepo: true, branch: BRANCH, worktreeOf: "/code/repo" },
+		scratchCwd: null,
+	});
+	await act(async () => {
+		await useApp.getState().newSession();
+	});
+	assert.equal(useApp.getState().workspace?.name, "前端", "before git answers");
+	await act(async () => {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	});
+	const workspace = useApp.getState().workspace;
+	assert.equal(workspace?.path, "/code/repo");
+	assert.equal(workspace?.branch, "main");
+	assert.equal(workspace?.projectId, "p-web", "after git answers, still in the project");
+	assert.equal(workspace?.name, "前端");
+});

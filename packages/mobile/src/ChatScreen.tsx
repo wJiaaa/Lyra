@@ -18,6 +18,7 @@ import { latestTodos } from "./tools.ts";
 import { GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, styles, useTheme } from "./ui.tsx";
 import { avatar } from "./avatar.ts";
 import type { T } from "./i18n.ts";
+import { projectLabel } from "./sessions.ts";
 
 type ScrollNode = { addEventListener(type: string, listener: () => void, options?: { passive: boolean }): void; removeEventListener(type: string, listener: () => void): void };
 
@@ -108,6 +109,7 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 	const session = state.session;
 	const online = state.status === "connected";
 	const model = state.bootstrap?.models.find((entry) => entry.id === session?.meta.modelId);
+	const project = session ? projectLabel(state.bootstrap?.projects ?? [], session.meta) : "";
 	const visible = useMemo(() => session?.messages.filter((message) => message.role !== "user" || !message.synthetic || message.delivery || message.peer) ?? [], [session?.messages]);
 	const running = !!session?.running;
 	const answering = useAnswering(visible);
@@ -146,8 +148,8 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 	function bottom(animated: boolean) { (list.current?.getNativeScrollRef() as ScrollView | null | undefined)?.scrollToEnd({ animated }); }
 	function toEnd() { follow.current = true; setFollowing(true); bottom(true); }
 	const subtitle = <View style={[styles.row, { gap: 5, marginTop: 1 }]}>
-		{online ? <ProjectMark name={session?.meta.projectName} size={12} /> : <StatusDot status={state.status} size={6} />}
-		<Text numberOfLines={1} style={{ color: theme.muted, fontSize: 12, flexShrink: 1 }}>{online ? session?.meta.projectName || t("scratch") : t(state.status)}</Text>
+		{online ? <ProjectMark name={project} size={12} /> : <StatusDot status={state.status} size={6} />}
+		<Text numberOfLines={1} style={{ color: theme.muted, fontSize: 12, flexShrink: 1 }}>{online ? project || t("scratch") : t(state.status)}</Text>
 	</View>;
 	// KeyboardAvoidingView 拿自己 onLayout 的 y（相对父级）去减键盘的屏幕坐标；这一页在 App 的 SafeAreaView
 	// 里，从顶部安全区下沿才开始，不补这一段，垫高就少一个刘海，输入框下半截压在键盘后面。

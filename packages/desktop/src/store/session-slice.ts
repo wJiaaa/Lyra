@@ -126,7 +126,9 @@ export function sessionSlice(set: Set, get: Get) {
       const project = left.worktreeOf;
       void bridge.workspace.info(project).then(
         (workspace) => {
-          if (workspace && !get().activeSessionId && get().workspace?.path === project) set({ workspace });
+          const current = get().workspace;
+          // Git knows the branch, not the project: two projects can share this folder, and only the id says which.
+          if (workspace && !get().activeSessionId && current?.path === project) set({ workspace: { ...workspace, name: current.name, ...(current.projectId ? { projectId: current.projectId } : {}) } });
         },
         () => {},
       );

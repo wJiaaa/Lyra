@@ -66,7 +66,8 @@ export function ScheduledView() {
 				{
 					id,
 					name: t("scheduled.newTask"),
-					cwd: workspace?.path ?? "",
+					// The project's folder, not the worktree one conversation was given: that copy goes away.
+					cwd: workspace?.worktreeOf ?? workspace?.path ?? "",
 					...(workspace?.projectId ? { project: workspace.projectId } : {}),
 					prompt: t("scheduled.samplePrompt"),
 					schedule: { kind: "daily", time: "09:00" },

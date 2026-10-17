@@ -41,5 +41,6 @@ export function worktreeWorkspace(workspace: WorkspaceInfo, project: string): Wo
 export function projectWorkspace(workspace: WorkspaceInfo): WorkspaceInfo {
 	if (!workspace.worktreeOf) return workspace;
 	const { worktreeOf, ...rest } = workspace;
-	return { ...rest, path: worktreeOf, name: baseName(worktreeOf) || workspace.name, branch: null };
+	// The name is already the project's (`worktreeWorkspace`, or the project's own name when it has one).
+	return { ...rest, path: worktreeOf, branch: null };
 }

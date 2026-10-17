@@ -5,7 +5,7 @@ import type { ClientState, RemoteClient, SessionMeta } from "@plume/client-runti
 import { NewSessionSheet } from "./NewSessionSheet.tsx";
 import { SessionActions } from "./SessionActions.tsx";
 import { Field, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, styles, useTheme } from "./ui.tsx";
-import { ago, groupSessions, visibleSessions } from "./sessions.ts";
+import { ago, groupSessions, projectLabel, visibleSessions } from "./sessions.ts";
 import type { T } from "./i18n.ts";
 
 type Filter = "all" | "running" | "archived";
@@ -18,12 +18,12 @@ function When({ time, now, t }: { time: number; now: number; t: T }) {
 }
 
 /** 一行三样：哪个项目、什么时候（跑着时换成蓝色「进行中」）、标题。不套卡片，行与行之间一条从文字起头的发丝线。 */
-function Row({ item, running, now, onOpen, onHold, t }: { item: SessionMeta; running: boolean; now: number; onOpen(): void; onHold(): void; t: T }) {
+function Row({ item, project, running, now, onOpen, onHold, t }: { item: SessionMeta; project: string; running: boolean; now: number; onOpen(): void; onHold(): void; t: T }) {
 	const theme = useTheme();
 	return <Pressable accessibilityRole="button" accessibilityLabel={item.title || t("newSession")} onPress={onOpen} onLongPress={onHold} delayLongPress={350} style={({ pressed }) => ({ paddingHorizontal: 20, paddingVertical: 11, gap: 4, backgroundColor: pressed ? theme.grouped : "transparent" })}>
 		<View style={[styles.row, { gap: 7 }]}>
-			<ProjectMark name={item.projectName} size={16} />
-			<Text numberOfLines={1} style={{ flex: 1, color: theme.muted, fontSize: 13, fontWeight: "500" }}>{item.projectName || t("scratch")}</Text>
+			<ProjectMark name={project} size={16} />
+			<Text numberOfLines={1} style={{ flex: 1, color: theme.muted, fontSize: 13, fontWeight: "500" }}>{project || t("scratch")}</Text>
 			{/* 借连接中的那圈呼吸光：在跑的会话点是活的，和「已连接」那种静止的绿点区分开。 */}
 			{running ? <View style={[styles.row, { gap: 6 }]}><StatusDot status="connecting" color={theme.accent} size={6} /><Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>{t("running")}</Text></View> : <When time={item.updatedAt} now={now} t={t} />}
 		</View>
@@ -42,7 +42,7 @@ export function SessionsScreen({ state, client, onSettings, onOpen, onCreated, e
 	const running = useMemo(() => state.bootstrap?.runningSessionIds ?? [], [state.bootstrap?.runningSessionIds]);
 	const online = state.status === "connected";
 	const now = Date.now();
-	const sections = useMemo(() => groupSessions(visibleSessions(state.bootstrap?.sessions ?? [], query, filter, running), Date.now()).map((group) => ({ title: group.bucket, data: group.items })), [state.bootstrap?.sessions, query, filter, running]);
+	const sections = useMemo(() => groupSessions(visibleSessions(state.bootstrap?.sessions ?? [], query, filter, running, state.bootstrap?.projects), Date.now()).map((group) => ({ title: group.bucket, data: group.items })), [state.bootstrap?.sessions, state.bootstrap?.projects, query, filter, running]);
 	const desktop = state.bootstrap?.name;
 	const canCreate = online && !!state.bootstrap;
 	return <View style={styles.page}>
@@ -81,7 +81,7 @@ export function SessionsScreen({ state, client, onSettings, onOpen, onCreated, e
 				<View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.line }} />
 			</View>}
 			ItemSeparatorComponent={() => <View style={{ marginLeft: 43, height: StyleSheet.hairlineWidth, backgroundColor: theme.line }} />}
-			renderItem={({ item }) => <Row item={item} running={running.includes(item.id)} now={now} onOpen={() => onOpen(item.id)} onHold={() => setHeld(item)} t={t} />}
+			renderItem={({ item }) => <Row item={item} project={projectLabel(state.bootstrap?.projects ?? [], item)} running={running.includes(item.id)} now={now} onOpen={() => onOpen(item.id)} onHold={() => setHeld(item)} t={t} />}
 			ListEmptyComponent={<View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 8 }}>
 				<Txt kind="heading" tone="strong" style={{ fontSize: 20, lineHeight: 26, fontWeight: "700" }}>{t(query || filter !== "all" ? "noResults" : "empty")}</Txt>
 				{!query && filter === "all" && <>

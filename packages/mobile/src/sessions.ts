@@ -1,10 +1,20 @@
 import type { SessionMeta } from "@plume/client-runtime";
 
-export function visibleSessions(sessions: SessionMeta[], query: string, filter: "all" | "running" | "archived", running: string[]): SessionMeta[] {
+type Projects = readonly { id: string; name: string }[];
+
+/**
+ * 会话所在的项目现在叫什么。读项目列表里的名字，不读建会话时记下的文件夹名（`projectName`）：改过名的项目、
+ * 两个都叫 app 的项目，手机上和桌面上要是同一种说法。不在项目里的会话叫它的文件夹名。
+ */
+export function projectLabel(projects: Projects, session: Pick<SessionMeta, "project" | "projectName">): string {
+	return (session.project ? projects.find((project) => project.id === session.project)?.name : undefined) ?? session.projectName;
+}
+
+export function visibleSessions(sessions: SessionMeta[], query: string, filter: "all" | "running" | "archived", running: string[], projects: Projects = []): SessionMeta[] {
 	const search = query.trim().toLocaleLowerCase();
 	return sessions.filter((session) => filter === "archived" ? session.archived : !session.archived)
 		.filter((session) => filter !== "running" || running.includes(session.id))
-		.filter((session) => `${session.title} ${session.projectName}`.toLocaleLowerCase().includes(search))
+		.filter((session) => `${session.title} ${projectLabel(projects, session)}`.toLocaleLowerCase().includes(search))
 		.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
