@@ -163,7 +163,6 @@ export function SessionMenu({
 							<MenuItem
 								key={p.id}
 								icon={<Folder size={13} strokeWidth={1.8} />}
-								title={p.path}
 								hint={isCurrent ? t("sessionMenu.currentProject") : undefined}
 								disabled={isCurrent}
 								onClick={() => {

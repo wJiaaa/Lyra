@@ -27,6 +27,8 @@ import { startProjectSession } from "../../store/project-session.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { ProjectCard } from "./ProjectCard.tsx";
+import { useSessionCard } from "./SessionCard.tsx";
 
 export function ProjectHead({
 	group,
@@ -40,6 +42,7 @@ export function ProjectHead({
 	const { compact } = useLayout();
 	const menu = usePopover();
 	const reorder = useSidebarReorderContext();
+	const card = useSessionCard();
 
 	return (
 		/* Same hover-owner arrangement as the session rows: the fill belongs to the row so
@@ -48,6 +51,10 @@ export function ProjectHead({
 			data-ly-project={group.name}
 			controls={hoverSlot(2)}
 			className="group/project rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+			// Only the row itself, and not mid-drag: its menu is a portal React counts as inside the row (see `SessionRow`).
+			onMouseEnter={(event) => { if (event.buttons === 0 && event.currentTarget.contains(event.target as Node)) card.bind.onMouseEnter(event); }}
+			onMouseLeave={card.bind.onMouseLeave}
+			onPointerDown={card.dismiss}
 			onPointerMove={(event) => {
 				if (reorder) {
 					const rect = event.currentTarget.getBoundingClientRect();
@@ -64,6 +71,7 @@ export function ProjectHead({
 			}}
 			onContextMenu={(event) => {
 				event.preventDefault();
+				card.dismiss();
 				// At the cursor: right-click acts on the row as a whole, so there is no one
 				// control for the menu to hang off.
 				menu.openAtPoint(event);
@@ -148,6 +156,7 @@ export function ProjectHead({
 			</HoverRowReveal>
 
 			{menu.open && <ProjectMenu anchor={menu.anchor} id={group.id} path={group.path} name={group.name} onClose={menu.close} />}
+			{card.anchor && <ProjectCard id={group.id} name={group.name} path={group.path} count={group.sessions.length} anchor={card.anchor} leaving={card.leaving} />}
 		</HoverRow>
 	);
 }

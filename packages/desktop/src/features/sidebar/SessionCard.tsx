@@ -58,7 +58,7 @@ const GAP = 8;
  * gets out of their way rather than trying to out-rank them: a menu holds it back for as long as it
  * is open, and a dialog's scrim leaves no row to hover in the first place. See `useSessionCard`.
  */
-const CARD_Z = 210;
+export const CARD_Z = 210;
 
 /** `2026-08-26 17:50`, or a relative day count for anything recent — whichever reads faster. */
 function when(at: number, locale: ResolvedUiLocale): string {
@@ -204,6 +204,31 @@ function Row({ icon, children, mono }: { icon: React.ReactNode; children: React.
 	);
 }
 
+/**
+ * Where a hover card goes beside its row.
+ *
+ * Placed after measuring, in a layout effect, so it is never painted at the wrong spot first.
+ *
+ * To the right of the row where there is room, and flipped to the left where there is not —
+ * the sidebar can be dragged wide enough that its right edge is most of the way across the
+ * window. Vertically it is clamped rather than flipped: a card that jumped above the pointer
+ * near the foot of a list would be harder to follow than one that simply stops travelling.
+ */
+export function useCardPlacement(anchor: DOMRect): { card: React.RefObject<HTMLDivElement | null>; at: { left: number; top: number } | null } {
+	const card = useRef<HTMLDivElement>(null);
+	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+	useLayoutEffect(() => {
+		const box = card.current?.getBoundingClientRect();
+		if (!box) return;
+		const right = anchor.right + GAP;
+		const left = right + box.width > window.innerWidth - GAP ? anchor.left - GAP - box.width : right;
+		// Kept under the window's toolbar as well as off the bottom edge: a tall card for a low row was pushed up over it.
+		const top = Math.max(chromeTop() + GAP, Math.min(Math.max(GAP, anchor.top - 6), window.innerHeight - box.height - GAP));
+		setAt({ left: Math.max(GAP, left), top });
+	}, [anchor]);
+	return { card, at };
+}
+
 export function SessionCard({
 	session,
 	anchor,
@@ -219,26 +244,7 @@ export function SessionCard({
 	leaving?: boolean;
 }) {
 	const { resolvedLocale } = useI18n();
-	const card = useRef<HTMLDivElement>(null);
-	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
-
-	/*
-	 * Placed after measuring, in a layout effect, so it is never painted at the wrong spot first.
-	 *
-	 * To the right of the row where there is room, and flipped to the left where there is not —
-	 * the sidebar can be dragged wide enough that its right edge is most of the way across the
-	 * window. Vertically it is clamped rather than flipped: a card that jumped above the pointer
-	 * near the foot of a list would be harder to follow than one that simply stops travelling.
-	 */
-	useLayoutEffect(() => {
-		const box = card.current?.getBoundingClientRect();
-		if (!box) return;
-		const right = anchor.right + GAP;
-		const left = right + box.width > window.innerWidth - GAP ? anchor.left - GAP - box.width : right;
-		// Kept under the window's toolbar as well as off the bottom edge: a tall card for a low row was pushed up over it.
-		const top = Math.max(chromeTop() + GAP, Math.min(Math.max(GAP, anchor.top - 6), window.innerHeight - box.height - GAP));
-		setAt({ left: Math.max(GAP, left), top });
-	}, [anchor]);
+	const { card, at } = useCardPlacement(anchor);
 
 	// 侧边聊天是自己的会话，花的不在 `usage` 里；总数连它们一起算才名副其实。
 	const spent: Spent = session.sideUsage ? plus(session.usage, session.sideUsage) : session.usage;

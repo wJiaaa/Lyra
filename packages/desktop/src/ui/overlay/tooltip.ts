@@ -266,18 +266,6 @@ function hideTooltipImmediate() {
 }
 
 /**
- * Whether an open menu is holding this tip back.
- *
- * Only what is outside it. The claim is there so a row beside the menu cannot float a bubble over it
- * on the way past; a tip on one of the menu's own rows is the menu's content, pointed at on purpose —
- * dialogs keep theirs for the same reason (`hover-layers`). Holding those back too left every one of
- * them dead: the project menu's full path on hover, the model menu's star.
- */
-function held(el: HTMLElement | null): boolean {
-	return hoverLayersSuppressed() && !el?.closest("[data-ly-popover]");
-}
-
-/**
  * Deliberately not shown on focus.
  *
  * Keyboard users get the accessible name from the label, and a bubble that appears while
@@ -287,15 +275,15 @@ export function installTooltips() {
 	document.addEventListener(
 		"pointerover",
 		(event) => {
+			if (hoverLayersSuppressed()) return;
 			const el = targetOf(event.target);
-			if (held(el)) return;
 			if (el === current) return;
 			hide();
 			if (!el) return;
 			current = el;
 			timer = window.setTimeout(() => {
 				// Still under the pointer, and still in the document, by the time the delay is up.
-				if (!held(el) && current === el && el.isConnected) place(el);
+				if (!hoverLayersSuppressed() && current === el && el.isConnected) place(el);
 			}, DELAY_MS);
 		},
 		true,

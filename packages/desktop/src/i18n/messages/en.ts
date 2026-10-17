@@ -2257,6 +2257,7 @@ export const en = {
 	"updateSection.checking": "Checking",
 	"updateSection.check": "Check for updates",
 	"updateSection.view": "See the update",
+	"projectCard.chats": { one: "{n} conversation", other: "{n} conversations" },
 	"sessionCard.yesterday": "yesterday",
 	"sessionCard.daysAgo": { one: "{n} day ago", other: "{n} days ago" },
 	"sessionCard.turns": "Turns",

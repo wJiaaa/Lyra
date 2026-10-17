@@ -2442,6 +2442,7 @@ export const zhCN = {
 	"updateSection.checking": "检查中",
 	"updateSection.check": "检查更新",
 	"updateSection.view": "查看更新",
+	"projectCard.chats": "{n} 个聊天",
 	"sessionCard.yesterday": "昨天",
 	"sessionCard.daysAgo": "{n} 天前",
 	"sessionCard.turns": "轮次",
