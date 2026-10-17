@@ -8,7 +8,7 @@
  */
 
 import type { SessionMeta } from "@plume/core";
-import { projectFolders } from "@plume/core/project-folders";
+import { claimedFolders } from "@plume/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
 import { isDescendantPath } from "./paths.ts";
 import { sessionHome } from "./session-home.ts";
@@ -109,7 +109,8 @@ export function groupSessions(
 	const owner = new Map<string, string>();
 	for (const project of projects) {
 		byPath.set(project.path, { path: project.path, name: project.name, sessions: [] });
-		for (const folder of projectFolders(project)) if (folder !== project.path) owner.set(folder, project.path);
+		// A folder that is another project's own stays with that project; see `claimedFolders`.
+		for (const folder of claimedFolders(project, projects)) if (folder !== project.path) owner.set(folder, project.path);
 	}
 
 	const loose: SessionMeta[] = [];

@@ -13,7 +13,7 @@
 
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import { projectFolders } from "./project-folders.ts";
+import { claimedFolders, projectFolders } from "./project-folders.ts";
 import type { ProjectEntry } from "./settings.ts";
 
 /** The same containment rule `read-access.ts` uses: strict about the separator, so `p-old` ⊄ `p`. */
@@ -29,7 +29,9 @@ export function within(root: string, path: string): boolean {
  * it as well is saying those are two pieces of work, and a session in `api` should get `api`'s
  * folders rather than the wider ones it happens to sit inside. Depth is measured on the matched
  * folder, not on the entry's `path`, because the folder that matched is the one that makes the
- * claim.
+ * claim. Only folders the entry claims are matched (`claimedFolders`): a folder that is another
+ * project's main one belongs to that project, so a session there gets that project's set rather than
+ * whichever entry listing it as an extra happened to come first.
  *
  * Returns the whole set including the folder that matched. The caller already allows its own cwd,
  * so the overlap is free, and handing back "the project" rather than "the extra bits of it" is the
@@ -43,7 +45,7 @@ export function projectRootsFor(
 	let best: { depth: number; roots: string[] } | undefined;
 	for (const entry of projects) {
 		const folders = projectFolders(entry);
-		for (const folder of folders) {
+		for (const folder of claimedFolders(entry, projects)) {
 			if (!within(folder, cwd)) continue;
 			const depth = resolve(folder).split(sep).length;
 			if (!best || depth > best.depth) best = { depth, roots: folders };

@@ -14,7 +14,7 @@ import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
 import { sessionUnderProject } from "../lib/project-scope.ts";
 import { baseName } from "../lib/paths.ts";
-import { projectFolders } from "@plume/core/project-folders";
+import { claimedFolders } from "@plume/core/project-folders";
 import { sessionWorkspace } from "./session-workspace.ts";
 import { sessionHome } from "../lib/session-home.ts";
 
@@ -441,9 +441,11 @@ export function workspaceSlice(set: Set, get: Get) {
      * Archiving a project is "put this piece of work away", and the conversations in its second
      * source folder are part of that work — the sidebar already files them under this row. Leaving
      * them behind would archive the project and leave its chats sitting in 「最近」, which is the
-     * shape of 「删不掉」 all over again.
+     * shape of 「删不掉」 all over again. A folder that is another project's own is not part of this
+     * work, though — its chats are filed under that project and go when it does; see `claimedFolders`.
      */
-    const folders = projectFolders(get().settings?.projects.find((p) => p.path === path) ?? { path });
+    const projects = get().settings?.projects ?? [];
+    const folders = claimedFolders(projects.find((p) => p.path === path) ?? { path }, projects);
     const targets = get().sessions.filter((s) => sessionUnderProject(folders, sessionHome(s)) && !s.archived);
     if (targets.length === 0) return;
     set({

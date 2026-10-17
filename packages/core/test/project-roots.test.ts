@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
-import { projectFolders } from "../src/config/project-folders.ts";
+import { claimedFolders, projectFolders } from "../src/config/project-folders.ts";
 import { projectRootsFor } from "../src/config/project-roots.ts";
 import { buildSystemPrompt } from "../src/prompt/system.ts";
 import { buildTurnConfig } from "../src/runtime/turn-config.ts";
@@ -94,6 +94,20 @@ test("the innermost project wins when projects nest", () => {
 test("a shared name prefix is not containment", () => {
 	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${APP}-old`), []);
 	assert.deepEqual(projectRootsFor([entry(APP, [APP, API])], `${API}-old`), []);
+});
+
+/*
+ * An existing project added as an extra folder is read across into, not taken over.
+ *
+ * Its chats stay filed under it (the sidebar and archiving ask `claimedFolders`), and a session
+ * running there gets its own project's set — not whichever entry listing it as an extra came first.
+ */
+test("a folder that is another project's main one is not claimed by the project listing it", () => {
+	const projects = [entry(APP, [APP, API]), entry(API)];
+	assert.deepEqual(claimedFolders(projects[0], projects), [APP]);
+	assert.deepEqual(claimedFolders(projects[1], projects), [API]);
+	assert.deepEqual(projectRootsFor(projects, API), [API]);
+	assert.deepEqual(projectRootsFor(projects, APP), [APP, API]);
 });
 
 // ---------------------------------------------------------------- what it changes

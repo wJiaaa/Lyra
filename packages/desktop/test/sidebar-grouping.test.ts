@@ -323,6 +323,25 @@ test("名字只是前缀相同的邻居没被吃进来", () => {
 });
 
 /*
+ * 把一个已有项目加成附加文件夹，是「顺带读它」，不是「把它吞掉」。
+ *
+ * 之前 `owner` 不问这个文件夹是不是别人的主文件夹，于是 `/api` 项目原来的会话全被划到 `/app`
+ * 名下，`/api` 那一行空了。
+ */
+test("附加文件夹本身是另一个项目时，它的会话留在它自己那一行", () => {
+	const projects = [...multi, { path: "/api", name: "api", lastOpenedAt: 0 }];
+	const sessions = [session({ id: "in-app", cwd: "/app" }), session({ id: "in-api", cwd: "/api" })];
+	const { projects: rest } = groupSessions(sessions, projects, "");
+	assert.deepEqual(
+		rest.map((g) => [g.path, g.sessions.map((s) => s.id)]),
+		[
+			["/app", ["in-app"]],
+			["/api", ["in-api"]],
+		],
+	);
+});
+
+/*
  * 「移除项目」得真的把它从列表里去掉。
  *
  * `removeProject` 只把条目从 `settings.projects` 里滤掉，注释说这是「stop listing this, not

@@ -31,3 +31,17 @@ export function projectFolders(entry: ProjectLike): string[] {
 	const rest = (entry.folders ?? []).filter((folder) => folder && folder !== entry.path);
 	return [entry.path, ...new Set(rest)];
 }
+
+/**
+ * The folders whose conversations belong to this project: its own, minus any that is another
+ * project's main folder.
+ *
+ * Adding an existing project as an extra folder means "let me read across into it", not "absorb it".
+ * Treating every folder as owned filed the other project's chats under this one, left its own row
+ * empty, and archived them along with this project. Reading still covers every folder — this only
+ * answers "whose is it", which is `projectFolders` for the read boundary and the file tree.
+ */
+export function claimedFolders(entry: ProjectLike, projects: readonly ProjectLike[]): string[] {
+	const mains = new Set(projects.map((project) => project.path));
+	return projectFolders(entry).filter((folder) => folder === entry.path || !mains.has(folder));
+}
