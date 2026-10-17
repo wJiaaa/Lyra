@@ -90,23 +90,26 @@ export function ProjectGroup({
 				<ProjectHead group={{ ...group, sessions: withSpawned(group.sessions, spawned) }} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 
-			<Collapsible open={!collapsed}>
-				{/* The gap lives here rather than on the outer column, or a folded project would keep
-				    the space between rows it no longer has. */}
-				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
-					{/* 只包住行：展开显示按钮在外面，展开收起时才跟着下沿走（见 `useUnfold`）。 */}
-					<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-						<SessionRows sessions={visible} spawned={spawned} actions={actions} />
-					</div>
+			{/* 没有会话时整段不挂：下面那层的上内边距会让空项目展开比收起高出几像素。 */}
+			{group.sessions.length > 0 && (
+				<Collapsible open={!collapsed}>
+					{/* The gap lives here rather than on the outer column, or a folded project would keep
+					    the space between rows it no longer has. */}
+					<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
+						{/* 只包住行：展开显示按钮在外面，展开收起时才跟着下沿走（见 `useUnfold`）。 */}
+						<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
+							<SessionRows sessions={visible} spawned={spawned} actions={actions} />
+						</div>
 
-					<ShowMore
-						hidden={hidden}
-						canCollapse={canCollapse}
-						onShowMore={unfold.unfold(onShowMore)}
-						onCollapse={unfold.fold(COLLAPSED_SESSION_COUNT, onCollapse)}
-					/>
-				</div>
-			</Collapsible>
+						<ShowMore
+							hidden={hidden}
+							canCollapse={canCollapse}
+							onShowMore={unfold.unfold(onShowMore)}
+							onCollapse={unfold.fold(COLLAPSED_SESSION_COUNT, onCollapse)}
+						/>
+					</div>
+				</Collapsible>
+			)}
 		</div>
 	);
 }
