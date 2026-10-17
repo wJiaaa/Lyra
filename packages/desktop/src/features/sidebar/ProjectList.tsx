@@ -17,7 +17,6 @@ import type { RowActions } from "./SessionRow.tsx";
 import { SessionRows } from "./SessionRows.tsx";
 import { useSidebarReorder } from "./useSidebarReorder.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
-import { pathHints } from "../../lib/project-identity.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { CarriedPill } from "./DropIndicator.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -49,7 +48,7 @@ export function ProjectList({
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
-	groupProps: (key: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "spawned" | "pathHint">;
+	groupProps: (key: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "spawned">;
 	actions: RowActions;
 	onReordered?: () => void;
 	sort: SortKey;
@@ -68,7 +67,6 @@ export function ProjectList({
 	const [creating, setCreating] = useState(false);
 	const pinnedShut = collapsed.includes(PINNED);
 	// Names are labels, not keys: two projects called `app` each say which folder they are.
-	const hints = pathHints(groups.projects);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
 	if (!hasPinned && groups.projects.length === 0 && groups.loose.length === 0) {
@@ -132,7 +130,7 @@ export function ProjectList({
 					</SectionLabel>
 					<Collapsible open={!collapsed.includes(PROJECTS)}>
 						{groups.projects.map((group) => (
-							<ProjectGroup key={group.id} group={group} spawned={groups.spawned} pathHint={hints.get(group.id)} {...groupProps(group.id)} />
+							<ProjectGroup key={group.id} group={group} spawned={groups.spawned} {...groupProps(group.id)} />
 						))}
 					</Collapsible>
 				</>

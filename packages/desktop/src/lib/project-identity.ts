@@ -8,41 +8,6 @@
  */
 
 import type { ProjectEntry, SessionMeta } from "@plume/core";
-import { baseName, dirName } from "./paths.ts";
-
-/**
- * What to show beside a name another project also has, so a list can tell the two apart.
- *
- * The end of the parent path, as few folders as it takes: `~/work/a/app` and `~/work/b/app` read
- * `a` and `b`. The whole path was tried first, and in a sidebar or a menu both rows read
- * `~/work/…`, cut off right where they differ. Names nobody else has get nothing — a list where
- * every row carried its folder would be a list of paths.
- *
- * Only the folders that differ are compared. Two projects on one folder under one name are something
- * a path cannot tell apart: comparing them read back to the root and hung the same whole parent path
- * on both rows. They get nothing, and the folder they share reads once beside the others. Folders
- * whose own names differ (`~/x/a`, `~/x/b`) are told apart by those names, not by the parent they share.
- */
-export function pathHints<T extends Pick<ProjectEntry, "id" | "name" | "path">>(projects: readonly T[]): Map<string, string> {
-	const byName = new Map<string, T[]>();
-	for (const project of projects) byName.set(project.name, [...(byName.get(project.name) ?? []), project]);
-	const hints = new Map<string, string>();
-	for (const same of byName.values()) {
-		const paths = [...new Set(same.map((project) => project.path))];
-		if (paths.length < 2) continue;
-		const sameBase = new Set(paths.map(baseName)).size === 1;
-		const segments = paths.map((path) => (sameBase ? dirName(path) : path).split(/[/\\]/).filter(Boolean));
-		const longest = Math.max(...segments.map((parts) => parts.length));
-		for (let depth = 1; depth <= Math.max(longest, 1); depth++) {
-			const tails = segments.map((parts) => parts.slice(-depth).join("/") || "/");
-			if (new Set(tails).size < tails.length && depth < longest) continue;
-			const byPath = new Map(paths.map((path, index) => [path, tails[index]]));
-			for (const project of same) hints.set(project.id, byPath.get(project.path) ?? "");
-			break;
-		}
-	}
-	return hints;
-}
 
 /** The project a conversation records, while that project is still on the list. */
 export function sessionProject<T extends Pick<ProjectEntry, "id">>(projects: readonly T[], session: Pick<SessionMeta, "project">): T | undefined {

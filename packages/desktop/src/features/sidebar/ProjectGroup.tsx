@@ -36,7 +36,6 @@ export const SESSION_PAGE = COLLAPSED_SESSION_COUNT;
 export function ProjectGroup({
 	group,
 	spawned,
-	pathHint,
 	shown,
 	collapsed,
 	onToggleCollapsed,
@@ -47,8 +46,6 @@ export function ProjectGroup({
 	group: Group;
 	/** Conversations started from a suggestion, drawn under their parent; see `nestSpawned`. */
 	spawned: Record<string, SessionMeta[]>;
-	/** Where it is, shown beside the name when another project has the same one; see `pathHints`. */
-	pathHint?: string;
 	/** How many rows this group is currently showing. */
 	shown: number;
 	/** Folded shut, hiding its sessions. Remembered across launches. */
@@ -90,7 +87,7 @@ export function ProjectGroup({
 			 */}
 			<div data-ly-head className="sticky top-[var(--ly-rail)] z-20">
 				{/* Folded, the head sums up every conversation in the project, the nested ones too. */}
-				<ProjectHead group={{ ...group, sessions: withSpawned(group.sessions, spawned) }} pathHint={pathHint} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
+				<ProjectHead group={{ ...group, sessions: withSpawned(group.sessions, spawned) }} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 
 			<Collapsible open={!collapsed}>

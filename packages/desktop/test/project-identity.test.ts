@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { folderChoiceName, onePerFolder, pathHints, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
+import { folderChoiceName, onePerFolder, projectLabel, projectSessions, sessionProject } from "../src/lib/project-identity.ts";
 
 const one = { id: "uuid-1", path: "/w/app", name: "app" };
 const two = { id: "uuid-2", path: "/w/app", name: "B" };
@@ -27,52 +27,6 @@ test("archiving a project takes the conversations that record it, wherever they 
 	const sessions = [at("a", "/w/app", one.id), at("b", "/w/app", two.id), at("c", "/elsewhere", one.id), at("d", "/w/app")];
 	assert.deepEqual(projectSessions(sessions, one.id).map((s) => s.id), ["a", "c"]);
 	assert.deepEqual(projectSessions(sessions, two.id).map((s) => s.id), ["b"]);
-});
-
-/*
- * 提示要落在不同的那一截上。整条路径显示时，两行都是 `~/work/…`，正好在分叉处被截断。
- */
-test("names that collide carry as much of their parent folder as tells them apart, and no more", () => {
-	const hints = pathHints([
-		{ id: "1", name: "app", path: "/Users/x/work/a/app" },
-		{ id: "2", name: "app", path: "/Users/x/work/b/app" },
-		{ id: "3", name: "api", path: "/Users/x/work/api" },
-	]);
-	assert.deepEqual([...hints], [["1", "a"], ["2", "b"]]);
-});
-
-test("the hint reads further back only when the nearest folders are the same", () => {
-	const hints = pathHints([
-		{ id: "1", name: "app", path: "/one/src/app" },
-		{ id: "2", name: "app", path: "/two/src/app" },
-	]);
-	assert.deepEqual([...hints], [["1", "one/src"], ["2", "two/src"]]);
-});
-
-// Read back to the root, the same folder only ever hung its whole parent path on both rows.
-test("two projects on one folder under one name get no hint: a path cannot tell them apart", () => {
-	const hints = pathHints([
-		{ id: "1", name: "app", path: "/Users/x/work/app" },
-		{ id: "2", name: "app", path: "/Users/x/work/app" },
-	]);
-	assert.deepEqual([...hints], []);
-});
-
-test("the folder two namesakes share reads once beside a third elsewhere", () => {
-	const hints = pathHints([
-		{ id: "1", name: "app", path: "/Users/x/work/app" },
-		{ id: "2", name: "app", path: "/Users/x/work/app" },
-		{ id: "3", name: "app", path: "/Users/x/home/app" },
-	]);
-	assert.deepEqual([...hints], [["1", "work"], ["2", "work"], ["3", "home"]]);
-});
-
-test("folders side by side are told apart by their own names, not the parent they share", () => {
-	const hints = pathHints([
-		{ id: "1", name: "web", path: "/Users/x/work/a" },
-		{ id: "2", name: "web", path: "/Users/x/work/b" },
-	]);
-	assert.deepEqual([...hints], [["1", "a"], ["2", "b"]]);
 });
 
 test("a choice about the folder lists each folder once", () => {

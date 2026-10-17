@@ -7,7 +7,6 @@ import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { useListedProjects } from "../../store/listed-projects.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { pathHints } from "../../lib/project-identity.ts";
 
 /**
  * Project switcher, anchored to whatever opened it.
@@ -31,8 +30,6 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 	const projects = listed.filter(
 		(p) => !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.path.includes(query),
 	);
-	// Over the whole list, not the filtered one: a name is shared whether or not the search shows both.
-	const hints = pathHints(listed);
 	// Which project the tick goes on. A folder opened on its own is no project, so nothing is ticked.
 	const current = workspace?.projectId ?? null;
 
@@ -84,7 +81,6 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 						key={project.id}
 						icon={<Folder size={13} strokeWidth={1.8} />}
 						title={project.path}
-						detail={hints.get(project.id)}
 						selected={current === project.id}
 						trailing={
 							current === project.id ? (

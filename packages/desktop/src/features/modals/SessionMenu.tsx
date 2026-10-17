@@ -28,7 +28,7 @@ import { bridge } from "../../services/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
-import { pathHints, sessionProject } from "../../lib/project-identity.ts";
+import { sessionProject } from "../../lib/project-identity.ts";
 import { prefetchDeleteQuestion } from "./delete-session.tsx";
 
 export function SessionMenu({
@@ -97,7 +97,6 @@ export function SessionMenu({
 	const projects = settings?.projects ?? [];
 	// The project it is filed under — by id, since another project may share its folder.
 	const current = sessionProject(projects, session);
-	const hints = pathHints(projects);
 	const copy = async (text: string | Promise<string>, done: string) => {
 		onClose();
 		await navigator.clipboard.writeText(await text);
@@ -164,7 +163,7 @@ export function SessionMenu({
 							<MenuItem
 								key={p.id}
 								icon={<Folder size={13} strokeWidth={1.8} />}
-								detail={hints.get(p.id)}
+								title={p.path}
 								hint={isCurrent ? t("sessionMenu.currentProject") : undefined}
 								disabled={isCurrent}
 								onClick={() => {

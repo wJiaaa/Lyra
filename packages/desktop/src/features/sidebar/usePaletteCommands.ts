@@ -12,7 +12,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import type { PaletteEntry } from "../../lib/palette.ts";
 import { isScratch, listableSessions } from "../../lib/sidebar-grouping.ts";
-import { pathHints, projectLabel } from "../../lib/project-identity.ts";
+import { projectLabel } from "../../lib/project-identity.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useListedProjects } from "../../store/listed-projects.ts";
@@ -104,8 +104,6 @@ export function usePaletteCommands({
 	);
 
 	const groups = useMemo((): PaletteGroup[] => {
-		// Names are labels, not keys: two projects called `app` say which folder they are.
-		const hints = pathHints(projects);
 		const go = (view: Parameters<typeof setView>[0]) => () => {
 			setView(view);
 			dismissNav();
@@ -193,7 +191,7 @@ export function usePaletteCommands({
 				commands: [
 					...projects.map((project) => ({
 						id: `project:${project.id}`,
-						label: hints.has(project.id) ? `${project.name} · ${hints.get(project.id)}` : project.name,
+						label: project.name,
 						meta: t("projectHead.newSession"),
 						icon: icon(FolderOpen),
 						run: () => {
